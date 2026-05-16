@@ -8,11 +8,28 @@ datasource db {
 }
 
 model List {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   storeSlug String
   name      String
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
   userId    String?
+  items     ListItem[]
 
   @@map("lists")
+}
+
+model ListItem {
+  id          String   @id @default(uuid())
+  listId      String
+  productId   String
+  productName String
+  imageUrl    String
+  regularPrice Decimal
+  loyaltyPrice Decimal?
+  quantity    Int      @default(1)
+  isChecked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@map("list_items")
 }

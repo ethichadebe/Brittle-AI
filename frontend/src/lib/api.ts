@@ -1,4 +1,4 @@
-import type { GroceryList, StoreSlug } from "@accucery/types";
+import type { GroceryList, ListItem, StoreSlug } from "@accucery/types";
 
 const BASE = "/api";
 
@@ -25,5 +25,25 @@ export const api = {
 
     delete: (id: string) =>
       request<void>(`/lists/${id}`, { method: "DELETE" }),
+  },
+
+  items: {
+    list: (listId: string) =>
+      request<{ items: ListItem[] }>(`/lists/${listId}/items`).then((r) => r.items),
+
+    add: (listId: string, item: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice">) =>
+      request<ListItem>(`/lists/${listId}/items`, {
+        method: "POST",
+        body: JSON.stringify({ ...item, quantity: 1 }),
+      }),
+
+    patch: (listId: string, itemId: string, patch: Partial<Pick<ListItem, "quantity" | "isChecked">>) =>
+      request<ListItem>(`/lists/${listId}/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+
+    delete: (listId: string, itemId: string) =>
+      request<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" }),
   },
 };

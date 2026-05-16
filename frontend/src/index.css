@@ -209,4 +209,213 @@ body {
 }
 .btn-ghost { background: #f3f4f6; color: #374151; }
 .btn-primary { background: #00aaff; color: #fff; }
+.btn-danger { background: #ef4444; color: #fff; }
 .btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── List view header ── */
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #374151;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.list-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* ── Summary bar ── */
+.summary-bar {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.75rem 1rem;
+  gap: 0;
+}
+
+.summary-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  border-right: 1px solid #e5e7eb;
+  padding: 0 0.5rem;
+}
+
+.summary-cell:last-child { border-right: none; }
+
+.summary-cell--highlight .summary-value { color: #2563eb; font-weight: 700; }
+
+.summary-label { font-size: 0.65rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.04em; }
+.summary-value { font-size: 0.95rem; font-weight: 600; }
+
+/* ── Item list ── */
+.item-list {
+  list-style: none;
+  padding: 0 0 6rem;
+}
+
+.item-empty {
+  padding: 2rem 1.25rem;
+  color: #9ca3af;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.item-row--checked { background: #f9fafb; opacity: 0.6; }
+
+.item-row--swiping { background: #fff5f5; }
+
+.item-delete-reveal {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 64px;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: #f3f4f6;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.item-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.item-price { font-size: 0.8rem; color: #374151; }
+.item-loyalty-price { color: #7c3aed; font-weight: 600; }
+
+.item-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+}
+
+.qty-btn:hover { background: #f3f4f6; }
+
+.qty-value { font-size: 0.9rem; font-weight: 600; min-width: 18px; text-align: center; }
+
+.item-swipe-btn { color: #9ca3af; font-size: 1.1rem; }
+
+/* ── FAB ── */
+.fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.fab:active { transform: scale(0.93); }
+
+/* ── Search sheet ── */
+.search-sheet {
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 480px;
+  max-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.search-results {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.search-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+}
+
+.search-result-row:hover { background: #f9fafb; }

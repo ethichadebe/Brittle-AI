@@ -1,20 +1,7 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
+import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { listsRoutes } from "./routes/lists.js";
-import type { HealthResponse } from "@accucery/types";
 
-const app = Fastify({ logger: true });
-
-await app.register(cors, {
-  origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
-});
-
-app.get<{ Reply: HealthResponse }>("/health", async () => {
-  return { status: "ok" };
-});
-
-await app.register(listsRoutes);
+const app = await buildApp({ logger: true });
 
 app.addHook("onClose", async () => {
   await prisma.$disconnect();

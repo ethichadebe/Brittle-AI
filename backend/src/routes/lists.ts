@@ -7,6 +7,7 @@ export async function listsRoutes(app: FastifyInstance) {
   app.get<{ Reply: { lists: GroceryList[] } }>("/lists", async () => {
     const lists = await prisma.list.findMany({
       orderBy: { createdAt: "desc" },
+      include: { items: true },
     });
 
     return {
@@ -15,9 +16,11 @@ export async function listsRoutes(app: FastifyInstance) {
         storeSlug: l.storeSlug as StoreSlug,
         name: l.name,
         createdAt: l.createdAt.toISOString(),
-        // items not yet implemented — always 0 in this slice
-        itemCount: 0,
-        totalPrice: 0,
+        itemCount: l.items.length,
+        totalPrice: l.items.reduce(
+          (sum, item) => sum + item.regularPrice.toNumber() * item.quantity,
+          0
+        ),
       })),
     };
   });
