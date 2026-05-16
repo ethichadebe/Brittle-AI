@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
 import type { GroceryList, StoreSlug } from "@accucery/types";
 import { api } from "../lib/api";
+import { useAnimatedMount } from "../hooks/useAnimatedMount";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -12,6 +13,8 @@ function HomePage() {
   const navigate = useNavigate();
   const [lists, setLists] = useState<GroceryList[]>([]);
   const [creating, setCreating] = useState<StoreSlug | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const modal = useAnimatedMount(showModal);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -31,6 +34,12 @@ function HomePage() {
   const openCreate = (slug: StoreSlug) => {
     setCreating(slug);
     setNewName("");
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setTimeout(() => setCreating(null), 280);
   };
 
   const handleCreate = async () => {
@@ -39,7 +48,7 @@ function HomePage() {
     try {
       const list = await api.lists.create(creating, newName.trim());
       setLists((prev) => [list, ...prev]);
-      setCreating(null);
+      closeModal();
       void navigate({ to: "/lists/$listId", params: { listId: list.id } });
     } catch (e) {
       console.error(e);
@@ -57,7 +66,7 @@ function HomePage() {
   const storeName = STORE_CONFIGS.find((s) => s.slug === creating)?.name ?? "";
 
   return (
-    <>
+    <div className="page-fade-in">
       <header className="app-header">
         <h1>Accucery</h1>
       </header>
@@ -132,8 +141,11 @@ function HomePage() {
         })}
       </div>
 
-      {creating && (
-        <div className="modal-backdrop" onClick={() => setCreating(null)}>
+      {modal.rendered && (
+        <div
+          className={`modal-backdrop${modal.closing ? " modal-backdrop--closing" : ""}`}
+          onClick={closeModal}
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>New {storeName} list</h3>
             <input
@@ -145,7 +157,7 @@ function HomePage() {
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setCreating(null)}>
+              <button className="btn btn-ghost" onClick={closeModal}>
                 Cancel
               </button>
               <button
@@ -159,6 +171,6 @@ function HomePage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

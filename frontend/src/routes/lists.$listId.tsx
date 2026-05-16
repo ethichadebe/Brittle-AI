@@ -4,6 +4,7 @@ import type { ListItem, Product } from "@accucery/types";
 import { api } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { searchStub } from "../lib/stubProducts";
+import { useAnimatedMount } from "../hooks/useAnimatedMount";
 
 export const Route = createFileRoute("/lists/$listId")({
   component: ListPage,
@@ -15,16 +16,19 @@ function ListPage() {
   const [items, setItems] = useState<ListItem[]>([]);
   const [listName, setListName] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [query, setQuery] = useState("");
   const [swipingId, setSwipingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const useLoyalty = localStorage.getItem("loyalty-enabled") === "true";
   const summary = computeSummary(items, useLoyalty);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const search = useAnimatedMount(showSearch);
+  const confirm = useAnimatedMount(showConfirm);
+
   useEffect(() => {
     api.items.list(listId).then(setItems).catch(console.error);
-    // Fetch list name from lists endpoint
     api.lists.list().then((lists) => {
       const found = lists.find((l) => l.id === listId);
       if (found) setListName(found.name);
@@ -35,17 +39,20 @@ function ListPage() {
     if (showSearch) setTimeout(() => searchRef.current?.focus(), 50);
   }, [showSearch]);
 
+  const closeSearch = () => { setShowSearch(false); setQuery(""); };
+  const closeConfirm = () => { setShowConfirm(false); };
+
   const addItem = async (product: Product) => {
     const item = await api.items.add(listId, product);
     setItems((prev) => [...prev, item]);
-    setShowSearch(false);
-    setQuery("");
+    closeSearch();
   };
 
   const changeQty = async (item: ListItem, delta: number) => {
     const next = item.quantity + delta;
     if (next < 1) {
-      setConfirmDeleteId(item.id);
+      setPendingDeleteId(item.id);
+      setShowConfirm(true);
       return;
     }
     const updated = await api.items.patch(listId, item.id, { quantity: next });
@@ -60,17 +67,19 @@ function ListPage() {
   const deleteItem = async (id: string) => {
     await api.items.delete(listId, id);
     setItems((prev) => prev.filter((i) => i.id !== id));
-    setConfirmDeleteId(null);
+    closeConfirm();
     setSwipingId(null);
+    setPendingDeleteId(null);
   };
 
   const price = (item: ListItem) =>
     useLoyalty && item.loyaltyPrice !== null ? item.loyaltyPrice : item.regularPrice;
 
   const results = searchStub(query);
+  const pendingItem = items.find((i) => i.id === pendingDeleteId);
 
   return (
-    <>
+    <div className="page-slide-in">
       {/* Header */}
       <header className="list-header">
         <button className="btn-back" onClick={() => navigate({ to: "/" })}>‹</button>
@@ -103,11 +112,12 @@ function ListPage() {
           <li
             key={item.id}
             className={`item-row${item.isChecked ? " item-row--checked" : ""}${swipingId === item.id ? " item-row--swiping" : ""}`}
-            onTouchStart={() => setSwipingId(null)}
           >
-            {/* Swipe delete reveal */}
             {swipingId === item.id && (
-              <button className="item-delete-reveal" onClick={() => setConfirmDeleteId(item.id)}>
+              <button
+                className="item-delete-reveal"
+                onClick={() => { setPendingDeleteId(item.id); setShowConfirm(true); }}
+              >
                 🗑
               </button>
             )}
@@ -129,7 +139,10 @@ function ListPage() {
               <button className="qty-btn" onClick={() => changeQty(item, -1)}>−</button>
               <span className="qty-value">{item.quantity}</span>
               <button className="qty-btn" onClick={() => changeQty(item, 1)}>+</button>
-              <button className="btn-icon item-swipe-btn" onClick={() => setSwipingId(swipingId === item.id ? null : item.id)}>
+              <button
+                className="btn-icon item-swipe-btn"
+                onClick={() => setSwipingId(swipingId === item.id ? null : item.id)}
+              >
                 ⋮
               </button>
             </div>
@@ -140,25 +153,36 @@ function ListPage() {
       {/* FAB */}
       <button className="fab" onClick={() => setShowSearch(true)}>+</button>
 
-      {/* Delete confirmation */}
-      {confirmDeleteId && (
-        <div className="modal-backdrop" onClick={() => setConfirmDeleteId(null)}>
+      {/* Delete confirmation modal */}
+      {confirm.rendered && (
+        <div
+          className={`modal-backdrop${confirm.closing ? " modal-backdrop--closing" : ""}`}
+          onClick={closeConfirm}
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Remove item?</h3>
             <p style={{ margin: "0.5rem 0 1.25rem", color: "#6b7280", fontSize: "0.9rem" }}>
-              {items.find((i) => i.id === confirmDeleteId)?.productName}
+              {pendingItem?.productName}
             </p>
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={() => deleteItem(confirmDeleteId)}>Remove</button>
+              <button className="btn btn-ghost" onClick={closeConfirm}>Cancel</button>
+              <button
+                className="btn btn-danger"
+                onClick={() => pendingDeleteId && deleteItem(pendingDeleteId)}
+              >
+                Remove
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Search bottom sheet */}
-      {showSearch && (
-        <div className="modal-backdrop" onClick={() => { setShowSearch(false); setQuery(""); }}>
+      {search.rendered && (
+        <div
+          className={`modal-backdrop${search.closing ? " modal-backdrop--closing" : ""}`}
+          onClick={closeSearch}
+        >
           <div className="search-sheet" onClick={(e) => e.stopPropagation()}>
             <input
               ref={searchRef}
@@ -172,7 +196,11 @@ function ListPage() {
                 <li className="item-empty">No products found</li>
               )}
               {results.map((product) => (
-                <li key={product.productId} className="search-result-row" onClick={() => addItem(product)}>
+                <li
+                  key={product.productId}
+                  className="search-result-row"
+                  onClick={() => addItem(product)}
+                >
                   <img className="item-img" src={product.imageUrl} alt={product.name} />
                   <div className="item-info">
                     <span className="item-name">{product.name}</span>
@@ -189,6 +217,6 @@ function ListPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
