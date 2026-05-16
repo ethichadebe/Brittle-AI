@@ -1,3 +1,6 @@
+export type { StoreConfig } from "./stores.js";
+export { STORE_CONFIGS } from "./stores.js";
+
 // Store
 
 export type StoreSlug =
