@@ -1,0 +1,17 @@
+{
+  "name": "accucery",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w frontend\" \"npm run dev -w backend\"",
+    "build": "npm run build -w packages/types && npm run build -w frontend && npm run build -w backend",
+    "typecheck": "npm run typecheck -w packages/types && npm run typecheck -w frontend && npm run typecheck -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
