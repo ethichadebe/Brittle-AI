@@ -1,9 +1,11 @@
 import type { Product, StoreSlug } from "@accucery/types";
 import type { Scraper } from "./types.js";
 import { CheckersScraper } from "./checkers.js";
+import { PnpScraper } from "./pnp.js";
 
 const registry: Partial<Record<StoreSlug, Scraper>> = {
   checkers: new CheckersScraper(),
+  "pick-n-pay": new PnpScraper(),
 };
 
 export async function searchProducts(
