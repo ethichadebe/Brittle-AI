@@ -12,9 +12,19 @@ const BASE_HEADERS: Record<string, string> = {
   "Referer": "https://www.checkers.co.za/search",
 };
 
-function buildBody(query: string) {
+function parseStoreContexts(cookieStr: string): unknown[] {
+  const match = cookieStr.match(/(?:^|;\s*)storeContexts=([^;]*)/);
+  if (!match) return [];
+  try {
+    return JSON.parse(decodeURIComponent(match[1]));
+  } catch {
+    return [];
+  }
+}
+
+function buildBody(query: string, cookies: string) {
   return JSON.stringify({
-    storeContexts: [],
+    storeContexts: parseStoreContexts(cookies),
     filterData: {
       filter: {
         showAllDisplayVariants: false,
@@ -69,7 +79,7 @@ export class CheckersScraper implements Scraper {
     const res = await fetch(SEARCH_URL, {
       method: "POST",
       headers,
-      body: buildBody(query),
+      body: buildBody(query, cookies),
     });
     if (!res.ok) {
       throw new Error(`Checkers API returned ${res.status} ${res.statusText}`);
