@@ -1,7 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
 import type { FastifyInstance } from "fastify";
+
+vi.mock("../services/priceCache.js", () => ({
+  getCachedPrices: vi.fn().mockResolvedValue([]),
+  isFresh: vi.fn().mockReturnValue(true),
+  refreshInBackground: vi.fn(),
+  upsertCache: vi.fn().mockResolvedValue(undefined),
+}));
 
 let app: FastifyInstance;
 

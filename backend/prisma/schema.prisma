@@ -18,6 +18,18 @@ model List {
   @@map("lists")
 }
 
+model PriceCache {
+  storeSlug    String
+  productId    String
+  productName  String
+  regularPrice Decimal
+  loyaltyPrice Decimal?
+  scrapedAt    DateTime
+
+  @@id([storeSlug, productId])
+  @@map("price_cache")
+}
+
 model ListItem {
   id          String   @id @default(uuid())
   listId      String

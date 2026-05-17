@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import type { ListItem, StoreSlug } from "@accucery/types";
+import { getCachedPrices, isFresh, refreshInBackground, upsertCache } from "../services/priceCache.js";
 
 function toListItem(row: {
   id: string;
@@ -33,14 +34,41 @@ export async function listItemsRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string }; Reply: { items: ListItem[] } }>(
     "/lists/:id/items",
     async (req, reply) => {
-      const list = await prisma.list.findUnique({ where: { id: req.params.id } });
+      const list = await prisma.list.findUnique({
+        where: { id: req.params.id },
+        include: { items: { orderBy: { createdAt: "asc" } } },
+      });
       if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
-      const rows = await prisma.listItem.findMany({
-        where: { listId: req.params.id },
-        orderBy: { createdAt: "asc" },
+      const productIds = list.items.map((i) => i.productId);
+      const cached = await getCachedPrices(list.storeSlug, productIds);
+      const cacheMap = new Map(cached.map((c) => [c.productId, c]));
+
+      // Trigger background refresh for stale or missing cache entries
+      const needsRefresh = list.items.filter((item) => {
+        const c = cacheMap.get(item.productId);
+        return !c || !isFresh(c.scrapedAt);
       });
-      return { items: rows.map(toListItem) };
+      if (needsRefresh.length > 0) {
+        refreshInBackground(
+          list.storeSlug as StoreSlug,
+          needsRefresh.map((i) => ({ productId: i.productId, productName: i.productName }))
+        );
+      }
+
+      // Overlay cached prices onto items
+      const items = list.items.map((item) => {
+        const c = cacheMap.get(item.productId);
+        const base = toListItem(item);
+        if (!c) return base;
+        return {
+          ...base,
+          regularPrice: c.regularPrice.toNumber(),
+          loyaltyPrice: c.loyaltyPrice?.toNumber() ?? null,
+        };
+      });
+
+      return { items };
     }
   );
 
@@ -57,6 +85,16 @@ export async function listItemsRoutes(app: FastifyInstance) {
     const row = await prisma.listItem.create({
       data: { listId: req.params.id, productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity: quantity ?? 1 },
     });
+
+    // Populate cache immediately — prices are fresh from the scraper
+    await upsertCache({
+      storeSlug: list.storeSlug,
+      productId,
+      productName,
+      regularPrice: Number(regularPrice),
+      loyaltyPrice: loyaltyPrice != null ? Number(loyaltyPrice) : null,
+    });
+
     return reply.status(201).send(toListItem(row));
   });
 

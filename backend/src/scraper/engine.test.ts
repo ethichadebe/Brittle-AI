@@ -10,11 +10,11 @@ const milk: Product = {
   loyaltyPrice: 26.99,
 };
 
-vi.mock("./checkers.js", () => ({
-  CheckersScraper: class {
-    search = vi.fn();
-  },
-}));
+vi.mock("./checkers.js", () => {
+  class CheckersScraper {}
+  (CheckersScraper as any).prototype.search = vi.fn();
+  return { CheckersScraper };
+});
 
 describe("searchProducts (engine)", () => {
   it("returns empty array for unsupported store", async () => {
