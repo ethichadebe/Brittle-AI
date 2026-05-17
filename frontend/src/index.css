@@ -418,6 +418,24 @@ body {
 
 .fab:active { transform: scale(0.93); }
 
+/* ── Search overlay (always rendered, transitions in/out) ── */
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  transition: background 0.22s ease-out;
+}
+
+.search-overlay--open {
+  background: rgba(0,0,0,0.5);
+  pointer-events: auto;
+}
+
 /* ── Search sheet ── */
 .search-sheet {
   background: #fff;
@@ -429,11 +447,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  animation: slideUp 0.32s cubic-bezier(0.22,1,0.36,1) both;
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.22,1,0.36,1);
 }
 
-.modal-backdrop--closing .search-sheet {
-  animation: slideDown 0.26s cubic-bezier(0.55,0,1,0.45) both;
+.search-overlay--open .search-sheet {
+  transform: translateY(0);
 }
 
 .search-results {

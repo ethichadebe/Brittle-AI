@@ -33,7 +33,6 @@ function ListPage() {
   const animPriceToPay = useAnimatedNumber(summary.priceToPay);
   const animTotal = useAnimatedNumber(summary.total);
 
-  const search = useAnimatedMount(showSearch);
   const confirm = useAnimatedMount(showConfirm);
 
   useEffect(() => {
@@ -43,10 +42,6 @@ function ListPage() {
       if (found) { setListName(found.name); setStoreSlug(found.storeSlug); }
     });
   }, [listId]);
-
-  useEffect(() => {
-    if (showSearch) setTimeout(() => searchRef.current?.focus(), 50);
-  }, [showSearch]);
 
   useEffect(() => {
     if (!query.trim() || !storeSlug) { setSearchResults([]); return; }
@@ -186,7 +181,7 @@ function ListPage() {
       </ul>
 
       {/* FAB */}
-      <button className="fab" onClick={() => setShowSearch(true)}>+</button>
+      <button className="fab" onClick={() => { setShowSearch(true); searchRef.current?.focus(); }}>+</button>
     </div>
 
       {/* Delete confirmation modal — outside page-slide-in so position:fixed is viewport-relative */}
@@ -213,52 +208,50 @@ function ListPage() {
         </div>
       )}
 
-      {/* Search bottom sheet — outside page-slide-in so position:fixed is viewport-relative */}
-      {search.rendered && (
-        <div
-          className={`modal-backdrop${search.closing ? " modal-backdrop--closing" : ""}`}
-          onClick={closeSearch}
-        >
-          <div className="search-sheet" onClick={(e) => e.stopPropagation()}>
-            <input
-              ref={searchRef}
-              className="modal-input"
-              placeholder="Search products…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <ul className="search-results">
-              {searching && (
-                <li className="item-empty">Searching…</li>
-              )}
-              {!searching && query.trim() && searchResults.length === 0 && (
-                <li className="item-empty">No products found</li>
-              )}
-              {!searching && !query.trim() && (
-                <li className="item-empty">Type to search products</li>
-              )}
-              {searchResults.map((product) => (
-                <li
-                  key={product.productId}
-                  className="search-result-row"
-                  onClick={() => addItem(product)}
-                >
-                  <img className="item-img" src={imgSrc(product.imageUrl)} alt={product.name} />
-                  <div className="item-info">
-                    <span className="item-name">{product.name}</span>
-                    <span className="item-price">
-                      R {product.regularPrice.toFixed(2)}
-                      {product.loyaltyPrice !== null && (
-                        <span className="item-loyalty-price"> · R {product.loyaltyPrice.toFixed(2)}</span>
-                      )}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+      {/* Search bottom sheet — always rendered so the input is in the DOM for instant focus on mobile */}
+      <div
+        className={`search-overlay${showSearch ? " search-overlay--open" : ""}`}
+        onClick={closeSearch}
+      >
+        <div className="search-sheet" onClick={(e) => e.stopPropagation()}>
+          <input
+            ref={searchRef}
+            className="modal-input"
+            placeholder="Search products…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <ul className="search-results">
+            {searching && (
+              <li className="item-empty">Searching…</li>
+            )}
+            {!searching && query.trim() && searchResults.length === 0 && (
+              <li className="item-empty">No products found</li>
+            )}
+            {!searching && !query.trim() && (
+              <li className="item-empty">Type to search products</li>
+            )}
+            {searchResults.map((product) => (
+              <li
+                key={product.productId}
+                className="search-result-row"
+                onClick={() => addItem(product)}
+              >
+                <img className="item-img" src={imgSrc(product.imageUrl)} alt={product.name} />
+                <div className="item-info">
+                  <span className="item-name">{product.name}</span>
+                  <span className="item-price">
+                    R {product.regularPrice.toFixed(2)}
+                    {product.loyaltyPrice !== null && (
+                      <span className="item-loyalty-price"> · R {product.loyaltyPrice.toFixed(2)}</span>
+                    )}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
+      </div>
     </>
   );
 }
