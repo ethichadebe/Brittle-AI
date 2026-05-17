@@ -26,6 +26,13 @@ const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
       if (sc) {
         try { storeContexts = JSON.parse(decodeURIComponent(sc.value)); } catch { /**/ }
       }
+      // Fallback: homepage may not set storeContexts on a fresh VPS visit — use env cookie
+      if (!storeContexts.length) {
+        const envSc = (process.env.CHECKERS_COOKIES ?? "").match(/(?:^|;\s*)storeContexts=([^;]*)/);
+        if (envSc) {
+          try { storeContexts = JSON.parse(decodeURIComponent(envSc[1])); } catch { /**/ }
+        }
+      }
 
       const body = JSON.stringify({
         storeContexts,
@@ -110,7 +117,12 @@ export class PlaywrightScraper {
         json = await (await responsePromise).json();
       }
 
-      return strategy.parse(json);
+      const products = strategy.parse(json);
+      if (products.length === 0) {
+        const keys = json && typeof json === "object" ? Object.keys(json as object) : json;
+        console.warn(`[playwright:${store}] 0 products. Raw top-level keys:`, keys);
+      }
+      return products;
     } finally {
       await browser.close();
     }
