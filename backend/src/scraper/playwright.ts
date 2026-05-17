@@ -1,22 +1,69 @@
+import type { Page } from "playwright";
 import type { Product, StoreSlug } from "@accucery/types";
 import { normalise as parseCheckers } from "./checkers.js";
 import { normalise as parsePnp } from "./pnp.js";
 
+const CHECKERS_API = "https://www.checkers.co.za/api/catalogue/get-products-filter";
+
 interface Strategy {
   warmupUrl?: string;
-  searchUrl: (query: string) => string;
-  interceptsUrl: (url: string) => boolean;
+  // browser-side fetch: runs fetch() inside the page context (Checkers)
+  browserSearch?: (page: Page, query: string) => Promise<unknown>;
+  // navigation interception: navigate and intercept the XHR (PnP)
+  searchUrl?: (query: string) => string;
+  interceptsUrl?: (url: string) => boolean;
   parse: (json: unknown) => Product[];
 }
 
 const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
   checkers: {
-    // Visit homepage first so the WAF JS challenge runs and issues a token for this IP.
     warmupUrl: "https://www.checkers.co.za/",
-    searchUrl: (q) => `https://www.checkers.co.za/search?q=${encodeURIComponent(q)}`,
-    interceptsUrl: (url) => url.includes("get-products-filter"),
+    browserSearch: async (page, query) => {
+      // Read storeContexts cookie that the homepage sets
+      const cookies = await page.context().cookies("https://www.checkers.co.za");
+      const sc = cookies.find((c) => c.name === "storeContexts");
+      let storeContexts: unknown[] = [];
+      if (sc) {
+        try { storeContexts = JSON.parse(decodeURIComponent(sc.value)); } catch { /**/ }
+      }
+
+      const body = JSON.stringify({
+        storeContexts,
+        filterData: {
+          filter: {
+            showAllDisplayVariants: false,
+            showNotRangedProducts: false,
+            productListSource: { search: query },
+            paginationOptions: { page: 0, pageSize: 20 },
+            filterOptions: {
+              filterIds: [], dealsOnly: false, brandOptions: [],
+              departmentOptions: [], serviceOptions: [], facetOptions: [],
+            },
+            sortOptions: null,
+          },
+          displayOptions: { includeDisplayCategoryTree: false },
+        },
+        forYouBonusBuyIds: [],
+        url: null,
+      });
+
+      // page.evaluate runs inside Chrome — cookies auto-included, TLS fingerprint is Chrome's
+      return page.evaluate(
+        async ({ apiUrl, reqBody }) => {
+          const res = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "*/*" },
+            body: reqBody,
+          });
+          if (!res.ok) throw new Error(String(res.status));
+          return res.json();
+        },
+        { apiUrl: CHECKERS_API, reqBody: body }
+      );
+    },
     parse: parseCheckers,
   },
+
   "pick-n-pay": {
     searchUrl: (q) => `https://www.pnp.co.za/search/${encodeURIComponent(q)}`,
     interceptsUrl: (url) => url.includes("ac.cnstrc.com/search"),
@@ -48,13 +95,22 @@ export class PlaywrightScraper {
         await page.goto(strategy.warmupUrl, { waitUntil: "networkidle", timeout: 30000 });
       }
 
-      const responsePromise = page.waitForResponse(
-        (res) => strategy.interceptsUrl(res.url()),
-        { timeout: 45000 }
-      );
-      await page.goto(strategy.searchUrl(query), { waitUntil: "domcontentloaded", timeout: 30000 });
-      const response = await responsePromise;
-      return strategy.parse(await response.json());
+      let json: unknown;
+      if (strategy.browserSearch) {
+        json = await strategy.browserSearch(page, query);
+      } else {
+        const responsePromise = page.waitForResponse(
+          (res) => strategy.interceptsUrl!(res.url()),
+          { timeout: 45000 }
+        );
+        await page.goto(strategy.searchUrl!(query), {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        json = await (await responsePromise).json();
+      }
+
+      return strategy.parse(json);
     } finally {
       await browser.close();
     }
