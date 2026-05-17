@@ -70,13 +70,23 @@ export function normalise(raw: any): Product[] {
 
 export class CheckersScraper implements Scraper {
   async search(query: string): Promise<Product[]> {
-    // Cookies (especially aws-waf-token) are required for the WAF to pass the request.
-    // Set CHECKERS_COOKIES in your .env to your browser's cookie string for this domain.
     const cookies = process.env.CHECKERS_COOKIES ?? "";
-    const headers: Record<string, string> = { ...BASE_HEADERS };
-    if (cookies) headers["Cookie"] = cookies;
+    const scraperApiKey = process.env.SCRAPERAPI_KEY;
 
-    const res = await fetch(SEARCH_URL, {
+    const headers: Record<string, string> = { ...BASE_HEADERS };
+
+    let url: string;
+    if (scraperApiKey) {
+      // VPS datacenter IP is blocked by Checkers WAF — route through ScraperAPI residential proxy.
+      // aws-waf-token is IP-bound so we don't forward cookies; storeContexts go in the POST body.
+      url = `http://api.scraperapi.com/?api_key=${scraperApiKey}&url=${encodeURIComponent(SEARCH_URL)}&keep_headers=true`;
+    } else {
+      // Local dev: send browser cookies directly (aws-waf-token works from a residential IP).
+      url = SEARCH_URL;
+      if (cookies) headers["Cookie"] = cookies;
+    }
+
+    const res = await fetch(url, {
       method: "POST",
       headers,
       body: buildBody(query, cookies),
