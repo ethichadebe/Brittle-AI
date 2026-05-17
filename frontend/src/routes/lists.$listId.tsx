@@ -44,6 +44,10 @@ function ListPage() {
   }, [listId]);
 
   useEffect(() => {
+    if (showSearch) requestAnimationFrame(() => searchRef.current?.focus());
+  }, [showSearch]);
+
+  useEffect(() => {
     if (!query.trim() || !storeSlug) { setSearchResults([]); return; }
     setSearching(true);
     const controller = new AbortController();
@@ -181,7 +185,7 @@ function ListPage() {
       </ul>
 
       {/* FAB */}
-      <button className="fab" onClick={() => { setShowSearch(true); searchRef.current?.focus(); }}>+</button>
+      <button className="fab" onClick={() => setShowSearch(true)}>+</button>
     </div>
 
       {/* Delete confirmation modal — outside page-slide-in so position:fixed is viewport-relative */}
