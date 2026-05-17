@@ -39,7 +39,7 @@ function buildBody(query: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalise(raw: any): Product[] {
+export function normalise(raw: any): Product[] {
   const items: unknown[] =
     raw?.products ?? raw?.data?.products ?? raw?.results ?? [];
   return (items as any[])

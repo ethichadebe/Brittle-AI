@@ -6,7 +6,7 @@ const SEARCH_BASE = "https://ac.cnstrc.com/search";
 const API_KEY = "key_yMuER1c8l84k40e3";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalise(raw: any): Product[] {
+export function normalise(raw: any): Product[] {
   const items: any[] = raw?.response?.results ?? [];
   return items
     .slice(0, 20)
