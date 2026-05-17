@@ -17,6 +17,7 @@ function HomePage() {
   const modal = useAnimatedMount(showModal);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     api.lists.list().then(setLists).catch(console.error);
@@ -34,6 +35,7 @@ function HomePage() {
   const openCreate = (slug: StoreSlug) => {
     setCreating(slug);
     setNewName("");
+    setCreateError(null);
     setShowModal(true);
   };
 
@@ -51,7 +53,7 @@ function HomePage() {
       closeModal();
       void navigate({ to: "/lists/$listId", params: { listId: list.id } });
     } catch (e) {
-      console.error(e);
+      setCreateError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setSaving(false);
     }
@@ -156,6 +158,9 @@ function HomePage() {
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
+            {createError && (
+              <p style={{ color: "#dc2626", fontSize: "0.8rem", margin: "0 0 8px" }}>{createError}</p>
+            )}
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={closeModal}>
                 Cancel

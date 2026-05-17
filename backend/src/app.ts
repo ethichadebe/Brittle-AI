@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { listsRoutes } from "./routes/lists.js";
 import { listItemsRoutes } from "./routes/listItems.js";
+import { searchRoutes } from "./routes/search.js";
+import { imageProxyRoutes } from "./routes/imageProxy.js";
 import type { HealthResponse } from "@accucery/types";
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
@@ -15,6 +17,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
 
   await app.register(listsRoutes);
   await app.register(listItemsRoutes);
+  await app.register(searchRoutes);
+  await app.register(imageProxyRoutes);
 
   return app;
 }

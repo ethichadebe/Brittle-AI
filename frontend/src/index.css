@@ -292,7 +292,7 @@ body {
 .summary-cell--highlight .summary-value { color: #2563eb; font-weight: 700; }
 
 .summary-label { font-size: 0.65rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.04em; }
-.summary-value { font-size: 0.95rem; font-weight: 600; }
+.summary-value { font-size: 0.95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ── Item list ── */
 .item-list {

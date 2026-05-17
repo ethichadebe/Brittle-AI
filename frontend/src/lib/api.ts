@@ -1,10 +1,15 @@
-import type { GroceryList, ListItem, StoreSlug } from "@accucery/types";
+import type { GroceryList, ListItem, Product, SearchResponse, StoreSlug } from "@accucery/types";
 
 const BASE = "/api";
 
+export function imgSrc(url: string): string {
+  if (!url) return "";
+  return `${BASE}/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    ...(init?.body != null ? { headers: { "Content-Type": "application/json" } } : {}),
     ...init,
   });
   if (res.status === 204) return undefined as T;
@@ -46,4 +51,9 @@ export const api = {
     delete: (listId: string, itemId: string) =>
       request<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" }),
   },
+
+  search: (store: StoreSlug, q: string): Promise<Product[]> =>
+    request<SearchResponse>(`/search?store=${store}&q=${encodeURIComponent(q)}`).then(
+      (r) => r.products
+    ),
 };

@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import type { ListItem, Product } from "@accucery/types";
-import { api } from "../lib/api";
+import type { GroceryList, ListItem, Product, StoreSlug } from "@accucery/types";
+import { api, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
-import { searchStub } from "../lib/stubProducts";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
+import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 
 export const Route = createFileRoute("/lists/$listId")({
   component: ListPage,
@@ -15,7 +15,10 @@ function ListPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<ListItem[]>([]);
   const [listName, setListName] = useState("");
+  const [storeSlug, setStoreSlug] = useState<StoreSlug | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searching, setSearching] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [query, setQuery] = useState("");
   const [swipingId, setSwipingId] = useState<string | null>(null);
@@ -24,14 +27,18 @@ function ListPage() {
   const summary = computeSummary(items, useLoyalty);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const animUnchecked = useAnimatedNumber(summary.unchecked);
+  const animPriceToPay = useAnimatedNumber(summary.priceToPay);
+  const animTotal = useAnimatedNumber(summary.total);
+
   const search = useAnimatedMount(showSearch);
   const confirm = useAnimatedMount(showConfirm);
 
   useEffect(() => {
     api.items.list(listId).then(setItems).catch(console.error);
     api.lists.list().then((lists) => {
-      const found = lists.find((l) => l.id === listId);
-      if (found) setListName(found.name);
+      const found = lists.find((l) => l.id === listId) as GroceryList | undefined;
+      if (found) { setListName(found.name); setStoreSlug(found.storeSlug); }
     });
   }, [listId]);
 
@@ -39,12 +46,35 @@ function ListPage() {
     if (showSearch) setTimeout(() => searchRef.current?.focus(), 50);
   }, [showSearch]);
 
-  const closeSearch = () => { setShowSearch(false); setQuery(""); };
+  useEffect(() => {
+    if (!query.trim() || !storeSlug) { setSearchResults([]); return; }
+    setSearching(true);
+    const controller = new AbortController();
+    api.search(storeSlug, query.trim())
+      .then((products) => { if (!controller.signal.aborted) setSearchResults(products); })
+      .catch(() => { if (!controller.signal.aborted) setSearchResults([]); })
+      .finally(() => { if (!controller.signal.aborted) setSearching(false); });
+    return () => controller.abort();
+  }, [query, storeSlug]);
+
+  const closeSearch = () => { setShowSearch(false); setQuery(""); setSearchResults([]); };
   const closeConfirm = () => { setShowConfirm(false); };
 
   const addItem = async (product: Product) => {
-    const item = await api.items.add(listId, product);
-    setItems((prev) => [...prev, item]);
+    const existing = items.find((i) => i.productId === product.productId);
+    if (existing) {
+      const updated = await api.items.patch(listId, existing.id, { quantity: existing.quantity + 1 });
+      setItems((prev) => prev.map((i) => (i.id === existing.id ? updated : i)));
+    } else {
+      const item = await api.items.add(listId, {
+        productId: product.productId,
+        productName: product.name,
+        imageUrl: product.imageUrl,
+        regularPrice: product.regularPrice,
+        loyaltyPrice: product.loyaltyPrice,
+      });
+      setItems((prev) => [...prev, item]);
+    }
     closeSearch();
   };
 
@@ -64,21 +94,24 @@ function ListPage() {
     setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
   };
 
-  const deleteItem = async (id: string) => {
-    await api.items.delete(listId, id);
+  const deleteItem = (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
     closeConfirm();
     setSwipingId(null);
     setPendingDeleteId(null);
+    api.items.delete(listId, id).catch((e) => {
+      console.error("Failed to delete item:", e);
+      api.items.list(listId).then(setItems).catch(console.error);
+    });
   };
 
   const price = (item: ListItem) =>
     useLoyalty && item.loyaltyPrice !== null ? item.loyaltyPrice : item.regularPrice;
 
-  const results = searchStub(query);
   const pendingItem = items.find((i) => i.id === pendingDeleteId);
 
   return (
+    <>
     <div className="page-slide-in">
       {/* Header */}
       <header className="list-header">
@@ -91,15 +124,15 @@ function ListPage() {
       <div className="summary-bar">
         <div className="summary-cell">
           <span className="summary-label">Unchecked</span>
-          <span className="summary-value">R {summary.unchecked.toFixed(2)}</span>
+          <span className="summary-value">R {animUnchecked.toFixed(2)}</span>
         </div>
         <div className="summary-cell summary-cell--highlight">
           <span className="summary-label">Price to pay</span>
-          <span className="summary-value">R {summary.priceToPay.toFixed(2)}</span>
+          <span className="summary-value">R {animPriceToPay.toFixed(2)}</span>
         </div>
         <div className="summary-cell">
           <span className="summary-label">Total</span>
-          <span className="summary-value">R {summary.total.toFixed(2)}</span>
+          <span className="summary-value">R {animTotal.toFixed(2)}</span>
         </div>
       </div>
 
@@ -108,7 +141,7 @@ function ListPage() {
         {items.length === 0 && (
           <li className="item-empty">No items yet — tap + to search</li>
         )}
-        {items.map((item) => (
+        {[...items].sort((a, b) => Number(a.isChecked) - Number(b.isChecked)).map((item) => (
           <li
             key={item.id}
             className={`item-row${item.isChecked ? " item-row--checked" : ""}${swipingId === item.id ? " item-row--swiping" : ""}`}
@@ -122,7 +155,7 @@ function ListPage() {
               </button>
             )}
 
-            <img className="item-img" src={item.imageUrl} alt={item.productName} />
+            <img className="item-img" src={imgSrc(item.imageUrl)} alt={item.productName} />
 
             <div className="item-info" onClick={() => toggleCheck(item)}>
               <span className="item-name">{item.productName}</span>
@@ -152,8 +185,9 @@ function ListPage() {
 
       {/* FAB */}
       <button className="fab" onClick={() => setShowSearch(true)}>+</button>
+    </div>
 
-      {/* Delete confirmation modal */}
+      {/* Delete confirmation modal — outside page-slide-in so position:fixed is viewport-relative */}
       {confirm.rendered && (
         <div
           className={`modal-backdrop${confirm.closing ? " modal-backdrop--closing" : ""}`}
@@ -177,7 +211,7 @@ function ListPage() {
         </div>
       )}
 
-      {/* Search bottom sheet */}
+      {/* Search bottom sheet — outside page-slide-in so position:fixed is viewport-relative */}
       {search.rendered && (
         <div
           className={`modal-backdrop${search.closing ? " modal-backdrop--closing" : ""}`}
@@ -192,16 +226,22 @@ function ListPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
             <ul className="search-results">
-              {results.length === 0 && (
+              {searching && (
+                <li className="item-empty">Searching…</li>
+              )}
+              {!searching && query.trim() && searchResults.length === 0 && (
                 <li className="item-empty">No products found</li>
               )}
-              {results.map((product) => (
+              {!searching && !query.trim() && (
+                <li className="item-empty">Type to search products</li>
+              )}
+              {searchResults.map((product) => (
                 <li
                   key={product.productId}
                   className="search-result-row"
                   onClick={() => addItem(product)}
                 >
-                  <img className="item-img" src={product.imageUrl} alt={product.name} />
+                  <img className="item-img" src={imgSrc(product.imageUrl)} alt={product.name} />
                   <div className="item-info">
                     <span className="item-name">{product.name}</span>
                     <span className="item-price">
@@ -217,6 +257,6 @@ function ListPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
