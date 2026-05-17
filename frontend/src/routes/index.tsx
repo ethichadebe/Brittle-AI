@@ -71,6 +71,7 @@ function HomePage() {
     <div className="page-fade-in">
       <header className="app-header">
         <h1>Accucery</h1>
+        <button className="btn-icon btn-icon--dark" style={{ marginLeft: "auto" }} onClick={() => navigate({ to: "/settings" })}>⚙</button>
       </header>
 
       <div className="store-list">

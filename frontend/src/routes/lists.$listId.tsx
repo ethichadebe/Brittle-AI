@@ -5,6 +5,7 @@ import { api, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
+import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
 
 export const Route = createFileRoute("/lists/$listId")({
   component: ListPage,
@@ -23,7 +24,8 @@ function ListPage() {
   const [query, setQuery] = useState("");
   const [swipingId, setSwipingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const useLoyalty = localStorage.getItem("loyalty-enabled") === "true";
+  const { isEnabled } = useLoyaltySettings();
+  const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -117,7 +119,7 @@ function ListPage() {
       <header className="list-header">
         <button className="btn-back" onClick={() => navigate({ to: "/" })}>‹</button>
         <h2 className="list-title">{listName || "List"}</h2>
-        <div style={{ width: 32 }} />
+        <button className="btn-icon btn-icon--dark" onClick={() => navigate({ to: "/settings" })}>⚙</button>
       </header>
 
       {/* Summary bar */}
