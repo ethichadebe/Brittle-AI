@@ -1,11 +1,13 @@
+import { createRequire } from "node:module";
 import type { Page } from "playwright";
 import type { Product, StoreSlug } from "@accucery/types";
 import { normalise as parseCheckers } from "./checkers.js";
 import { normalise as parsePnp } from "./pnp.js";
 // playwright-extra + stealth give Playwright a real-browser fingerprint to pass AWS WAF Bot Control
 import { chromium as chromiumExtra } from "playwright-extra";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const _require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const StealthPlugin = _require("puppeteer-extra-plugin-stealth") as any;
 chromiumExtra.use(StealthPlugin());
 
 const CHECKERS_API = "https://www.checkers.co.za/api/catalogue/get-products-filter";
@@ -92,7 +94,7 @@ export class PlaywrightScraper {
 
     const browser = await chromiumExtra.launch({
       headless: true,
-      args: ["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+      args: ["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-dev-shm-usage"],
     });
     try {
       const context = await browser.newContext({
