@@ -4,7 +4,25 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "PowerShell(git push *)",
-      "Skill(tdd)"
+      "Skill(tdd)",
+      "Bash(git commit *)",
+      "Bash(ssh *)",
+      "Bash(curl -s \"http://187.127.139.148/api/search?store=checkers&q=milk\")",
+      "WebFetch(domain:docs.maxun.dev)",
+      "Bash(gh issue *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api *)",
+      "Bash(curl -sL https://raw.githubusercontent.com/getmaxun/node-sdk/master/examples/basic-search.ts)",
+      "Bash(curl -sL https://raw.githubusercontent.com/getmaxun/node-sdk/master/examples/simple-scrape.ts)",
+      "Bash(curl -sL https://raw.githubusercontent.com/getmaxun/node-sdk/master/examples/complete-workflow.ts)",
+      "Bash(python3 -c \"import json,sys; [print\\(x['name'], x['type']\\) for x in json.load\\(sys.stdin\\)]\")",
+      "Bash(npm view *)",
+      "Bash(curl -sL https://raw.githubusercontent.com/apify/fingerprint-suite/master/packages/fingerprint-injector/README.md)",
+      "Bash(npm install *)",
+      "Bash(npm run *..)",
+      "Bash(npm run *)",
+      "Bash(gh pr *)"
     ]
   }
 }

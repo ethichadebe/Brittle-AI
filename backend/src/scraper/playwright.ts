@@ -5,6 +5,7 @@ import { normalise as parseCheckers } from "./checkers.js";
 import { normalise as parsePnp } from "./pnp.js";
 // playwright-extra + stealth give Playwright a real-browser fingerprint to pass AWS WAF Bot Control
 import { chromium as chromiumExtra } from "playwright-extra";
+import { newInjectedContext } from "fingerprint-injector";
 const _require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const StealthPlugin = _require("puppeteer-extra-plugin-stealth") as any;
@@ -97,10 +98,21 @@ export class PlaywrightScraper {
       args: ["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-dev-shm-usage"],
     });
     try {
-      const context = await browser.newContext({
-        userAgent:
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
-        viewport: { width: 1366, height: 768 },
+      const scraperApiKey = process.env.SCRAPERAPI_KEY;
+      // Route the browser itself through the same residential proxy used for the direct HTTP
+      // fallback — previously only tried alone (datacenter IP + stealth browser), never combined
+      // with a residential IP the way the raw ScraperAPI HTTP path was.
+      const context = await newInjectedContext(browser, {
+        newContextOptions: {
+          viewport: { width: 1366, height: 768 },
+          ...(scraperApiKey && {
+            proxy: {
+              server: "http://proxy-server.scraperapi.com:8001",
+              username: "scraperapi",
+              password: scraperApiKey,
+            },
+          }),
+        },
       });
       const page = await context.newPage();
 

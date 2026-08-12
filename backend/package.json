@@ -18,6 +18,8 @@
     "@fastify/cors": "^10.0.2",
     "@prisma/client": "^6.3.1",
     "fastify": "^5.2.1",
+    "fingerprint-generator": "^2.1.82",
+    "fingerprint-injector": "^2.1.82",
     "playwright": "^1.60.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"

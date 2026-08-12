@@ -23,6 +23,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       FRONTEND_URL: ${FRONTEND_URL}
       CHECKERS_COOKIES: ${CHECKERS_COOKIES}
+      SCRAPERAPI_KEY: ${SCRAPERAPI_KEY}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       NODE_ENV: production
     depends_on:
