@@ -10,3 +10,6 @@ backend/prisma/migrations/*.sql.bak
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Claude Code permissions (machine-specific, can contain credentials)
+.claude/settings.local.json
