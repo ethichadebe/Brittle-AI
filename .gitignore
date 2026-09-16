@@ -1,7 +1,10 @@
 node_modules/
 dist/
+# Environment files — never commit real values. .env.example documents the shape.
 .env
-.env.local
+.env.*
+!.env.example
+env.*
 *.env
 
 # Prisma
