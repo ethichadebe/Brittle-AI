@@ -111,9 +111,19 @@ The Checkers scraper requires an `aws-waf-token` cookie that expires periodicall
 3. Right-click → Copy → Copy as cURL
 4. Extract the `Cookie:` header value
 5. Update `CHECKERS_COOKIES` in `.env` on the VPS
-6. `docker compose -f docker-compose.prod.yml restart backend`
+6. `docker compose -f docker-compose.prod.yml up -d --force-recreate backend`
+
+   Not `restart`. Compose bakes `environment:` into the container when it is
+   created, so a restart re-runs the old values and the new cookie never
+   arrives. `--force-recreate` makes a new container that reads the new `.env`.
 
 ### Updating
+
+Nothing, once the deploy timer is installed — merge the pull request and the box
+picks it up within a minute. See [`deploy/README.md`](deploy/README.md) for how
+that works and how to install it.
+
+By hand, if the timer is off:
 
 ```bash
 git pull
