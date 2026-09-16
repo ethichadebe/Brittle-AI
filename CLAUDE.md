@@ -6,7 +6,7 @@ This repository ships through Mobile Delivery: someone describes a change from t
 
 **Always:**
 
-- Work on a branch and **open a pull request**. Never push to `main`, and never merge your own work — merging is the human's decision.
+- Work on a branch and **open a pull request**. Never push to `master`, and never merge your own work — merging is the human's decision.
 - **Run the checks before opening the PR**, so CI is not the first to find a problem. This is an npm workspaces monorepo, so install once at the repo root with `npm ci` and run every command from there:
   - `packages/types` — `npm run typecheck -w packages/types`, `npm run build -w packages/types`
   - `frontend` — `npm run typecheck -w frontend`, `npm run test -w frontend`, `npm run build -w frontend`
