@@ -1,0 +1,12 @@
+# 2026-09-16 — Secret scanning in CI
+
+- **Asked for:** add the control that would have caught `env.prod` in May instead of four months later.
+- **Worked first time:** no, and the reason is the whole point of this note. Gitleaks with its **default rules finds nothing at all in `env.prod`** — not the 32-character API key, not the `DATABASE_URL` with credentials in it, not 2.4 KB of session cookies. Zero findings. The default `generic-api-key` rule expects a secret to appear as a *quoted string*, the way it does in source code. Env files are bare `KEY=value`, so the whole file sails through. Wiring up the defaults and calling it done would have shipped a green check that misses exactly the incident it was bought for.
+- **Laptop needed:** no. Gitleaks was downloaded and run in the cloud session, against the real `env.prod` recovered from git history, before any of it went near CI.
+- **Friction:**
+  - Two custom rules close the gap: one for `UPPER_SNAKE=value` assignments, one for connection URIs carrying an inline password. Calibrated against the real leaked file — catches all four of its secrets — and against `.env.example` and the README, which are full of deliberate placeholders and must stay quiet.
+  - First version matched `key={product.productId}` on every JSX list in the frontend. The variable name is now matched case-sensitively as `UPPER_SNAKE`, which is the env-file convention; lower-case `key=` no longer trips it.
+  - `backend/src/scraper/pnp.ts` holds an API key that Pick n Pay ship in their own frontend bundle — public by construction, not a credential of ours. Marked with an inline `gitleaks:allow` and a reason, rather than switching the rule off for the file, so a *new* key appearing there still trips.
+  - **The job scans the working tree, not git history.** History still contains the `env.prod` values, and the new rules do find them — so a history scan would paint every pull request red until the credentials are rotated and the history rewritten. Scanning HEAD keeps the check honest and actionable now; the workflow comment says which flag to flip afterwards.
+  - The repo is public, so its CI logs are too. The job prints only rule, file and line. `--verbose` was the obvious choice until a test run showed the finding line printing the cookie fields sitting next to the redacted value.
+  - The binary is pinned to a version and verified against its published SHA-256 before it runs. A security control that pipes an unverified download into your CI is worth less than no control at all.

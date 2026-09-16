@@ -1,0 +1,60 @@
+title = "Brittle-AI secret scanning"
+
+# The default rules are tuned for source code, where a secret appears as a
+# quoted string. They find nothing in a `.env` file, where values are bare:
+# the env.prod leak (a 32-char API key, a DATABASE_URL with credentials in it,
+# and 2.4 KB of session cookies) scored zero findings against defaults alone.
+# The two rules below close that gap. Keep the defaults as well — they cover
+# recognisable formats like AWS and GitHub tokens.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "env-secret-assignment"
+description = "Secret-looking environment variable assigned a literal value"
+# The variable name is matched case-sensitively as UPPER_SNAKE, which is the
+# convention in env files and compose `environment:` blocks. Lower-case is
+# deliberately excluded: it would match JSX props like `key={product.id}` on
+# every list render in the frontend. Quoted secrets in source code are the
+# default ruleset's job, not this rule's.
+regex = '''(?m)^[ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|KEY|COOKIE|CREDENTIAL)[A-Z0-9_]*[ \t]*=[ \t]*["']?([^\s"'#{][^\s"']{7,})'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["password", "passwd", "secret", "token", "key", "cookie", "credential"]
+
+  [rules.allowlist]
+  # Documented placeholders. Anything else with this shape is a real finding.
+  regexes = [
+    '''^accucery$''',
+    '''^change_me_in_production$''',
+    '''^your-vps-ip-or-domain$''',
+    '''^\$\{?[A-Z0-9_]+\}?$''',
+    '''^(?:changeme|change_me|placeholder|example|sample|dummy|redacted|todo|x{3,})$''',
+  ]
+
+[[rules]]
+id = "connection-uri-credentials"
+description = "Connection URI with an inline password"
+regex = '''(?i)\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis|rediss|amqp|amqps|mssql|ftp|ssh|https?)://[^:@/\s]+:([^@/\s]{3,})@'''
+secretGroup = 1
+keywords = ["postgres", "mysql", "mongodb", "redis", "amqp", "mssql", "://"]
+
+  [rules.allowlist]
+  regexes = [
+    '''^accucery$''',
+    '''^change_me_in_production$''',
+    '''^\$\{?[A-Z0-9_]+\}?$''',
+    '''^(?:changeme|change_me|placeholder|example|password|postgres|root|test)$''',
+  ]
+
+[allowlist]
+description = "Paths that are generated, vendored, or not ours"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)build/''',
+  '''(^|/)\.git/''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)skills-lock\.json$''',
+]

@@ -3,7 +3,7 @@ import type { Scraper } from "./types.js";
 
 const SEARCH_BASE = "https://ac.cnstrc.com/search";
 // Public API key embedded in pnp.co.za frontend JS
-const API_KEY = "key_yMuER1c8l84k40e3";
+const API_KEY = "key_yMuER1c8l84k40e3"; // gitleaks:allow — public key served in pnp.co.za's own frontend bundle
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalise(raw: any): Product[] {
