@@ -52,8 +52,8 @@ export const api = {
       request<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" }),
   },
 
-  search: (store: StoreSlug, q: string): Promise<Product[]> =>
-    request<SearchResponse>(`/search?store=${store}&q=${encodeURIComponent(q)}`).then(
-      (r) => r.products
-    ),
+  search: (store: StoreSlug, q: string, signal?: AbortSignal): Promise<Product[]> =>
+    request<SearchResponse>(`/search?store=${store}&q=${encodeURIComponent(q)}`, {
+      signal,
+    }).then((r) => r.products),
 };
