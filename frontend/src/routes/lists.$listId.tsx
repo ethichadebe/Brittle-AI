@@ -7,6 +7,9 @@ import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
 
+// Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
+const SEARCH_DEBOUNCE_MS = 350;
+
 export const Route = createFileRoute("/lists/$listId")({
   component: ListPage,
 });
@@ -47,16 +50,26 @@ function ListPage() {
     if (showSearch) requestAnimationFrame(() => searchRef.current?.focus());
   }, [showSearch]);
 
+  // Wait for a pause in typing before searching. The backend runs one scrape at
+  // a time per store, so a request per keystroke queues up behind itself:
+  // typing "banana" measured 18.6s against 2.9s for a single search. That reads
+  // as a broken Checkers search, while Pick n Pay — six times faster per
+  // request — still looks fine.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- real finding: clearing results for an empty query belongs in the input handler, not this effect. Left for a focused change.
-    if (!query.trim() || !storeSlug) { setSearchResults([]); return; }
-    setSearching(true);
     const controller = new AbortController();
-    api.search(storeSlug, query.trim())
-      .then((products) => { if (!controller.signal.aborted) setSearchResults(products); })
-      .catch(() => { if (!controller.signal.aborted) setSearchResults([]); })
-      .finally(() => { if (!controller.signal.aborted) setSearching(false); });
-    return () => controller.abort();
+    const timer = setTimeout(() => {
+      if (!query.trim() || !storeSlug) {
+        setSearchResults([]);
+        setSearching(false);
+        return;
+      }
+      setSearching(true);
+      api.search(storeSlug, query.trim(), controller.signal)
+        .then((products) => { if (!controller.signal.aborted) setSearchResults(products); })
+        .catch(() => { if (!controller.signal.aborted) setSearchResults([]); })
+        .finally(() => { if (!controller.signal.aborted) setSearching(false); });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [query, storeSlug]);
 
   const closeSearch = () => { setShowSearch(false); setQuery(""); setSearchResults([]); };
