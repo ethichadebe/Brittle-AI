@@ -40,3 +40,38 @@ The app check in step 5 was not a valid test: it asked `localhost`, and the 404
 came back from `nginx/1.24.0 (Ubuntu)` while this repo ships `nginx:1.27-alpine`
 in the frontend image. A host-level nginx owns port 80, so `localhost` reaches
 that rather than the app. The app has to be tested through its real URL.
+
+## Resolved — one missing line of YAML
+
+The VPS's `docker-compose.prod.yml` had no `SCRAPERAPI_KEY: ${SCRAPERAPI_KEY}`
+line under the backend service. The repo's copy has had one since the ScraperAPI
+commits in May; the VPS's copy is a May-era file that was edited locally to bind
+the frontend to `127.0.0.1:8082` instead of `80:80`, so `git pull` could never
+update it. It sat four months behind.
+
+The key was present in `.env` the whole time. Compose simply never passed it to
+the container, so the code did exactly what it is written to do: no key means a
+direct fetch, a direct fetch from a datacenter IP means 403, and the Playwright
+fallback went direct too and got the same 403. Nothing was wrong with the
+scraper. Adding the line and recreating the container returned real products on
+the first try.
+
+Worth keeping in mind next time:
+
+- The reported symptom, "works locally, fails deployed", pointed at the scraper
+  and at credentials. It was neither. The difference between the two
+  environments was a config file that only exists on one of them.
+- Three checks in a row each looked like the answer and were not: the cookie
+  hypothesis (`storeContexts` was present), the stale-container-environment
+  hypothesis (a forced recreate changed nothing), and the shell-environment
+  hypothesis (both variables were unset in the shell). Reading the deployed
+  compose file was what settled it, and it should have been the first thing
+  looked at, because it was already known to differ from the repo.
+- `docker compose up -d` reported `Running` rather than `Started` and recreated
+  nothing, because the resolved config had not changed — the variable it would
+  have changed was not referenced by the file. `--force-recreate` proved the
+  container was not the problem.
+
+Still open after this: the app has no nginx server block on the host, so it is
+not reachable from outside the box; and the compose drift that caused this is
+still there, waiting to swallow the next change.
