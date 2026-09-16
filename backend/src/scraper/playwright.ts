@@ -134,6 +134,13 @@ export class PlaywrightScraper {
           (res) => strategy.interceptsUrl!(res.url()),
           { timeout: 45000 }
         );
+        // Mark the rejection as handled up front. If the goto below throws, the
+        // `finally` closes the browser, this promise rejects with nobody
+        // awaiting it, and Node turns that unhandled rejection into a process
+        // exit — one failed scrape takes the whole server down. Attaching a
+        // handler here does not swallow the error: the `await` below still
+        // rejects and the caller still sees it.
+        responsePromise.catch(() => {});
         await page.goto(strategy.searchUrl!(query), {
           waitUntil: "domcontentloaded",
           timeout: 30000,
