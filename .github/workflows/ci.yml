@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+# This is an npm workspaces monorepo with a single lockfile at the repo root, so
+# every job installs from `.` and scopes its commands with `-w <workspace>`.
+# There is no linter in this repo yet, so the `lint` slot runs the Target's
+# typecheck — the closest thing to a lint we actually have.
+
+jobs:
+  types:
+    uses: ethichadebe/workflows/.github/workflows/node-checks.yml@main
+    with:
+      working-directory: .
+      lint: npm run typecheck -w packages/types
+      build: npm run build -w packages/types
+
+  frontend:
+    uses: ethichadebe/workflows/.github/workflows/node-checks.yml@main
+    with:
+      working-directory: .
+      lint: npm run typecheck -w frontend
+      test: npm run test -w frontend
+      build: npm run build -w frontend
+
+  backend:
+    uses: ethichadebe/workflows/.github/workflows/node-checks.yml@main
+    with:
+      working-directory: .
+      # The Prisma client is generated, not committed, so nothing in the backend
+      # typechecks or builds until `db:generate` has run.
+      install: npm ci && npm run db:generate -w backend
+      lint: npm run typecheck -w backend
+      build: npm run build -w backend
+      # `npm run test -w backend` is deliberately left out: those tests need a
+      # live Postgres with the migrations applied, which these shared checks do
+      # not provide. See docs/journal/2026-09-16-onboard-to-mobile-delivery.md.
