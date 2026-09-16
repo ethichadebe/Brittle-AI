@@ -96,3 +96,30 @@ noise in a phone terminal — and a phone terminal is how this repo actually get
 driven. Rewritten to stay under 40 columns, measured on both the passing and the
 failing path, because someone away from a keyboard can screenshot a result but
 cannot select and copy one.
+
+## Confirmed on the VPS: 6/6
+
+```
+checkers  milk   200  3s n=20  L=2
+checkers  bread  200  2s n=20  L=4
+checkers  coffee 200  2s n=20  L=8
+pnp       milk   200  1s n=20  L=11
+pnp       bread  200  1s n=20  L=1
+pnp       coffee 200  0s n=20  L=0
+
+PASS 6/6   loyalty: 26
+```
+
+Both stores, three queries each, twenty products every time. Pick n Pay matters
+here as much as Checkers: it has no ScraperAPI branch and goes direct, so it is a
+separate code path that had never been seen to succeed from that box. It does.
+
+Loyalty prices arrive too — 26 across the six searches. An earlier milk-only
+search returned `loyaltyPrice: null` for everything and raised the question of
+whether that path worked at all; it was simply milk. The frontend side is wired
+end to end as well: the settings toggle feeds `useLoyalty` into `computeSummary`
+and the per-item price in the list view, and `summary.ts` covers both branches in
+tests.
+
+Checkers through a residential proxy costs 2-3 seconds and Pick n Pay under one.
+No performance problem to chase.
