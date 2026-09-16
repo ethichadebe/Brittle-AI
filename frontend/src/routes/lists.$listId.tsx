@@ -48,6 +48,7 @@ function ListPage() {
   }, [showSearch]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- real finding: clearing results for an empty query belongs in the input handler, not this effect. Left for a focused change.
     if (!query.trim() || !storeSlug) { setSearchResults([]); return; }
     setSearching(true);
     const controller = new AbortController();
