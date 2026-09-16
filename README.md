@@ -53,6 +53,41 @@ nano .env          # fill in POSTGRES_PASSWORD, FRONTEND_URL, CHECKERS_COOKIES
 | `DATABASE_URL` | Must match the three `POSTGRES_*` values above |
 | `FRONTEND_URL` | Your VPS IP or domain (e.g. `http://123.456.789.0`) |
 | `CHECKERS_COOKIES` | Full cookie string from Checkers DevTools — see below |
+| `SCRAPERAPI_KEY` | Routes Checkers through a residential proxy. Required on a VPS: Checkers' WAF blocks datacenter IPs |
+| `FRONTEND_PORT` | Optional. Where to publish the frontend. Unset means `80` on all interfaces |
+
+### 3b. If this host already uses port 80
+
+Running another site on the same box? Publish the frontend somewhere else and
+point your system nginx at it, rather than editing `docker-compose.prod.yml`:
+
+```bash
+echo 'FRONTEND_PORT=127.0.0.1:8082' >> .env
+```
+
+Then a server block on the host:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain-or-ip;
+    location / {
+        proxy_pass         http://127.0.0.1:8082;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+The container's own nginx already routes `/api/` to the backend, so proxying
+everything to that one port is enough.
+
+**Edit `.env`, never the compose file.** A locally-modified
+`docker-compose.prod.yml` cannot be updated by `git pull`, and that is exactly
+how `SCRAPERAPI_KEY` stayed missing from this deployment for four months while
+the repo had it.
 
 ### 4. Start the stack
 

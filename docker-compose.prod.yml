@@ -36,7 +36,13 @@ services:
       dockerfile: frontend/Dockerfile
     restart: unless-stopped
     ports:
-      - "80:80"
+      # Publishes on port 80 by default. A host already running something on 80
+      # — a system nginx fronting several apps, say — sets FRONTEND_PORT in .env
+      # to something like 127.0.0.1:8082 and proxies to it. Keep this a variable
+      # rather than editing the file: a locally-modified compose file cannot be
+      # updated by `git pull`, which is how SCRAPERAPI_KEY went missing here for
+      # four months.
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - backend
 
