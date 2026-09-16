@@ -142,3 +142,28 @@ It prints lengths and which fragments were found, never values. All four failure
 paths were exercised before it shipped — Windows cmd quoting, no Cookie header,
 a cookie with no `storeContexts`, and a missing input file — because the bug
 that leaked the token lived in an error path nobody had run.
+
+## Compose was eating the cookie
+
+Quoting the line exposed a second, worse problem. Recreating the container
+printed six warnings — `The "o6" variable is not set`, `"g1"`, `"t1789582425"`,
+`"j51"`, `"l0"`, `"h1691402591"` — and the container's copy of the cookie came
+out 2660 characters against 2697 in the file. The six names are not variables;
+they are fragments of the cookie itself. Compose interpolates `$NAME` in `.env`
+values and replaces anything unset with nothing, so it was deleting chunks of
+the value: 3 + 3 + 12 + 4 + 3 + 12 = 37 characters, which is exactly the
+difference.
+
+Search kept passing only because none of the damage happened to land inside
+`storeContexts`. Had one `$` sequence fallen there, the cookie would have broken
+with no signal beyond warnings that scroll past above a successful-looking
+result.
+
+`$$` is Compose's escape for a literal dollar, and the extractor now applies it,
+reporting how many it escaped. Verified by simulating Compose's interpolation
+over the written line: the escaped form round-trips to the original byte for
+byte, while the unescaped form loses 27 characters of a 101-character test
+cookie to four phantom variables.
+
+The check to run afterwards is that the container's reported length equals the
+`cookie found: N chars` the tool printed. Equal means nothing was eaten.

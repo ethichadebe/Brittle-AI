@@ -56,11 +56,19 @@ if value is None:
 value = value.replace('\\"', '"').replace("^", "").replace("\r", "").replace("\n", "")
 value = value.strip().strip(";").strip()
 
+# Compose interpolates $NAME in .env values and silently replaces unknown ones
+# with nothing. Real Checkers cookies contain $ sequences, so this quietly eats
+# chunks of the value. $$ is Compose's escape for a literal dollar.
+dollars = value.count("$")
+escaped = value.replace("$", "$$")
+
 if '"' in value:
     die('That cookie contains a double quote, which cannot be safely quoted in\n'
         '  .env. Stop here and say so rather than guessing.')
 
 print(f"\n  cookie found: {len(value)} chars")
+if dollars:
+    print(f"  dollar signs  : {dollars} escaped as $$ (Compose would eat them)")
 for frag in ("storeContexts", "aws-waf-token", "istio-storeIds"):
     print(f"  {frag:<16}: {'yes' if frag + '=' in value else 'NO'}")
 
@@ -72,7 +80,7 @@ backup = ENV.with_name(f".env.bak-{int(time.time())}")
 shutil.copy2(ENV, backup)
 
 lines = ENV.read_text().splitlines()
-new_line = f'CHECKERS_COOKIES="{value}"'
+new_line = f'CHECKERS_COOKIES="{escaped}"'
 replaced = False
 for i, line in enumerate(lines):
     if line.startswith("CHECKERS_COOKIES="):
@@ -86,6 +94,7 @@ ENV.write_text("\n".join(lines) + "\n")
 
 print(f"\n  .env updated ({'replaced' if replaced else 'appended'}), quoted.")
 print(f"  backup: {backup.name}")
+print(f"\n  the container should report {len(value)} chars — that is the check.")
 print("\n  next:")
 print("    rm -f /tmp/checkers.curl")
 print("    docker compose -f docker-compose.prod.yml up -d --force-recreate backend")
