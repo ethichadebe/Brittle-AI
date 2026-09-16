@@ -1,17 +1,23 @@
 import { createRequire } from "node:module";
 import type { Page } from "playwright";
 import type { Product, StoreSlug } from "@accucery/types";
-import { normalise as parseCheckers } from "./checkers.js";
+import {
+  apiUrl,
+  buildBody,
+  parseStoreContexts,
+  normalise as parseShopriteGroup,
+  CHECKERS_SITE,
+  SHOPRITE_SITE,
+  type ShopriteGroupSite,
+} from "./shopriteGroup.js";
 import { normalise as parsePnp } from "./pnp.js";
 // playwright-extra + stealth give Playwright a real-browser fingerprint to pass AWS WAF Bot Control
 import { chromium as chromiumExtra } from "playwright-extra";
 import { newInjectedContext } from "fingerprint-injector";
 const _require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- puppeteer-extra-plugin-stealth ships no types, and it is loaded through createRequire because it is CommonJS
 const StealthPlugin = _require("puppeteer-extra-plugin-stealth") as any;
 chromiumExtra.use(StealthPlugin());
-
-const CHECKERS_API = "https://www.checkers.co.za/api/catalogue/get-products-filter";
 
 interface Strategy {
   warmupUrl?: string;
@@ -23,49 +29,27 @@ interface Strategy {
   parse: (json: unknown) => Product[];
 }
 
-const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
-  checkers: {
-    warmupUrl: "https://www.checkers.co.za/",
+// Checkers and Shoprite are one platform behind one WAF, so they get one
+// strategy. See shopriteGroup.ts for what actually differs between them.
+function shopriteGroupStrategy(site: ShopriteGroupSite): Strategy {
+  return {
+    warmupUrl: `${site.origin}/`,
     browserSearch: async (page, query) => {
-      // Read storeContexts cookie that the homepage sets
-      const cookies = await page.context().cookies("https://www.checkers.co.za");
+      // Prefer the storeContexts the homepage just set in this browser.
+      const cookies = await page.context().cookies(site.origin);
       const sc = cookies.find((c) => c.name === "storeContexts");
-      let storeContexts: unknown[] = [];
-      if (sc) {
-        try { storeContexts = JSON.parse(decodeURIComponent(sc.value)); } catch { /**/ }
-      }
-      // Fallback: homepage may not set storeContexts on a fresh VPS visit — use env cookie
-      if (!storeContexts.length) {
-        const envSc = (process.env.CHECKERS_COOKIES ?? "").match(/(?:^|;\s*)storeContexts=([^;]*)/);
-        if (envSc) {
-          try { storeContexts = JSON.parse(decodeURIComponent(envSc[1])); } catch { /**/ }
-        }
-      }
+      let storeContexts = sc ? parseStoreContexts(`storeContexts=${sc.value}`) : [];
 
-      const body = JSON.stringify({
-        storeContexts,
-        filterData: {
-          filter: {
-            showAllDisplayVariants: false,
-            showNotRangedProducts: false,
-            productListSource: { search: query },
-            paginationOptions: { page: 0, pageSize: 20 },
-            filterOptions: {
-              filterIds: [], dealsOnly: false, brandOptions: [],
-              departmentOptions: [], serviceOptions: [], facetOptions: [],
-            },
-            sortOptions: null,
-          },
-          displayOptions: { includeDisplayCategoryTree: false },
-        },
-        forYouBonusBuyIds: [],
-        url: null,
-      });
+      // A fresh VPS visit often gets no storeContexts from the homepage, so fall
+      // back to the cookie captured from a real browser session.
+      if (!storeContexts.length) {
+        storeContexts = parseStoreContexts(process.env[site.cookieEnv] ?? "");
+      }
 
       // page.evaluate runs inside Chrome — cookies auto-included, TLS fingerprint is Chrome's
       return page.evaluate(
-        async ({ apiUrl, reqBody }) => {
-          const res = await fetch(apiUrl, {
+        async ({ url, reqBody }) => {
+          const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "*/*" },
             body: reqBody,
@@ -73,11 +57,16 @@ const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
           if (!res.ok) throw new Error(String(res.status));
           return res.json();
         },
-        { apiUrl: CHECKERS_API, reqBody: body }
+        { url: apiUrl(site), reqBody: buildBody(query, storeContexts) }
       );
     },
-    parse: parseCheckers,
-  },
+    parse: parseShopriteGroup,
+  };
+}
+
+const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
+  checkers: shopriteGroupStrategy(CHECKERS_SITE),
+  shoprite: shopriteGroupStrategy(SHOPRITE_SITE),
 
   "pick-n-pay": {
     searchUrl: (q) => `https://www.pnp.co.za/search/${encodeURIComponent(q)}`,

@@ -5,6 +5,7 @@ export { STORE_CONFIGS } from "./stores.js";
 
 export type StoreSlug =
   | "checkers"
+  | "shoprite"
   | "pick-n-pay"
   | "woolworths"
   | "spar"

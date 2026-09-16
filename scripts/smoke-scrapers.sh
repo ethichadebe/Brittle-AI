@@ -9,12 +9,17 @@
 #
 # Reads no config and touches no credentials: it only calls the app's own API,
 # exactly as the frontend does. Scraping is slow, so allow a couple of minutes.
+#
+# Costs ScraperAPI credits: Checkers and Shoprite go through the residential
+# proxy, so a full run spends six. Pass a shorter query list to spend fewer:
+#
+#   QUERIES=milk bash scripts/smoke-scrapers.sh
 
 set -uo pipefail
 
 BASE="${1:-http://127.0.0.1:8082}"
-STORES="checkers pick-n-pay"
-QUERIES="milk bread coffee"
+STORES="${STORES:-checkers shoprite pick-n-pay}"
+QUERIES="${QUERIES:-milk bread coffee}"
 
 command -v python3 >/dev/null || { echo "python3 required"; exit 1; }
 

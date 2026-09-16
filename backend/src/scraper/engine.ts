@@ -1,11 +1,12 @@
 import type { Product, StoreSlug } from "@accucery/types";
 import type { Scraper } from "./types.js";
-import { CheckersScraper } from "./checkers.js";
+import { CheckersScraper, ShopriteScraper } from "./shopriteGroup.js";
 import { PnpScraper } from "./pnp.js";
 import { playwrightScraper } from "./playwright.js";
 
 const registry: Partial<Record<StoreSlug, Scraper>> = {
   checkers: new CheckersScraper(),
+  shoprite: new ShopriteScraper(),
   "pick-n-pay": new PnpScraper(),
 };
 
