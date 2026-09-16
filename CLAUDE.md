@@ -22,14 +22,16 @@ This repository ships through Mobile Delivery: someone describes a change from t
 
 ## Agent skills
 
+Skills live in `.claude/skills/` only. The `.agents/skills/` copy was byte-identical and has been removed, so each skill is edited in one place. If tooling recreates it, delete it again rather than keeping two copies in sync.
+
 ### Issue tracker
 
-Issues live in GitHub Issues (uses the `gh` CLI). See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues (`ethichadebe/Brittle-AI`). Use whichever access the session has — the GitHub MCP tools in a cloud session, `gh` on a laptop. `gh` is not installed in cloud sessions, so never assume it. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Default label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+Default label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix` — all five exist on the repo. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root. Neither exists yet; `/grill-with-docs` creates them lazily, so their absence is not a defect. See `docs/agents/domain.md`.
