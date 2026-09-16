@@ -75,3 +75,16 @@ Worth keeping in mind next time:
 Still open after this: the app has no nginx server block on the host, so it is
 not reachable from outside the box; and the compose drift that caused this is
 still there, waiting to swallow the next change.
+
+## A live test, so "it works" means something
+
+`scripts/smoke-scrapers.sh` runs both stores against three queries through the
+app's own API and prints status, duration, product count and a sample per row.
+It reads no config and touches no credentials, which is deliberate: the
+diagnostic script needed `.env` and leaked a cookie doing it, and this one has
+no reason to go near it.
+
+Both paths were exercised before it shipped — the failure path against a stack
+that cannot reach the stores (six rows of HTTP 500, reported rather than
+crashing) and the success path against a stub returning the real product shape
+recovered from the VPS. A script whose success path has never run is not a test.
