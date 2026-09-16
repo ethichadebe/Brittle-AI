@@ -11,12 +11,13 @@ This repository ships through Mobile Delivery: someone describes a change from t
   - `packages/types` — `npm run typecheck -w packages/types`, `npm run build -w packages/types`
   - `frontend` — `npm run typecheck -w frontend`, `npm run test -w frontend`, `npm run build -w frontend`
   - `backend` — `npm run db:generate -w backend` (Prisma client, needed before anything typechecks), `npm run typecheck -w backend`, `npm run build -w backend`, and `npm run test -w backend` when a Postgres test database is available
+  - secrets — `gitleaks dir . --config .gitleaks.toml --redact --verbose`. CI runs this on every pull request and fails on a finding. If you do not have gitleaks installed, CI will catch it; it reports only the rule, file and line, so reproduce locally to see what tripped.
 - **Add a change note** to `docs/journal/` in the same pull request: a dated file saying what changed, whether it worked first time, whether a laptop was needed, and anything that got in the way. See `docs/journal/README.md`.
 - Keep the pull request description short and plain: what changed, and why.
 
 **Never:**
 
-- Put server addresses, IP addresses, keys or secrets in this repo.
+- Put server addresses, IP addresses, keys or secrets in this repo. The `secrets` CI job enforces this; if it fires, fix the value, do not widen `.gitleaks.toml` to make it quiet. A genuine false positive gets a `gitleaks:allow` comment on the line, with a reason.
 - Edit anything in `.github/workflows/` unless the request is explicitly about the pipeline.
 - Add a dependency without saying in the PR description why it is needed.
 

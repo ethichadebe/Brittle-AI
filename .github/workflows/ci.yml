@@ -37,3 +37,46 @@ jobs:
       # `npm run test -w backend` is deliberately left out: those tests need a
       # live Postgres with the migrations applied, which these shared checks do
       # not provide. See docs/journal/2026-09-16-onboard-to-mobile-delivery.md.
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Scans the checked-out tree, not git history. History still holds the
+      # env.prod values untracked in #13; those are being rotated, and a history
+      # scan would paint every pull request red until the rewrite happens.
+      # Change `dir .` to `git .` once history has been purged.
+      #
+      # This repo is public, so its CI logs are too. Only the rule, file and
+      # line are printed — never the finding line, which can show content
+      # sitting next to the redacted value (adjacent fields of a cookie
+      # header, for one). That is enough to find and fix it locally.
+      - name: Scan for secrets
+        env:
+          GITLEAKS_VERSION: 8.28.0
+          GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+        run: |
+          set -euo pipefail
+          TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSLf -o "$TARBALL" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${TARBALL}"
+          echo "${GITLEAKS_SHA256}  ${TARBALL}" | sha256sum -c -
+          tar -xzf "$TARBALL" gitleaks
+
+          ./gitleaks dir . --config .gitleaks.toml --no-banner --redact \
+            --report-format json --report-path findings.json --exit-code 0
+
+          COUNT=$(jq 'length' findings.json)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No secrets found."
+            exit 0
+          fi
+          echo "::error::gitleaks found $COUNT potential secret(s)."
+          jq -r '.[] | "  \(.RuleID)  \(.File):\(.StartLine)"' findings.json
+          echo
+          echo "Reproduce locally with:"
+          echo "  gitleaks dir . --config .gitleaks.toml --redact --verbose"
+          echo "If it is a false positive, allowlist it in .gitleaks.toml or mark"
+          echo "the line with a 'gitleaks:allow' comment, with a reason."
+          exit 1
