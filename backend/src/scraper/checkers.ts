@@ -52,8 +52,10 @@ function buildBody(query: string, cookies: string) {
 export function normalise(raw: any): Product[] {
   const items: unknown[] =
     raw?.products ?? raw?.data?.products ?? raw?.results ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (items as any[])
     .slice(0, 20)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((item: any): Product | null => {
       const productId = String(item.id ?? "");
       const name = String(item.name ?? "");

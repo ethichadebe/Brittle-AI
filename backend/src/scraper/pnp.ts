@@ -7,9 +7,11 @@ const API_KEY = "key_yMuER1c8l84k40e3"; // gitleaks:allow — public key served 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalise(raw: any): Product[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items: any[] = raw?.response?.results ?? [];
   return items
     .slice(0, 20)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((item: any): Product | null => {
       const data = item.data ?? {};
       const productId = String(data.id ?? "");
@@ -30,6 +32,7 @@ export function normalise(raw: any): Product[] {
       } else {
         // Look for a Smart Shopper variation (different store's promo price)
         const ssVariation = (item.variations ?? []).find(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (v: any) =>
             v.data?.priceConditionType === "PROMOTION" &&
             v.data?.promotionDisplayType === "SMART_SHOPPER"
