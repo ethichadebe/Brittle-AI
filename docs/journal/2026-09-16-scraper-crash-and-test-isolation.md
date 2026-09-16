@@ -1,0 +1,11 @@
+# 2026-09-16 — A failed scrape could kill the backend
+
+- **Asked for:** run the app to see where the work stood, then fix what running it turned up.
+- **Worked first time:** yes, but only because the app was actually booted rather than reasoned about. Neither of these is visible in a diff, and the existing tests pass with both bugs present.
+- **Laptop needed:** no. Postgres 16 was run natively in the cloud session (no Docker daemon), migrations applied through the same `prisma migrate deploy` the container entrypoint uses, and the app driven in Chromium.
+- **Friction:**
+  - **One failed Pick n Pay search took down the whole server.** `playwright.ts` created the `waitForResponse` promise, then awaited `page.goto`. When the goto failed, `finally` closed the browser, that promise rejected with nobody awaiting it, and Node turned the unhandled rejection into a process exit. Reproduced deterministically: one request, backend dead, `triggerUncaughtException(err, true /* fromPromise */)` in the log. In production `restart: unless-stopped` would have made it a crash-loop rather than a death, which is the kind of thing that reads as "flaky scraper" for months.
+  - It only fires on the Pick n Pay path. Checkers uses `browserSearch` and never creates the floating promise, which is why the same failure there returns a tidy 500. A bug that hides behind whichever store you happen to test with.
+  - **The test isolation setting had been silently doing nothing.** `poolOptions: { forks: { singleFork: true } }` was removed in Vitest 4, so the three backend suites were running in three parallel forks against one shared database while `setup.ts` truncates its tables in `beforeEach`. Proved it by timestamping each file's run: on the old config the windows overlap, on `fileParallelism: false` they do not. The suite passes either way today — that is luck, not isolation, and it is exactly the sort of thing that starts failing once a suite grows.
+  - Worth saying plainly: **all 20 backend tests pass**, and CI has never run them, because the shared checks provide no Postgres. The suite is in better shape than its config.
+  - The scraper itself could not be exercised end to end here — both stores answer 403 without a ScraperAPI key, and this sandbox blocks checkers.co.za outright. That is the environment, not the code.
