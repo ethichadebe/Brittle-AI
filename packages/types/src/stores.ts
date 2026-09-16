@@ -24,6 +24,14 @@ export const STORE_CONFIGS: StoreConfig[] = [
     loyaltyProgramme: "Smart Shopper",
   },
   {
+    slug: "shoprite",
+    name: "Shoprite",
+    color: "#da291c",
+    active: true,
+    // Same programme as Checkers: both are Shoprite Holdings brands.
+    loyaltyProgramme: "Xtra Savings",
+  },
+  {
     slug: "woolworths",
     name: "Woolworths",
     color: "#1a1a1a",

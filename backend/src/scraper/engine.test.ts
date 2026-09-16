@@ -10,10 +10,12 @@ const milk: Product = {
   loyaltyPrice: 26.99,
 };
 
-vi.mock("./checkers.js", () => {
+vi.mock("./shopriteGroup.js", () => {
   class CheckersScraper {}
   (CheckersScraper as any).prototype.search = vi.fn();
-  return { CheckersScraper, normalise: vi.fn() };
+  class ShopriteScraper {}
+  (ShopriteScraper as any).prototype.search = vi.fn();
+  return { CheckersScraper, ShopriteScraper, normalise: vi.fn() };
 });
 
 vi.mock("./pnp.js", () => {
@@ -37,7 +39,7 @@ describe("searchProducts (engine)", () => {
   });
 
   it("returns normalised products from the Checkers scraper", async () => {
-    const { CheckersScraper } = await import("./checkers.js");
+    const { CheckersScraper } = await import("./shopriteGroup.js");
     (CheckersScraper.prototype.search as ReturnType<typeof vi.fn>).mockResolvedValueOnce([milk]);
 
     const result = await searchProducts("checkers", "milk");
@@ -52,8 +54,29 @@ describe("searchProducts (engine)", () => {
     expect(result).toEqual([milk]);
   });
 
+  it("returns normalised products from the Shoprite scraper", async () => {
+    const { ShopriteScraper } = await import("./shopriteGroup.js");
+    (ShopriteScraper.prototype.search as ReturnType<typeof vi.fn>).mockResolvedValueOnce([milk]);
+
+    const result = await searchProducts("shoprite", "milk");
+    expect(result).toEqual([milk]);
+  });
+
+  it("falls back to Playwright when the Shoprite primary scraper throws", async () => {
+    const { ShopriteScraper } = await import("./shopriteGroup.js");
+    (ShopriteScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("API blocked")
+    );
+    const { playwrightScraper } = await import("./playwright.js");
+    (playwrightScraper.search as ReturnType<typeof vi.fn>).mockResolvedValueOnce([milk]);
+
+    const result = await searchProducts("shoprite", "milk");
+    expect(result).toEqual([milk]);
+    expect(playwrightScraper.search).toHaveBeenCalledWith("shoprite", "milk");
+  });
+
   it("falls back to Playwright when Checkers primary scraper throws", async () => {
-    const { CheckersScraper } = await import("./checkers.js");
+    const { CheckersScraper } = await import("./shopriteGroup.js");
     (CheckersScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("API blocked")
     );
@@ -80,7 +103,7 @@ describe("searchProducts (engine)", () => {
 
   it("returns empty array and logs when primary scraper throws and Playwright is unavailable", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { CheckersScraper } = await import("./checkers.js");
+    const { CheckersScraper } = await import("./shopriteGroup.js");
     (CheckersScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("Network error")
     );

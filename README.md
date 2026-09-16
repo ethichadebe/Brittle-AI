@@ -1,6 +1,6 @@
 # Accucery
 
-Grocery list app with live store pricing for South African retailers (Checkers, Pick n Pay).
+Grocery list app with live store pricing for South African retailers (Checkers, Shoprite, Pick n Pay).
 
 ## Development
 
@@ -15,6 +15,7 @@ Requires a local PostgreSQL instance. Copy and fill in `backend/.env`:
 DATABASE_URL=postgresql://accucery:accucery@localhost:5432/accucery
 FRONTEND_URL=http://localhost:5173
 CHECKERS_COOKIES=   # paste from DevTools on checkers.co.za
+SHOPRITE_COOKIES=   # same, from shoprite.co.za (optional)
 ```
 
 Run migrations:
@@ -42,7 +43,7 @@ cd accucery
 
 ```bash
 cp .env.example .env
-nano .env          # fill in POSTGRES_PASSWORD, FRONTEND_URL, CHECKERS_COOKIES
+nano .env          # fill in POSTGRES_PASSWORD, FRONTEND_URL, the cookies and SCRAPERAPI_KEY
 ```
 
 | Variable | Description |
@@ -53,7 +54,8 @@ nano .env          # fill in POSTGRES_PASSWORD, FRONTEND_URL, CHECKERS_COOKIES
 | `DATABASE_URL` | Must match the three `POSTGRES_*` values above |
 | `FRONTEND_URL` | Your VPS IP or domain (e.g. `http://123.456.789.0`) |
 | `CHECKERS_COOKIES` | Full cookie string from Checkers DevTools — see below |
-| `SCRAPERAPI_KEY` | Routes Checkers through a residential proxy. Required on a VPS: Checkers' WAF blocks datacenter IPs |
+| `SHOPRITE_COOKIES` | The same, from `shoprite.co.za`. Optional: without it Shoprite prices against its own default store |
+| `SCRAPERAPI_KEY` | Routes Checkers and Shoprite through a residential proxy. Required on a VPS: their WAF blocks datacenter IPs |
 | `FRONTEND_PORT` | Optional. Where to publish the frontend. Unset means `80` on all interfaces |
 
 ### 3b. If this host already uses port 80
@@ -102,15 +104,28 @@ This single command:
 - Runs `prisma migrate deploy` on first boot
 - Serves the app on port 80
 
-### 5. Refreshing Checkers cookies
+### 5. Refreshing store cookies
 
-The Checkers scraper requires an `aws-waf-token` cookie that expires periodically. When searches stop returning results:
+Checkers and Shoprite both sit behind the same WAF and both set an
+`aws-waf-token` cookie that expires. When searches stop returning results:
 
-1. Open `https://www.checkers.co.za` in Chrome
-2. DevTools → Network → search for any product → find the `get-products-filter` request
-3. Right-click → Copy → Copy as cURL
-4. Extract the `Cookie:` header value
-5. Update `CHECKERS_COOKIES` in `.env` on the VPS
+1. Open `https://www.checkers.co.za` (or `https://www.shoprite.co.za`) in Chrome
+2. Browse to a product, so the site sets `storeContexts`
+3. DevTools → Network → search for any product → find the `get-products-filter` request
+4. Right-click → Copy → Copy as cURL
+5. On the VPS, paste it into a file and let the script do the rest:
+
+   ```bash
+   cd /opt/accucery
+   cat > /tmp/store.curl      # paste, then Ctrl+D
+   python3 scripts/set-store-cookie.py checkers    # or: shoprite
+   rm -f /tmp/store.curl
+   ```
+
+   It writes a correctly quoted `CHECKERS_COOKIES` / `SHOPRITE_COOKIES` line,
+   escapes the `$` signs Compose would otherwise eat, checks `storeContexts` is
+   present, and prints lengths rather than values.
+
 6. `docker compose -f docker-compose.prod.yml up -d --force-recreate backend`
 
    Not `restart`. Compose bakes `environment:` into the container when it is
