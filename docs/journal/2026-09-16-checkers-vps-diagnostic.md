@@ -123,3 +123,22 @@ tests.
 
 Checkers through a residential proxy costs 2-3 seconds and Pick n Pay under one.
 No performance problem to chase.
+
+## The cookie line, and a tool so nobody edits it by hand
+
+Three readers disagreed about one line of `.env`. `awk` saw 2440 characters,
+Compose saw 2434, and the first diagnostic script saw 1448 — because bash
+`VAR=value` assignment stops at the first space, so sourcing that line took 1448
+characters and tried to run the rest as commands. That is precisely how the
+`aws-waf-token` got echoed to a terminal. Mechanism confirmed rather than
+guessed.
+
+`scripts/set-checkers-cookie.py` takes a cURL command copied from DevTools,
+extracts the Cookie header and writes it back as a quoted `CHECKERS_COOKIES`
+line, after checking `storeContexts` is actually in it. Hand-editing a 2.4 KB
+value in nano is how that line got fragile in the first place.
+
+It prints lengths and which fragments were found, never values. All four failure
+paths were exercised before it shipped — Windows cmd quoting, no Cookie header,
+a cookie with no `storeContexts`, and a missing input file — because the bug
+that leaked the token lived in an error path nobody had run.
