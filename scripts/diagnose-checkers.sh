@@ -14,10 +14,24 @@ UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Ge
 
 say() { printf '\n>>> %s\n' "$1"; }
 
-# Load .env the way Compose does, without echoing it.
+# Read .env WITHOUT sourcing it. Compose parses these as literal KEY=VALUE, but
+# `.` makes bash execute them: CHECKERS_COOKIES is one unquoted line full of
+# semicolons and spaces, so sourcing it runs fragments as commands and prints
+# the cookie to the terminal. Parse by hand, execute nothing.
 if [ -f .env ]; then
-  set -a; . ./.env; set +a
   ENV_FILE="found"
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue ;; esac
+    case "$line" in *=*) ;; *) continue ;; esac
+    key=${line%%=*}
+    val=${line#*=}
+    key=${key# }; key=${key%% }
+    # Strip one layer of surrounding quotes if present.
+    case "$val" in \"*\") val=${val#\"}; val=${val%\"} ;; esac
+    case "$key" in
+      SCRAPERAPI_KEY|CHECKERS_COOKIES|FRONTEND_URL) printf -v "$key" '%s' "$val" ;;
+    esac
+  done < .env
 else
   ENV_FILE="MISSING (run this from the directory holding your .env)"
 fi
@@ -94,7 +108,12 @@ APP=$(curl -s -o /tmp/app.out -w '%{http_code}' -m 120 'http://localhost/api/sea
 printf '   app /search         : HTTP %s\n' "$APP"
 printf '   body (200 bytes)    : %s\n' "$(head -c 200 /tmp/app.out 2>/dev/null | tr -d '\n')"
 printf '   backend log tail    :\n'
-docker compose -f docker-compose.prod.yml logs --tail=15 backend 2>/dev/null | sed 's/^/     /' || echo "     (could not read compose logs)"
+COMPOSE_LOGS=$(docker compose -f docker-compose.prod.yml logs --tail=15 backend 2>&1) || COMPOSE_LOGS=""
+if [ -n "$COMPOSE_LOGS" ]; then
+  printf '%s\n' "$COMPOSE_LOGS" | sed 's/^/     /'
+else
+  printf '     (no output — is the stack running? try: docker compose -f docker-compose.prod.yml ps)\n'
+fi
 
 rm -f /tmp/dc.out /tmp/sa.out /tmp/app.out
 
