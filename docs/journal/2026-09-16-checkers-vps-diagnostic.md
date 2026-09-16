@@ -88,3 +88,11 @@ Both paths were exercised before it shipped — the failure path against a stack
 that cannot reach the stores (six rows of HTTP 500, reported rather than
 crashing) and the success path against a stub returning the real product shape
 recovered from the VPS. A script whose success path has never run is not a test.
+
+## Output narrow enough to photograph
+
+The smoke test's first output was a 70-column table, which wraps into unreadable
+noise in a phone terminal — and a phone terminal is how this repo actually gets
+driven. Rewritten to stay under 40 columns, measured on both the passing and the
+failing path, because someone away from a keyboard can screenshot a result but
+cannot select and copy one.
