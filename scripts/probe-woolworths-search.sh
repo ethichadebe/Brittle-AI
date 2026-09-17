@@ -95,20 +95,21 @@ grep -ohE "[a-z0-9.-]*cnstrc\.com[^\"' )]*" "$TMP/page.html" 2>/dev/null \
 # [2] Ask Constructor with each candidate key until one answers with JSON.
 printf '\n[2] search with that key\n'
 HIT=""
+KEY=""
 while IFS= read -r k; do
   [ -z "$k" ] && continue
   IFS='|' read -r code ctype bytes <<<"$(get "$TMP/s.json" \
     "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${k}&num_results_per_page=20")"
   printf '    %-4s %-5s %sB %s\n' "$code" "$(ct "$ctype")" "$bytes" "$(printf '%s' "$k" | cut -c1-10)"
   if [ "$code" = "200" ] && printf '%s' "$ctype" | grep -qi json; then
-    cp "$TMP/s.json" "$TMP/hit.json"; HIT=yes; break
+    cp "$TMP/s.json" "$TMP/hit.json"; HIT=yes; KEY="$k"; break
   fi
 done < "$TMP/keys"
 [ -z "$HIT" ] && printf '    no key returned JSON\n'
 
 # [3] and [4] together: the shape, and the department.
 if [ -n "$HIT" ]; then
-  python3 - "$TMP/hit.json" <<'PY'
+  python3 - "$TMP/hit.json" "$TMP/foodgid" <<'PY'
 import json, sys, textwrap
 
 def wrap(xs, ind="      "):
@@ -192,7 +193,12 @@ if food:
     inside = sum(1 for x in res
                  if gid in ((x.get("data") or {}).get("group_ids") or []))
     print("    results in Food: %d/%d" % (inside, len(res)))
-    print("    -> filter by group_id")
+    open(sys.argv[2], "w").write(str(food.get("group_id") or ""))
+    if inside == 0:
+        print("    none carry it: results use")
+        print("    leaf category ids, so this")
+        print("    is ancestry not membership")
+        print("    -> [6] asks the server")
 else:
     print("    no Food group in response")
     print("    -> department is not a group;")
@@ -202,6 +208,71 @@ else:
 # Whether a non-food result can even be told apart is the whole question here.
 print("    group_ids on 1st result:")
 for l in wrap((data.get("group_ids") or [])[:4]): print(l)
+
+# Round 2 filtered keys by guessed words like "price" and found none, which is
+# the point: the price is under a name nobody guessed. So show every key.
+print("\n[5] where is the price?")
+print("    all data keys (%d):" % len(allkeys))
+for l in wrap(sorted(allkeys)): print(l)
+print("    1st result values:")
+shown = 0
+for k in sorted(data):
+    v = data[k]
+    if isinstance(v, bool) or not isinstance(v, (str, int, float)):
+        continue
+    t = str(v)
+    if len(t) > 40:          # descriptions, not prices
+        continue
+    if len(t) > 14:
+        t = t[:14] + "~"
+    print("      %-16s %s" % (k[:16], t))
+    shown += 1
+    if shown >= 18:
+        break
+vs = res[0].get("variations") or []
+print("    variations: %d" % len(vs))
+if vs:
+    vd = (vs[0].get("data") or {})
+    print("    variation data keys:")
+    for l in wrap(sorted(vd)): print(l)
+PY
+fi
+
+# [6] Results carry leaf categories, so a membership test cannot answer the
+# department question. Ask Constructor to filter instead, and see whether the
+# server understands it. Narrowing is the evidence; an unchanged total means the
+# filter was ignored and Food is expressed some other way.
+if [ -n "$HIT" ] && [ -s "$TMP/foodgid" ]; then
+  GID="$(cat "$TMP/foodgid")"
+  printf '\n[6] ask server for Food only\n'
+  printf '    group_id: %s\n' "$(printf '%s' "$GID" | cut -c1-22)"
+  IFS='|' read -r code ctype bytes <<<"$(get "$TMP/food.json" \
+    "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${KEY}&num_results_per_page=20&filters%5Bgroup_id%5D=${GID}")"
+  printf '    %-4s %-5s %sB\n' "$code" "$(ct "$ctype")" "$bytes"
+  python3 - "$TMP/hit.json" "$TMP/food.json" <<'PY'
+import json, sys
+
+def load(f):
+    r = json.load(open(f)).get("response") or {}
+    return r.get("total_num_results"), (r.get("results") or [])
+
+all_n, all_r = load(sys.argv[1])
+food_n, food_r = load(sys.argv[2])
+print("    all:  %s results" % all_n)
+print("    food: %s results" % food_n)
+if food_n is None:
+    print("    filter not understood")
+elif food_n == all_n:
+    print("    identical -> filter ignored;")
+    print("    Food is not a group_id")
+else:
+    print("    narrowed -> server filters it")
+    top_a = [(x.get("data") or {}).get("id") for x in all_r[:5]]
+    top_b = [(x.get("data") or {}).get("id") for x in food_r[:5]]
+    print("    same top 5: %s" % ("yes" if top_a == top_b else "no"))
+    if food_r:
+        print("    1st food result:")
+        print("      %s" % str(food_r[0].get("value", ""))[:32])
 PY
 fi
 
@@ -212,19 +283,22 @@ cat <<'NOTE'
 
 What decides it:
 
-[3] 4/4 + same promo values
-  -> Woolworths reuses pnp.ts, and
-     pnp becomes a shared platform
-     the way checkers did.
+Step 5 names the price field. pnp.ts
+reads data.priceValue, which came
+back 0/20 here, so the fetch may be
+shared while the price mapping is
+Woolworths' own.
 
-[3] 4/4 but different promo values
-  -> shared fetch, own loyalty rule.
-     Most likely: WRewards is not
-     Smart Shopper.
+Step 6 decides Food. "narrowed"
+means the scraper passes
+filters[group_id] and the server
+does the work. "identical" means the
+filter was ignored and Food is
+expressed some other way.
 
-[3] under 4/4
-  -> own parser.
+No lines here start with a bracket,
+so slicing this output with sed or
+awk cannot re-trigger on them.
 
-[4] decides how Food gets isolated.
 No scraper code until both are read.
 NOTE

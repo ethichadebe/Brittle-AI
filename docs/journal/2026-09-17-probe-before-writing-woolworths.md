@@ -92,3 +92,41 @@ store so far has been a grocer end to end — and a clothing item leaking into a
 price comparison is silently wrong rather than visibly broken. Step [4] asks how
 Food is expressed (a Constructor group, or something else) instead of guessing.
 No scraper code until that is read.
+
+## Third round — the platform matches, the prices do not
+
+The search probe ran on the VPS and the key worked: 558 results for "milk".
+Woolworths is on Constructor.io, same as Pick n Pay. But the fit is partial in
+the way that matters:
+
+- `value`, `data.id`, `image_url` — 20/20 each. Identity is identical to PnP.
+- `data.priceValue` — **0/20**. `priceConditionType` and `promotionDisplayType`
+  never appear. So `pnp.ts` `normalise()` scores 3/4: same platform, same fetch,
+  entirely different pricing vocabulary.
+
+The useful part was a negative result. The probe lists keys matching guessed
+words — price, promo, reward, loyal, sav, discount — and returned only
+`bulkpromo` and `promo`. **Not one key contained "price".** The price is under a
+name nobody guessed, which is precisely why guessing was the wrong method. Step
+[5] now dumps every key and every scalar value on the first result, plus the
+`variations` keys, instead of filtering by a word list. Constructor commonly
+carries per-variant pricing, so that is the first place it will show up.
+
+The department answer was worse than unknown — it was wrong and confident. Step
+[4] printed `results in Food: 0/20` and then `-> filter by group_id`, which do
+not agree. Results carry leaf categories (`cat866912`, `cat858521`) while Food
+is `cat606520`, so membership was never the right test; it is an ancestry
+question. The conclusion line was unearned and is gone. Step [6] asks the server
+instead — it re-searches with `filters[group_id]` and reports whether the total
+narrows. Narrowing is evidence the server understands the department; an
+unchanged total means the filter was ignored and Food lives somewhere else.
+
+Also worth recording because it wasted three screenshots: the closing notes
+block had lines beginning `[3]` and `[4]`, and slicing the output on a phone
+with `sed -n '/^\[3\]/,/^credits/p'` re-triggered the range on those lines and
+printed to end of file, pushing the real answer off the top twice. No line in
+that block starts with a bracket now.
+
+Still no scraper code. Nothing in this pull request activates Woolworths:
+`STORE_CONFIGS` is untouched, no scraper is registered, and merging it deploys
+nothing that runs.
