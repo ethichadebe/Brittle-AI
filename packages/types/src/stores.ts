@@ -44,13 +44,6 @@ export const STORE_CONFIGS: StoreConfig[] = [
     loyaltyProgramme: "WRewards",
   },
   {
-    slug: "spar",
-    name: "SPAR",
-    color: "#007b40",
-    active: false,
-    loyaltyProgramme: null,
-  },
-  {
     slug: "makro",
     name: "Makro",
     color: "#c8102e",

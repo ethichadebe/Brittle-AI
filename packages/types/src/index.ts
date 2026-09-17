@@ -8,7 +8,6 @@ export type StoreSlug =
   | "shoprite"
   | "pick-n-pay"
   | "woolworths"
-  | "spar"
   | "makro"
   | "game";
 
