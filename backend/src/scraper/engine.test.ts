@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Product } from "@accucery/types";
+import type { Product, StoreSlug } from "@accucery/types";
 import { searchProducts } from "./engine.js";
 
 const milk: Product = {
@@ -33,11 +33,13 @@ beforeEach(() => {
 });
 
 describe("searchProducts (engine)", () => {
-  // Was "woolworths" until Woolworths got a scraper. SPAR is declared in
-  // STORE_CONFIGS and has none, so it is the live example of a store the
-  // registry does not know.
+  // This assertion has been repointed twice - at "woolworths" until Woolworths
+  // got a scraper, then at "spar" until SPAR was removed - so it no longer names
+  // a real store at all. The behaviour under test is "a slug the registry does
+  // not know returns an empty list", and an invented slug tests exactly that
+  // without going stale the next time a store is added.
   it("returns empty array for unsupported store", async () => {
-    const result = await searchProducts("spar", "milk");
+    const result = await searchProducts("nonesuch" as StoreSlug, "milk");
     expect(result).toEqual([]);
   });
 
