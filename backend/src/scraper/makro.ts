@@ -97,6 +97,53 @@ export function effectivePrice(pricing: any): number {
   return typeof mrp === "number" && mrp > 0 ? mrp : 0;
 }
 
+// Where a Makro product keeps its image, and why it is not a URL yet.
+//
+// makro.ts first shipped reading node.imageUrl. A live search returned that
+// field EMPTY for every product: it does not exist. scripts/probe-makro-images.sh
+// walked the real page and found the images at media.images[].url, on
+// www.makro.co.za (so the image-proxy allowlist was right all along) - and
+// carrying Flipkart's size placeholders:
+//
+//   https://www.makro.co.za/asset/rukmini/fccp/{@width}/{@height}/ng-...jpeg
+//
+// The client is expected to substitute the size it wants. Left as they are,
+// those braces make the URL 404, so reading the right field is only half of it.
+const IMAGE_WIDTH = 416;
+const IMAGE_HEIGHT = 416;
+
+/** Substitute Flipkart's {@...} size placeholders so the URL resolves. */
+export function fillImageTemplate(url: string): string {
+  return url
+    .replace(/\{@width\}/g, String(IMAGE_WIDTH))
+    .replace(/\{@height\}/g, String(IMAGE_HEIGHT))
+    .replace(/\{@quality\}/g, "70")
+    // Any placeholder we do not know would leave literal braces in the URL,
+    // which no CDN serves. Dropping it is a guess; keeping it is a certainty.
+    .replace(/\{@[A-Za-z]+\}/g, "");
+}
+
+/**
+ * The product's image, ready to fetch.
+ *
+ * media.images is the live shape; imageUrl is kept as a fallback because two
+ * widget shapes already differ over where the title sits, and a shape carrying
+ * a plain URL costs one line to support.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- same untyped JSON
+export function imageOf(node: any): string {
+  const images = node?.media?.images;
+  if (Array.isArray(images)) {
+    for (const image of images) {
+      const url = image?.url;
+      // Several images per product, and not every entry carries a url.
+      if (typeof url === "string" && url) return fillImageTemplate(url);
+    }
+  }
+  const plain = node?.imageUrl;
+  return typeof plain === "string" ? fillImageTemplate(plain) : "";
+}
+
 // Two widget shapes carry the title differently: renderableComponents puts it at
 // value.title, the products widget nests it at titles.title. Accepting only the
 // first found 5 products where there were 45.
@@ -130,7 +177,7 @@ export function collectProducts(blob: unknown): Product[] {
         byId.set(productId, {
           productId,
           name,
-          imageUrl: typeof node.imageUrl === "string" ? node.imageUrl : "",
+          imageUrl: imageOf(node),
           regularPrice,
           loyaltyPrice: null,
         });
