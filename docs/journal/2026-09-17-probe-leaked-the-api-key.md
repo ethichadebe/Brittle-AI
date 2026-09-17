@@ -30,3 +30,32 @@
   - Worth deciding before any Makro code: Makro has a WAF, so like Checkers and
     Shoprite **every Makro search in production costs a ScraperAPI credit**.
     Woolworths cost nothing. That is an ongoing running cost, not a one-off.
+
+## Second run — the cap was not the problem, and my diagnosis was wrong
+
+Rerunning with `MAX_CREDITS=8` spent **3 of 8** and still reported no search page.
+So the budget was never the constraint, and "rerun with a bigger cap" was a guess
+dressed up as a fix.
+
+What the rerun did expose is a waste that had been there since the script was
+generalised. Step [2] fetches the store's homepage — on Makro that was 2.5MB
+retrieved through the proxy, for a credit — and then discards it. Step [4] only
+ever fingerprints a *search* page, and re-fetched `/` as its last candidate,
+paying a second time for a page already on disk.
+
+Two changes:
+
+- `/` is gone from the search candidates, because step [2] already has it.
+- When no search path answers, the fingerprint falls back to that homepage. A
+  site names its search platform site-wide, in its bundles and preconnects, not
+  only on a results page. The Woolworths finding came from a page that referenced
+  `cnstrc.com`; there was no reason that had to be a results page.
+
+On the stub this took the run from 3 credits to 1 and turned "no search page
+answered" into a named platform.
+
+Also worth recording: the first fix in this note nearly did not run at all. The
+fallback was written inside the `else` of an `if [ -n "$FOUND" ]` the script had
+already evaluated, so setting `FOUND` there could never have re-entered the
+fingerprint branch. Caught by reading the surrounding code before trusting the
+patch, which is the only reason it was not shipped as a silent no-op.

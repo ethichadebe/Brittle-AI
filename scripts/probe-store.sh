@@ -178,13 +178,22 @@ fi
 # not guess. Woolworths was found this way: its page referenced cnstrc.com.
 printf '\n[4] search page fingerprint\n'
 FOUND=""
-for path in "/search?q=$QUERY" "/cat?Ntt=$QUERY" "/catalogue/search?q=$QUERY" "/products?q=$QUERY" "/"; do
+for path in "/search?q=$QUERY" "/cat?Ntt=$QUERY" "/catalogue/search?q=$QUERY" "/products?q=$QUERY"; do
   IFS="|" read -r code ctype bytes via waf final <<<"$(fetch "$TMP/s.html" "$STORE_URL$path")"
   printf '    %-5s %-18s %sB\n' "$code" "$(short "${path%%\?*}" 18)" "$bytes"
   if [ "$code" = "200" ] && [ "${bytes:-0}" -gt 2000 ] && ! blocked "$code" "$TMP/s.html"; then
     cp "$TMP/s.html" "$TMP/search.html"; FOUND=yes; break
   fi
 done
+
+if [ -z "$FOUND" ] && [ -s "$TMP/home.html" ] \
+   && [ "$(wc -c < "$TMP/home.html")" -gt 2000 ] \
+   && ! blocked 200 "$TMP/home.html"; then
+  cp "$TMP/home.html" "$TMP/search.html"
+  FOUND=home
+  printf '%s\n' '    no search path answered;'
+  printf '%s\n' '    using the homepage from [2]'
+fi
 
 if [ -n "$FOUND" ]; then
   printf '\n    platforms named in the page:\n'
