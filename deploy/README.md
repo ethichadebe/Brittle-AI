@@ -60,21 +60,46 @@ systemctl list-timers accucery-deploy.timer
 A log file on the server is not a notification. Without this, a failed deploy is
 discovered when the site is already broken.
 
-Set `ACCUCERY_NOTIFY_URL` in `.env` to anything that accepts a POST.
+### Telegram (preferred)
+
+The same bot the site monitor in `ethichadebe/workflows` already alerts through.
+A chat is properly authenticated, and it is one place to look rather than two.
+
+```bash
+cd /opt/accucery
+cat >> .env <<'EOF'
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+EOF
+bash scripts/auto-deploy.sh --test-notify
+```
+
+The chat id comes from messaging the bot once and reading
+`https://api.telegram.org/bot<TOKEN>/getUpdates`.
+
+Note this puts the bot token on the server as well as in GitHub Actions secrets.
+The token can only send messages as the bot, but it is one more place to rotate
+if it ever leaks.
+
+### Or any endpoint that accepts a POST
+
 [ntfy.sh](https://ntfy.sh) needs no account: pick a topic, install the app,
-subscribe to the same topic.
+subscribe to the same topic. Both channels can be set at once.
 
 ```bash
 cd /opt/accucery
 
-# The topic name is the only thing protecting it, so make it unguessable.
-echo "ACCUCERY_NOTIFY_URL=https://ntfy.sh/accucery-$(head -c 9 /dev/urandom | base64 | tr -dc a-z0-9)" >> .env
+# The topic name is the ONLY thing protecting it. Anyone who guesses it reads
+# your alerts and can send you fake ones, so make it long — 24 characters, not
+# the handful a shorter generator happens to produce.
+echo "ACCUCERY_NOTIFY_URL=https://ntfy.sh/accucery-$(tr -dc 'a-z0-9' < /dev/urandom | head -c 24)" >> .env
 grep ACCUCERY_NOTIFY_URL .env     # subscribe the app to this topic
 
 bash scripts/auto-deploy.sh --test-notify
 ```
 
-Two messages should arrive. If they do, alerts work.
+Two messages should arrive on whichever channels are configured, and
+`--test-notify` names them. If they arrive, alerts work.
 
 | When | Priority |
 | --- | --- |

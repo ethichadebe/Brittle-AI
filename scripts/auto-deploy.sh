@@ -43,6 +43,8 @@ log() {
 # either way the last colon-separated field is the port.
 port=80
 NOTIFY_URL=""
+TG_TOKEN=""
+TG_CHAT=""
 if [ -f .env ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in ''|'#'*) continue ;; *=*) ;; *) continue ;; esac
@@ -51,6 +53,8 @@ if [ -f .env ]; then
     case "$k" in
       FRONTEND_PORT)        [ -n "$v" ] && port=${v##*:} ;;
       ACCUCERY_NOTIFY_URL)  NOTIFY_URL=$v ;;
+      TELEGRAM_BOT_TOKEN)   TG_TOKEN=$v ;;
+      TELEGRAM_CHAT_ID)     TG_CHAT=$v ;;
     esac
   done < .env
 fi
@@ -60,30 +64,50 @@ BASE="http://127.0.0.1:$port"
 # the only record of a failed deploy is a file on this box, which nobody reads
 # until the site is already broken.
 #
-# ACCUCERY_NOTIFY_URL is any endpoint that accepts a POST; https://ntfy.sh/<topic>
-# needs no account. The Title/Priority/Tags headers are ntfy's — anything else
-# ignores them and still gets the message as the body.
+# Telegram is the channel this project already alerts on — the workflows repo's
+# site monitor uses the same bot — so it is preferred when configured. A chat has
+# real authentication, where an ntfy topic is protected only by nobody guessing
+# its name.
+#
+# ACCUCERY_NOTIFY_URL remains for any endpoint that accepts a POST. The
+# Title/Priority/Tags headers are ntfy's; anything else ignores them and still
+# gets the message as the body.
 #
 # Never fails the deploy: a notifier that can take the site down with it is worse
 # than no notifier. Short timeout, errors swallowed, no retry.
 notify() {
-  local outcome="$1" body="$2" title priority tags
-  [ -n "$NOTIFY_URL" ] || return 0
+  local outcome="$1" body="$2" title emoji priority tags silent text
 
   if [ "$outcome" = ok ]; then
-    title="Accucery deployed"; priority=min;  tags=white_check_mark
+    title="Accucery deployed";      emoji="OK";     priority=min;  tags=white_check_mark
   else
-    title="Accucery deploy FAILED"; priority=high; tags=rotating_light
+    title="Accucery deploy FAILED"; emoji="FAILED"; priority=high; tags=rotating_light
   fi
 
   if $DRY_RUN; then
-    echo "would notify ($outcome): $body"
+    [ -n "$TG_TOKEN$NOTIFY_URL" ] && echo "would notify ($outcome): $body"
     return 0
   fi
 
-  curl -fsS -m 10 \
-    -H "Title: $title" -H "Priority: $priority" -H "Tags: $tags" \
-    -d "$body" "$NOTIFY_URL" >/dev/null 2>&1 || true
+  if [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ]; then
+    # Telegram has no notion of a title or priority, so the outcome leads the
+    # message. disable_notification keeps a successful deploy from buzzing while
+    # still leaving it in the chat as a record.
+    silent=false
+    [ "$outcome" = ok ] && silent=true
+    text=$(printf '[%s] %s\n\n%s' "$emoji" "$title" "$body")
+    curl -fsS -m 10 -o /dev/null \
+      "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${TG_CHAT}" \
+      --data-urlencode "disable_notification=${silent}" \
+      --data-urlencode "text=${text}" 2>/dev/null || true
+  fi
+
+  if [ -n "$NOTIFY_URL" ]; then
+    curl -fsS -m 10 \
+      -H "Title: $title" -H "Priority: $priority" -H "Tags: $tags" \
+      -d "$body" "$NOTIFY_URL" >/dev/null 2>&1 || true
+  fi
   return 0
 }
 
@@ -95,15 +119,25 @@ fail() {
 }
 
 if $TEST_NOTIFY; then
-  if [ -z "$NOTIFY_URL" ]; then
-    echo "ACCUCERY_NOTIFY_URL is not set in .env — nothing to test."
-    echo "Pick an unguessable topic and add:"
-    echo "  ACCUCERY_NOTIFY_URL=https://ntfy.sh/accucery-\$(head -c 9 /dev/urandom | base64 | tr -dc a-z0-9)"
+  channels=""
+  [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] && channels="Telegram"
+  [ -n "$NOTIFY_URL" ] && channels="${channels:+$channels and }ACCUCERY_NOTIFY_URL"
+
+  if [ -z "$channels" ]; then
+    echo "No notification channel is configured in .env."
+    echo
+    echo "Telegram (preferred — the bot this project already alerts through):"
+    echo "  TELEGRAM_BOT_TOKEN=..."
+    echo "  TELEGRAM_CHAT_ID=..."
+    echo
+    echo "Or any endpoint that accepts a POST:"
+    echo "  ACCUCERY_NOTIFY_URL=https://ntfy.sh/accucery-\$(tr -dc 'a-z0-9' < /dev/urandom | head -c 24)"
     exit 1
   fi
+
   notify fail "test from $(hostname) — if you can read this, deploy alerts work"
   notify ok   "test from $(hostname) — this is what a successful deploy looks like"
-  echo "Sent two test notifications. Check your phone."
+  echo "Sent two test notifications via $channels. Check your phone."
   exit 0
 fi
 
