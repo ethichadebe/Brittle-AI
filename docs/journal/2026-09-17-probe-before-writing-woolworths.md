@@ -130,3 +130,36 @@ that block starts with a bracket now.
 Still no scraper code. Nothing in this pull request activates Woolworths:
 `STORE_CONFIGS` is untouched, no scraper is registered, and merging it deploys
 nothing that runs.
+
+## Fourth round — the price is a zone, and the filter test was not a test
+
+Dumping every key instead of guessing worked. The price fields are `p10`, `p30`
+and `p60`, each with a `_wp` twin, and nothing containing the word "price" — so
+no keyword list would ever have found them. They also **disagree on the same
+product**: `p10` was 45.99 while `p30` and `p60` were 39.99. That is the same
+class of problem as `storeContexts` in `shopriteGroup.ts`: which number is the
+real price depends on where the shopper is, and picking one silently is how a
+comparison app becomes confidently wrong. It is a question for a human.
+
+The `_wp` twins were all `0` on the first result, which is a full-price item.
+The probe now scans all results for one where a `_wp` is non-zero and prints it,
+because that single example is what identifies the loyalty field — the same
+mistake as reading `results[0]`, one level up.
+
+The product also carries `prodtype` and `fulfiller`, both `Food` on the sample,
+so the department may need no filter at all. Step [6] counts those values across
+results and says plainly whether non-food is leaking.
+
+The worse problem was that step [6] — now [8] — was not a test. It filtered by
+the Food group, saw 558 before and 558 after, and concluded the filter was
+ignored. But an unchanged total is *also* exactly what a working filter returns
+when every result was already food. The two cases were indistinguishable and it
+picked one. It now runs a second search against a non-food control group: if the
+control is also unchanged the filter really is ignored, and if the control
+narrows the filter works. Three outcomes are reported instead of two guesses.
+
+Also removed: the previous filter block was left in place when the new one was
+spliced in, so the script briefly had two step [6]s and made a redundant request.
+Caught by running it, not by reading it.
+
+Still no scraper code, and still nothing that activates Woolworths.
