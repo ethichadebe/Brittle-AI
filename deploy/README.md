@@ -55,6 +55,38 @@ Check it is armed:
 systemctl list-timers accucery-deploy.timer
 ```
 
+## Getting told when it breaks
+
+A log file on the server is not a notification. Without this, a failed deploy is
+discovered when the site is already broken.
+
+Set `ACCUCERY_NOTIFY_URL` in `.env` to anything that accepts a POST.
+[ntfy.sh](https://ntfy.sh) needs no account: pick a topic, install the app,
+subscribe to the same topic.
+
+```bash
+cd /opt/accucery
+
+# The topic name is the only thing protecting it, so make it unguessable.
+echo "ACCUCERY_NOTIFY_URL=https://ntfy.sh/accucery-$(head -c 9 /dev/urandom | base64 | tr -dc a-z0-9)" >> .env
+grep ACCUCERY_NOTIFY_URL .env     # subscribe the app to this topic
+
+bash scripts/auto-deploy.sh --test-notify
+```
+
+Two messages should arrive. If they do, alerts work.
+
+| When | Priority |
+| --- | --- |
+| Deploy failed, site not answering, build broke, deploys stalled | high — it buzzes |
+| Deploy succeeded | min — silent, just a record that your merge went live |
+
+Nothing else notifies. A run that finds `master` unmoved says nothing at all.
+
+The notifier can never take the site down with it: ten-second timeout, errors
+swallowed, no retry. A deploy that worked is still a deploy that worked even if
+the message never arrives.
+
 ## Watching it
 
 ```bash
