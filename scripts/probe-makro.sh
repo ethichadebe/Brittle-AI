@@ -248,7 +248,10 @@ if not tails:
     print("    XHR. Probe that endpoint next.")
 
 NOISE = ("action.", "tracking.", "omniture", "analytics", "wishlist",
-         "constraints", "loginType", "permission", "redirect")
+         "constraints", "loginType", "permission", "redirect",
+         # Reviews are attached to each product and are bulkier than it is:
+         # mostHelpful and mostRecent buried the title and price on the live run.
+         "mosthelpful", "mostrecent", "review", "rating")
 
 def is_noise(path):
     low = path.lower()
@@ -292,6 +295,23 @@ else:
         collect(target)
         if not pairs:
             print("    nothing but analytics")
+
+        def interest(pair):
+            """What a parser needs, first.
+
+            Insertion order put a reviews widget's fields ahead of the title and
+            price on the live page. Sorting by relevance is what makes the
+            output answer the question it was written to ask.
+            """
+            path, _ = pair
+            leaf = path.split(".")[-1].lower()
+            if moneyish(path): return 0
+            if re.search(r"(title|name)$", leaf): return 1
+            if re.search(r"(image|img|thumb|url)", leaf): return 2
+            if re.search(r"(^id$|pid|sku|itemid|productid)", leaf): return 3
+            return 4
+
+        pairs.sort(key=interest)
         for path, val in pairs[:16]:
             tail = ".".join(path.split(".")[-2:])[:17]
             text = str(val)[:14]
