@@ -293,21 +293,72 @@ if [ -n "$HIT" ] && [ -s "$TMP/promo" ]; then
   IFS='|' read -r code ctype bytes <<<"$(get "$TMP/promo.json" \
     "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${KEY}&num_results_per_page=5&filters%5B$(urlenc "$FN")%5D=$(urlenc "$FV")")"
   printf '    %-4s %-5s %sB\n' "$code" "$(ct "$ctype")" "$bytes"
-  python3 - "$TMP/promo.json" <<'PY'
-import json, sys
-r = json.load(open(sys.argv[1])).get("response") or {}
-res = r.get("results") or []
-print("    on promo: %s results" % r.get("total_num_results"))
-if not res:
-    print("    none came back")
-else:
-    x = res[0]; d = x.get("data") or {}
-    print("    sample:")
-    print("      %s" % str(x.get("value", ""))[:32])
-    for k in ("promo", "bulkpromo", "promotionText", "p10", "p10_wp",
-              "p30", "p30_wp", "p60", "p60_wp"):
-        if k in d:
-            print("      %-11s %s" % (k, str(d[k])[:20]))
+  python3 - "$TMP/promo.json" "$TMP/hit.json" <<'PY'
+import json, re, sys, textwrap
+
+def wrap(s, ind="      "):
+    out = textwrap.wrap(str(s), 38 - len(ind), initial_indent=ind,
+                        subsequent_indent=ind)
+    return out or [ind + "(empty)"]
+
+def load(f):
+    r = json.load(open(f)).get("response") or {}
+    return r.get("total_num_results"), (r.get("results") or [])
+
+def keys(rs):
+    k = set()
+    for x in rs:
+        k |= set((x.get("data") or {}).keys())
+    return k
+
+n_promo, promo = load(sys.argv[1])
+_, plain = load(sys.argv[2])
+print("    on promo: %s results" % n_promo)
+if not promo:
+    print("    none came back"); raise SystemExit
+
+# A promotional price would live in a field that only exists when there IS a
+# promotion, so the unfiltered search could never have shown it. This diff is
+# the only place it can turn up.
+extra = sorted(keys(promo) - keys(plain))
+print("    keys only on promoted:")
+for l in wrap(" ".join(extra) if extra else "none"): print(l)
+
+# _wp was the hypothesis for the loyalty price. Test it across every promoted
+# product rather than trusting one sample.
+wpk = [k for k in keys(promo) if re.fullmatch(r"p\d+_wp", k)]
+
+def num(v):
+    try: return float(v)
+    except (TypeError, ValueError): return 0.0
+
+hot = [x for x in promo if any(num((x.get("data") or {}).get(k)) for k in wpk)]
+print("    _wp set on %d/%d promoted" % (len(hot), len(promo)))
+
+sample = hot[0] if hot else promo[0]
+d = sample.get("data") or {}
+print("    sample:")
+for l in wrap(sample.get("value", "")): print(l)
+# Printed in full: these are arrays, and truncating one to 20 characters is how
+# the last run showed a fragment of element one and nothing else.
+for k in ("promo", "bulkpromo"):
+    if k not in d: continue
+    print("    %s:" % k)
+    v = d[k]
+    items = v if isinstance(v, list) else [v]
+    if not items:
+        print("      (empty)")
+    for item in items[:3]:
+        for l in wrap(item): print(l)
+print("    every numeric field:")
+shown = 0
+for k in sorted(d):
+    v = d[k]
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        continue
+    print("      %-14s %s" % (k[:14], v))
+    shown += 1
+    if shown >= 14: break
 PY
 fi
 

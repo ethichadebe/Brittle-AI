@@ -195,3 +195,36 @@ Two bugs, both mine, both in the reading rather than the probing:
   the filter test in the shell after it. Renumbered to match print order.
 
 Still no scraper code.
+
+## Sixth round — _wp is not the loyalty price
+
+The promotion facet is `onpromo`, and asking for it returned 103 promoted
+products, so the approach worked: the site says where its promotions are. What
+came back killed the hypothesis.
+
+On a product Woolworths itself flags as promoted — a long-life milk six-pack —
+`p10`, `p30` and `p60` were all 126.99 and all three `_wp` fields were `0`.
+**`_wp` is not the WRewards price.** Three queries had shown `any _wp set: 0/20`
+and it was tempting to read that as "no promotions in this sample"; the facet
+proves otherwise. Had the scraper been written on the earlier guess, it would
+have reported a loyalty price of zero, or none at all, on every product.
+
+`promo` was misread too. It is an **array of strings**, and the probe printed
+`str(value)[:20]`, so the output showed `['Limited: 2 items p` — a fragment of
+element one of a Python repr. The first element was a purchase limit, not a
+discount at all. Arrays now print in full, wrapped, up to three elements.
+
+Two changes make the next run decisive rather than another sample:
+
+- The promoted results are diffed against the unfiltered ones for **keys that
+  exist only on promoted products**. A promotional price must live in a field
+  that is absent when there is no promotion, so no amount of looking at ordinary
+  products could ever have revealed it.
+- Every numeric field on a promoted product is printed, not a guessed subset.
+  The last two rounds both failed because a hand-picked key list cannot contain
+  a field nobody has thought of yet.
+
+Also fixed: an empty array printed its label with nothing beneath it, which
+reads as missing data rather than as empty.
+
+Still no scraper code.
