@@ -215,7 +215,9 @@ if [ -n "$FOUND" ]; then
   for f in "cnstrc:constructor(PnP)" "algolia:algolia" "searchspring:searchspring" \
            "unbxd:unbxd" "bloomreach:bloomreach" "klevu:klevu" "graphql:graphql" \
            "__NEXT_DATA__:next.js" "__NUXT__:nuxt" "shopify:shopify" \
-           "magento:magento" "get-products-filter:shoprite-grp"; do
+           "magento:magento" "get-products-filter:shoprite-grp" \
+           "flixcart:flipkart(Makro)" "flipkart:flipkart(Makro)" \
+           "useinsider:insider(personalisation)"; do
     if grep -qi "${f%%:*}" "$TMP/search.html"; then
       printf '      %s\n' "${f##*:}"; hit=1
     fi
