@@ -252,7 +252,7 @@ tails = sorted({".".join(f.split(".")[-4:]) for f in price_paths})
 print("[4] how many products in the page")
 ids = {}
 def collect_ids(node, depth=0):
-    if depth > 14: return
+    if depth > 40: return
     if isinstance(node, dict):
         for k, v in node.items():
             kl = k.lower()
@@ -434,13 +434,30 @@ def price_of(pricing, want):
             if isinstance(v, (int, float)): return float(v)
     return None
 
+def title_of(node):
+    """Two widget shapes carry the title differently.
+
+    renderableComponents puts it at value.title; the products widget nests it
+    at titles.title. Accepting only the first found five products and would
+    have reported the rest as absent.
+    """
+    direct = node.get("title")
+    if isinstance(direct, str) and direct: return direct
+    titles = node.get("titles")
+    if isinstance(titles, dict):
+        nested = titles.get("title")
+        if isinstance(nested, str) and nested: return nested
+    return None
+
 def visit(node, depth=0):
-    if depth > 16: return
+    # Deep enough to reach every widget. Flipkart nests hard, and a shallow
+    # limit proves nothing about what is or is not in the page.
+    if depth > 40: return
     if isinstance(node, dict):
         pricing = node.get("pricing")
         pid = node.get("productId") or node.get("itemId")
-        title = node.get("title")
-        if isinstance(pricing, dict) and isinstance(pid, str) and isinstance(title, str):
+        title = title_of(node)
+        if isinstance(pricing, dict) and isinstance(pid, str) and title:
             regular = price_of(pricing, "FSP")
             if regular is None:
                 mrp = pricing.get("mrp")
