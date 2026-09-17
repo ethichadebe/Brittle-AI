@@ -16,10 +16,6 @@ const registry: Partial<Record<StoreSlug, Scraper>> = {
   // yet confirmed, and an unverified price is worse than an absent store — see
   // WOOLWORTHS_PRICE_ZONE in .env.example.
   woolworths: new WoolworthsScraper(),
-  // Registered so /api/search can verify it while STORE_CONFIGS keeps makro
-  // active: false and the UI shows it as coming soon. Unlike Woolworths there
-  // is no price-zone ambiguity, but the prices still want checking against the
-  // site before shoppers see them.
   makro: new MakroScraper(),
 };
 

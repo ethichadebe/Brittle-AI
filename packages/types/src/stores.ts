@@ -47,7 +47,14 @@ export const STORE_CONFIGS: StoreConfig[] = [
     slug: "makro",
     name: "Makro",
     color: "#c8102e",
-    active: false,
+    // Verified live before switching on: 20 products in 2s, correct prices,
+    // zero ScraperAPI credits. Unlike Woolworths there is no price-zone
+    // ambiguity - prices[] says by priceType what each number is.
+    active: true,
+    // Deliberately null. Makro's "Special Price" is a public promotion rather
+    // than a card-gated one, so makro.ts quotes the effective price as
+    // regularPrice and never sets loyaltyPrice. A store listed here appears in
+    // Settings as loyalty-capable, which Makro is not.
     loyaltyProgramme: null,
   },
   {
