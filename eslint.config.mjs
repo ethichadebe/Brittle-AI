@@ -53,6 +53,16 @@ export default tseslint.config(
     },
   },
 
+  // Probes and one-off tools under scripts/ run in Node. Declaring that is not
+  // the same as silencing no-undef: a real typo is still an error, which is the
+  // whole point of listing the environment rather than turning the rule off.
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+
   // Tests may lean on loose typing for fixtures.
   {
     files: ["**/*.test.ts", "**/test/**/*.ts"],
