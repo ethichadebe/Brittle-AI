@@ -144,7 +144,7 @@ def moneyish(path):
     """
     tail = ".".join(path.split(".")[-2:]).lower()
     return any(w in tail for w in
-               ("price", "mrp", "promo", "discount", "sav", "cost", "rrp"))
+               ("price", "mrp", "promo", "discount", "saving", "cost", "rrp"))
 
 def leaf_paths(obj, prefix="", depth=0, out=None):
     """Dotted paths to every scalar, a few levels down.
@@ -246,6 +246,57 @@ if not tails:
     print("    none - prices are not in the")
     print("    page, so results arrive by")
     print("    XHR. Probe that endpoint next.")
+
+NOISE = ("action.", "tracking.", "omniture", "analytics", "wishlist",
+         "constraints", "loginType", "permission", "redirect")
+
+def is_noise(path):
+    low = path.lower()
+    return any(n in low for n in NOISE)
+
+# [5] The parser needs values, not just paths. Print the best array's first item
+# with its actual contents, analytics stripped out.
+print("\n[5] first product, values")
+if not ranked or ranked[0][0] < 3:
+    print("    no product-shaped array")
+else:
+    _, _, best_path, _ = ranked[0]
+    target = None
+    for kind, blob in blobs:
+        node = blob
+        try:
+            for part in re.findall(r"\.([^.\[]+)|\[(\d+)\]", best_path):
+                key, idx = part
+                node = node[key] if key else node[int(idx)]
+        except Exception:
+            continue
+        if isinstance(node, list) and node:
+            target = node[0]; break
+    if target is None:
+        print("    could not re-read it")
+    else:
+        pairs = []
+
+        def collect(obj, prefix="", depth=0):
+            if depth > 5 or len(pairs) > 200: return
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    path = "%s.%s" % (prefix, k) if prefix else k
+                    if is_noise(path): continue
+                    if isinstance(v, (dict, list)): collect(v, path, depth + 1)
+                    elif v not in (None, "", [], {}): pairs.append((path, v))
+            elif isinstance(obj, list):
+                for i, x in enumerate(obj[:2]):
+                    collect(x, "%s[%d]" % (prefix, i), depth + 1)
+
+        collect(target)
+        if not pairs:
+            print("    nothing but analytics")
+        for path, val in pairs[:16]:
+            tail = ".".join(path.split(".")[-2:])[:17]
+            text = str(val)[:14]
+            print("      %-17s %s" % (tail, text))
+        print("    (%d fields, analytics hidden)" % len(pairs))
 PY
 
 printf '%s\n' '--------------------------------------'
