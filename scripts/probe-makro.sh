@@ -128,61 +128,13 @@ if not blobs:
     print("    the HTML or fetched by XHR")
     raise SystemExit
 
-# Walk everything. Guessing where products live is what cost two rounds on
-# Woolworths, so this finds every list of objects and ranks them by size.
+# Walk everything. Ranking by SIZE was wrong: on Makro the two biggest arrays
+# are the router config (47) and a facet's filter values (34), while the results
+# are somewhere smaller. Rank by how much an array LOOKS like products instead.
 print("\n[3] product-shaped lists found")
-found = []
 
-def leaf_paths(obj, prefix="", depth=0, out=None):
-    """Dotted paths to every scalar, a few levels down.
-
-    Reporting only an item's top-level keys is useless when the fields are
-    nested: Makro wraps each product in productInfo.value, so the parser needs
-    productInfo.value.pricing.finalPrice.value, not "productInfo".
-    """
-    if out is None: out = set()
-    if depth > 4: return out
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            path = "%s.%s" % (prefix, k) if prefix else k
-            if isinstance(v, (dict, list)): leaf_paths(v, path, depth + 1, out)
-            else: out.add(path)
-    elif isinstance(obj, list):
-        for x in obj[:2]:
-            leaf_paths(x, prefix + "[]", depth + 1, out)
-    return out
-
-def walk(node, path):
-    if isinstance(node, dict):
-        for k, v in node.items():
-            walk(v, "%s.%s" % (path, k))
-    elif isinstance(node, list):
-        objs = [x for x in node if isinstance(x, dict)]
-        if len(objs) >= 3:
-            fields = set()
-            for x in objs[:10]: fields |= leaf_paths(x)
-            found.append((len(objs), path, fields))
-        for i, x in enumerate(node[:3]):
-            walk(x, "%s[%d]" % (path, i))
-
-for kind, blob in blobs:
-    walk(blob, kind)
-
-# The same array is often reachable by more than one route through the blob.
-seen_sig = set()
-unique = []
-for n, path, fields in sorted(found, key=lambda t: -t[0]):
-    sig = (n, frozenset(fields))
-    if sig in seen_sig: continue
-    seen_sig.add(sig); unique.append((n, path, fields))
-
-if not unique:
-    print("    none")
-    raise SystemExit
-
-def show(path, width=30):
-    """One path per line, keeping the tail - the tail is the informative end."""
-    return path if len(path) <= width else "~" + path[-(width - 1):]
+arrays = []
+price_paths = set()
 
 def moneyish(path):
     """Match the last two segments only.
@@ -194,19 +146,106 @@ def moneyish(path):
     return any(w in tail for w in
                ("price", "mrp", "promo", "discount", "sav", "cost", "rrp"))
 
-for n, path, fields in unique[:2]:
-    print("    %d items at" % n)
-    for l in wrap([path[-60:]]): print(l)
-    print("      fields:")
-    for f in sorted(fields)[:14]:
-        print("        %s" % show(f))
-    money = sorted(f for f in fields if moneyish(f))
-    print("      price-ish:")
-    if not money:
-        print("        (none)")
-    for f in money[:8]:
-        print("        %s" % show(f))
-    print("")
+def leaf_paths(obj, prefix="", depth=0, out=None):
+    """Dotted paths to every scalar, a few levels down.
+
+    Top-level keys are useless when fields are nested: a Flipkart product's
+    wrapper has one key, productInfo, while the parser needs
+    productInfo.value.pricing.finalPrice.value.
+    """
+    if out is None: out = set()
+    if depth > 4 or len(out) > 400: return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            path = "%s.%s" % (prefix, k) if prefix else k
+            if isinstance(v, (dict, list)): leaf_paths(v, path, depth + 1, out)
+            else: out.add(path)
+    elif isinstance(obj, list):
+        for x in obj[:2]:
+            leaf_paths(x, prefix + "[]", depth + 1, out)
+    return out
+
+def walk(node, path, depth=0):
+    if depth > 12: return
+    if isinstance(node, dict):
+        for k, v in node.items():
+            p = "%s.%s" % (path, k)
+            if isinstance(v, (dict, list)): walk(v, p, depth + 1)
+            elif isinstance(v, (int, float)) and moneyish(p):
+                # Collapse array indices so one logical field is one entry:
+                # walking three elements of the same array otherwise reports the
+                # same price field three times.
+                price_paths.add(re.sub(r"\[\d+\]", "[]", p))
+    elif isinstance(node, list):
+        objs = [x for x in node if isinstance(x, dict)]
+        if len(objs) >= 3:
+            fields = set()
+            for x in objs[:10]: leaf_paths(x, out=fields)
+            arrays.append((len(objs), path, fields))
+        for i, x in enumerate(node[:3]):
+            walk(x, "%s[%d]" % (path, i), depth + 1)
+
+def last(path):
+    return path.split(".")[-1].lower()
+
+def score(fields):
+    """How much does this array look like a product list?"""
+    s = 0
+    if any(moneyish(f) for f in fields): s += 3
+    if any(re.search(r"(title|name)$", last(f)) for f in fields): s += 2
+    if any(re.search(r"(image|img|thumb|url)", last(f)) for f in fields): s += 1
+    if any(re.search(r"(^id$|pid|sku|productid)", last(f)) for f in fields): s += 1
+    return s
+
+for kind, blob in blobs:
+    walk(blob, kind)
+
+seen_sig, ranked = set(), []
+for n, path, fields in arrays:
+    sig = (n, frozenset(fields))
+    if sig in seen_sig: continue
+    seen_sig.add(sig)
+    ranked.append((score(fields), n, path, fields))
+ranked.sort(key=lambda t: (-t[0], -t[1]))
+
+def show(path, width=30):
+    """One path per line, keeping the tail - the tail is the informative end."""
+    return path if len(path) <= width else "~" + path[-(width - 1):]
+
+if not ranked:
+    print("    none")
+else:
+    for sc, n, path, fields in ranked[:3]:
+        print("    score %d - %d items at" % (sc, n))
+        for l in wrap([path[-60:]]): print(l)
+        print("      fields:")
+        for f in sorted(fields)[:12]:
+            print("        %s" % show(f))
+        money = sorted(f for f in fields if moneyish(f))
+        print("      price-ish:")
+        if not money: print("        (none)")
+        for f in money[:6]:
+            print("        %s" % show(f))
+        print("")
+    if ranked[0][0] < 3:
+        print("    nothing scores on price:")
+        print("    no array here looks like a")
+        print("    product list")
+
+# Decisive either way: if no numeric price field exists anywhere in the embedded
+# data, the products are not in this page and the next step is the XHR endpoint.
+# The same field is reachable through more than one blob root, because
+# __INITIAL_STATE__ and pageDataV4 match overlapping objects. Collapse to the
+# last few segments, which is the part that identifies the field anyway.
+tails = sorted({".".join(f.split(".")[-4:]) for f in price_paths})
+print("[4] price fields anywhere")
+print("    %d distinct" % len(tails))
+for f in tails[:8]:
+    print("      %s" % show(f, 32))
+if not tails:
+    print("    none - prices are not in the")
+    print("    page, so results arrive by")
+    print("    XHR. Probe that endpoint next.")
 PY
 
 printf '%s\n' '--------------------------------------'
@@ -217,20 +256,19 @@ cat <<'NOTE'
 
 What decides it:
 
-Step 3 lists every array of objects
-in the page's embedded data, biggest
-first, with the real key names. The
-products are almost certainly the
-largest one. Its price-ish keys are
-the candidate price fields - but
-Woolworths' price was p10/p30/p60
-with no key containing "price", so
-read the full key list, not only
-that line.
+Step 3 ranks arrays by how much they
+look like products - a price field
+scores most, then a title, an image,
+an id. Size was the old ranking and
+it was wrong: Makro's two biggest
+arrays are router config and facet
+values.
 
-No embedded JSON at all means the
-products arrive by XHR after load,
-and the next step is the network
-endpoint rather than the page.
+Step 4 is the decisive one. No
+numeric price field anywhere in the
+embedded data means the products are
+not in this page at all, and the next
+step is the XHR endpoint the page
+calls after loading.
 NOTE
 fi
