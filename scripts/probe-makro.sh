@@ -311,8 +311,29 @@ else:
             if re.search(r"(^id$|pid|sku|itemid|productid)", leaf): return 3
             return 4
 
-        pairs.sort(key=interest)
-        for path, val in pairs[:16]:
+        # Ranking alone is not enough. Makro carries sixteen-plus price fields,
+        # so sorting by relevance filled every slot with prices and hid the
+        # title and image again - the third time this output has buried the
+        # answer. Take a few from each category instead.
+        CAPS = {0: 7, 1: 4, 2: 3, 3: 3, 4: 4}
+        def numeric_first(pair):
+            """A price is a number.
+
+            priceType: "DELIVERY_CHARGE" and listingPriceType: "REGULAR" are
+            labels, and they filled the price bucket ahead of mrp.value and
+            prices[].value - the only fields a parser can actually read.
+            """
+            _, val = pair
+            return 0 if isinstance(val, (int, float)) and not isinstance(val, bool) else 1
+
+        buckets = {}
+        for pair in pairs:
+            buckets.setdefault(interest(pair), []).append(pair)
+        shown = []
+        for cat in sorted(buckets):
+            ordered = sorted(buckets[cat], key=numeric_first)
+            shown.extend(ordered[:CAPS.get(cat, 3)])
+        for path, val in shown[:21]:
             tail = ".".join(path.split(".")[-2:])[:17]
             text = str(val)[:14]
             print("      %-17s %s" % (tail, text))
