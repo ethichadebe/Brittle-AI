@@ -228,3 +228,31 @@ Also fixed: an empty array printed its label with nothing beneath it, which
 reads as missing data rather than as empty.
 
 Still no scraper code.
+
+## Seventh round — the field is named, but its contents were skipped
+
+The promoted-versus-normal key diff worked on the first try: exactly one field
+exists on promoted products and nowhere else, and it is called
+`product_promo_info`. That is the answer to where the promotional price lives.
+
+The probe then failed to print it. "Every numeric field" is only every *numeric*
+field, and a structured promotion is a list or an object, so the one field worth
+reading was the one silently skipped. Broadening from a guessed key list to all
+numerics was an improvement that still carried the original mistake: it assumed
+the shape of the answer. The promoted-only keys now have their values printed in
+full, whatever type they are.
+
+Two facts did come through, and they agree with each other:
+
+- `_wp set on 0/5 promoted` — settled. `_wp` is not the WRewards price, on
+  products the site itself flags as promoted.
+- The `promo` array's second element read `"Now R99.99 Save R27 Long Life Milk
+  6 x 1 L"`, while `p10`, `p30` and `p60` were all 126.99. 126.99 − 27 = 99.99,
+  so the regular price is `p*` and the promotional price is 99.99. The numbers
+  are consistent, which is the first real corroboration of what the price fields
+  mean.
+
+That text is parseable, but parsing "Now R99.99 Save R27" out of marketing copy
+is the kind of thing that works until a copywriter changes the wording. If
+`product_promo_info` carries the same numbers structurally, that is what the
+scraper should read.

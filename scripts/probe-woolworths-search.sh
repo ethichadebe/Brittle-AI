@@ -324,6 +324,20 @@ extra = sorted(keys(promo) - keys(plain))
 print("    keys only on promoted:")
 for l in wrap(" ".join(extra) if extra else "none"): print(l)
 
+# Those keys are the whole point, so print their VALUES, not just their names.
+# The numeric dump below skips them when they hold a list or an object, which is
+# exactly what a structured promotional price would be.
+for k in extra:
+    holder = next((x for x in promo
+                   if (x.get("data") or {}).get(k) not in (None, "", [], {})), None)
+    if holder is None:
+        print("    %s: empty on all" % k[:22])
+        continue
+    v = (holder.get("data") or {})[k]
+    print("    %s:" % k[:26])
+    txt = v if isinstance(v, str) else json.dumps(v)
+    for l in wrap(txt)[:12]: print(l)
+
 # _wp was the hypothesis for the loyalty price. Test it across every promoted
 # product rather than trusting one sample.
 wpk = [k for k in keys(promo) if re.fullmatch(r"p\d+_wp", k)]
