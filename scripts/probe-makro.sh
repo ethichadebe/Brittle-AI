@@ -386,60 +386,89 @@ PY
 printf '%s\n' '--------------------------------------'
 printf 'credits spent: 0 (direct, no WAF)\n'
 
-# [7] The page carries five products; the rest arrive by XHR. The page itself
-# references /api/payments/1/page/fetch, so Flipkart's page-fetch family is the
-# obvious place to look - but the body shape is a guess, and this reports what
-# actually comes back rather than assuming one works.
-printf '\n[7] xhr endpoint for the rest\n'
-BODY=$(printf '{"pageUri":"/search?q=%s","pageContext":{}}' "$(urlenc "$QUERY")")
-APIHIT=""
-for n in 4 3 2 1; do
-  path="/api/$n/page/fetch"
-  IFS='|' read -r code ctype bytes <<<"$(post "$TMP/api.json" "$MAKRO$path" "$BODY")"
-  printf '    %-4s %-5s %sB\n' "$code" "$(ct "$ctype")" "$bytes"
-  printf '      %s\n' "$path"
-  if [ "$code" = "200" ] && printf '%s' "$ctype" | grep -qi json; then
-    cp "$TMP/api.json" "$TMP/apihit.json"; APIHIT=yes; break
-  fi
-done
+# [7] Simulate the parser. The page turned out to hold forty products spread
+# across many widgets, not the five the top two arrays suggested, so the question
+# is no longer "where are the rest" but "does a recursive extraction find usable
+# ones". Usable means an id, a title and a price - anything less cannot become a
+# Product.
+printf '\n[7] parser simulation\n'
+python3 - "$TMP/best.html" <<'PY'
+import json, re, sys
 
-if [ -n "$APIHIT" ]; then
-  python3 - "$TMP/apihit.json" <<'PY'
-import json, sys
-try:
-    blob = json.load(open(sys.argv[1]))
-except Exception as e:
-    print("    JSON did not parse (%s)" % type(e).__name__); raise SystemExit
+html = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 
-ids = {}
-def collect(node, depth=0):
-    if depth > 14: return
+def balanced(s, start):
+    open_c = s[start]; close_c = "}" if open_c == "{" else "]"
+    depth, i, in_str, esc = 0, start, False, False
+    while i < len(s):
+        c = s[i]
+        if in_str:
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': in_str = False
+        elif c == '"': in_str = True
+        elif c == open_c: depth += 1
+        elif c == close_c:
+            depth -= 1
+            if depth == 0: return s[start:i + 1]
+        i += 1
+    return None
+
+blobs = []
+for m in re.finditer(r"(?:__INITIAL_STATE__|__NEXT_DATA__|pageDataV4)\s*=?\s*", html):
+    j = html.find("{", m.end())
+    if j != -1 and j - m.end() < 40:
+        raw = balanced(html, j)
+        if raw:
+            try: blobs.append(json.loads(raw))
+            except Exception: pass
+
+# Flipkart spreads products across widgets, so find them by SHAPE rather than by
+# following one path. A product object carries a title, a pricing block and an id.
+found = {}
+
+def price_of(pricing, want):
+    for p in pricing.get("prices") or []:
+        if isinstance(p, dict) and p.get("priceType") == want:
+            v = p.get("value")
+            if isinstance(v, (int, float)): return float(v)
+    return None
+
+def visit(node, depth=0):
+    if depth > 16: return
     if isinstance(node, dict):
-        for k, v in node.items():
-            kl = k.lower()
-            if kl in ("productid", "itemid", "pid") and isinstance(v, str) and len(v) > 4:
-                ids.setdefault(kl, set()).add(v)
-            elif isinstance(v, (dict, list)):
-                collect(v, depth + 1)
+        pricing = node.get("pricing")
+        pid = node.get("productId") or node.get("itemId")
+        title = node.get("title")
+        if isinstance(pricing, dict) and isinstance(pid, str) and isinstance(title, str):
+            regular = price_of(pricing, "FSP")
+            if regular is None:
+                mrp = pricing.get("mrp")
+                if isinstance(mrp, dict) and isinstance(mrp.get("value"), (int, float)):
+                    regular = float(mrp["value"])
+            special = price_of(pricing, "SPECIAL_PRICE")
+            if regular is not None:
+                found[pid] = (title, regular, special)
+        for v in node.values():
+            if isinstance(v, (dict, list)): visit(v, depth + 1)
     elif isinstance(node, list):
-        for x in node: collect(x, depth + 1)
+        for x in node: visit(x, depth + 1)
 
-collect(blob)
-if not ids:
-    print("    JSON, but no product ids;")
-    print("    wrong body or wrong endpoint")
+for b in blobs: visit(b)
+
+print("    usable products: %d" % len(found))
+if not found:
+    print("    none carried id+title+price")
 else:
-    for k in sorted(ids):
-        print("      %-10s %d distinct" % (k, len(ids[k])))
-    print("    -> this is where the rest are")
+    with_promo = sum(1 for _t, _r, sp in found.values() if sp is not None)
+    print("    with a special price: %d" % with_promo)
+    for title, regular, special in list(found.values())[:3]:
+        print("      %s" % title[:30])
+        if special is not None:
+            print("        R%s was R%s" % (special, regular))
+        else:
+            print("        R%s" % regular)
 PY
-else
-  printf '    no 200 from any of them\n'
-  printf '    the body shape is wrong, or\n'
-  printf '    the endpoint needs a header\n'
-  printf '    the browser sends. Capture one\n'
-  printf '    real request from DevTools.\n'
-fi
 
 if [ -t 1 ]; then
 cat <<'NOTE'
@@ -454,17 +483,17 @@ it was wrong: Makro's two biggest
 arrays are router config and facet
 values.
 
-Step 4 counts the products actually
-in the page. Five is not a full page
-of results, which is why step 7 goes
-looking for the endpoint the rest
-arrive from.
+Step 4 counts the products in the
+page. Forty is a full page, so no
+XHR endpoint is needed - the earlier
+reading of five came from looking at
+only the two top-scoring arrays.
 
-Step 7 guesses a request body. A 400
-or 404 there means the guess was
-wrong, not that the endpoint is - the
-next move is to copy one real request
-out of DevTools rather than guess
-again.
+Step 7 is what the scraper will do:
+walk the page finding objects that
+carry an id, a title and a price.
+Its count should be close to step
+4's, and its sample prices should
+match the site.
 NOTE
 fi
