@@ -27,6 +27,19 @@ This repository ships through Mobile Delivery: someone describes a change from t
 
 Skills live in `.claude/skills/` only. The `.agents/skills/` copy was byte-identical and has been removed, so each skill is edited in one place. If tooling recreates it, delete it again rather than keeping two copies in sync.
 
+### Automation and live observation
+
+A cloud session **cannot reach the VPS or the store sites** — no SSH, and the
+egress proxy refuses HTTPS to the app's own domain. Every observation of the
+live system arrives through a person, so treat their attention as the scarce
+resource: **build the fixture first**, verify it by breaking the thing it
+covers, and only then hand over a command.
+
+`scripts/report.sh` posts a command's output straight to a GitHub issue so it
+does not have to be relayed by hand. The repo is public, so it masks every
+`.env` value and refuses outright on anything key-shaped; `scripts/report.test.sh`
+proves that offline. See `docs/agents/automation.md`.
+
 ### Issue tracker
 
 Issues live in GitHub Issues (`ethichadebe/Brittle-AI`). Use whichever access the session has — the GitHub MCP tools in a cloud session, `gh` on a laptop. `gh` is not installed in cloud sessions, so never assume it. See `docs/agents/issue-tracker.md`.
