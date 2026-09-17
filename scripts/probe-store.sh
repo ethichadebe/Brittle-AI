@@ -78,6 +78,26 @@ ctype() {
 # reported that nothing answered.
 CHALLENGE_MAX_BYTES=50000
 
+# Bot defences that do NOT look like a WAF. blocked() asks whether THIS response
+# was a challenge page; these serve a normal 200, then run a JS sensor and gate
+# the API behind a cookie it mints. Game reported "WAF: no sign of one" while
+# shipping PerimeterX and rendering the word "Detecting..." on screen, which is
+# that sensor running - so a clean [2] was read as "free to scrape" when the
+# catalogue was never reachable without executing their JavaScript.
+#
+# Matched on the sensor's own URL shape or global, not on a vendor name in a
+# comment: "px/PX<appid>/init.js" is PerimeterX's, and _px3 is its cookie.
+botdefence() {  # botdefence <file> -> prints each defence found, one per line
+  local f="$1"
+  grep -qiE 'px/PX[A-Za-z0-9]+/init\.js|_px3|perimeterx' "$f" 2>/dev/null && echo "perimeterx"
+  grep -qiE 'datadome|dd_cookie' "$f" 2>/dev/null && echo "datadome"
+  grep -qiE 'kasada|/149e9513-01fa' "$f" 2>/dev/null && echo "kasada"
+  grep -qiE '_abck|akam/[0-9]+/' "$f" 2>/dev/null && echo "akamai-bot-manager"
+  grep -qiE 'challenges\.cloudflare\.com|turnstile' "$f" 2>/dev/null && echo "cloudflare-turnstile"
+  grep -qiE 'hcaptcha|recaptcha/api\.js' "$f" 2>/dev/null && echo "captcha-widget"
+  return 0
+}
+
 blocked() {
   case "$1" in 403|429|202|503) return 0 ;; esac
   local size
@@ -169,7 +189,16 @@ if [ "$waf" = yes ]; then
   printf '%s\n' '    -> costs a credit per search'
 else
   printf '%s\n' '    WAF: no sign of one'
-  printf '%s\n' '    -> free to scrape directly'
+  DEFENCES="$(botdefence "$TMP/home.html" | paste -sd, -)"
+  if [ -n "$DEFENCES" ]; then
+    # The page came back, which is not the same as the catalogue being reachable.
+    printf '    bot JS: %s\n' "$(short "$DEFENCES" 26)"
+    printf '%s\n' '    -> HTML is free, but the API is'
+    printf '%s\n' '       likely gated behind that'
+    printf '%s\n' '       sensor. Needs a real browser.'
+  else
+    printf '%s\n' '    -> free to scrape directly'
+  fi
 fi
 
 # [3] Shoprite-group endpoint? A yes means the store is a third Site constant in
@@ -223,6 +252,14 @@ if [ -n "$FOUND" ]; then
     fi
   done
   [ "$hit" = 0 ] && printf '      none recognised\n'
+
+  printf '\n    bot defences named in the page:\n'
+  SEARCH_DEFENCES="$(botdefence "$TMP/search.html")"
+  if [ -n "$SEARCH_DEFENCES" ]; then
+    printf '%s\n' "$SEARCH_DEFENCES" | sed 's/^/      /'
+  else
+    printf '      none recognised\n'
+  fi
 
   printf '\n    third-party hosts referenced:\n'
   grep -oE 'https?://[a-zA-Z0-9.-]+' "$TMP/search.html" \
