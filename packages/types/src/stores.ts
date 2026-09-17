@@ -35,8 +35,13 @@ export const STORE_CONFIGS: StoreConfig[] = [
     slug: "woolworths",
     name: "Woolworths",
     color: "#1a1a1a",
-    active: false,
-    loyaltyProgramme: null,
+    // Switched on before issue #27 is settled: which of Woolworths' price zones
+    // a shopper actually pays is still unconfirmed, and the default is p60. If
+    // #27 lands on a different zone, every Woolworths price shown until then was
+    // wrong by that zone's difference - which is why #27 stays open rather than
+    // being quietly closed by this going live.
+    active: true,
+    loyaltyProgramme: "WRewards",
   },
   {
     slug: "spar",

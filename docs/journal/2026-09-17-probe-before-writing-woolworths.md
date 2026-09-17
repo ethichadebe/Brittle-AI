@@ -92,3 +92,234 @@ store so far has been a grocer end to end — and a clothing item leaking into a
 price comparison is silently wrong rather than visibly broken. Step [4] asks how
 Food is expressed (a Constructor group, or something else) instead of guessing.
 No scraper code until that is read.
+
+## Third round — the platform matches, the prices do not
+
+The search probe ran on the VPS and the key worked: 558 results for "milk".
+Woolworths is on Constructor.io, same as Pick n Pay. But the fit is partial in
+the way that matters:
+
+- `value`, `data.id`, `image_url` — 20/20 each. Identity is identical to PnP.
+- `data.priceValue` — **0/20**. `priceConditionType` and `promotionDisplayType`
+  never appear. So `pnp.ts` `normalise()` scores 3/4: same platform, same fetch,
+  entirely different pricing vocabulary.
+
+The useful part was a negative result. The probe lists keys matching guessed
+words — price, promo, reward, loyal, sav, discount — and returned only
+`bulkpromo` and `promo`. **Not one key contained "price".** The price is under a
+name nobody guessed, which is precisely why guessing was the wrong method. Step
+[5] now dumps every key and every scalar value on the first result, plus the
+`variations` keys, instead of filtering by a word list. Constructor commonly
+carries per-variant pricing, so that is the first place it will show up.
+
+The department answer was worse than unknown — it was wrong and confident. Step
+[4] printed `results in Food: 0/20` and then `-> filter by group_id`, which do
+not agree. Results carry leaf categories (`cat866912`, `cat858521`) while Food
+is `cat606520`, so membership was never the right test; it is an ancestry
+question. The conclusion line was unearned and is gone. Step [6] asks the server
+instead — it re-searches with `filters[group_id]` and reports whether the total
+narrows. Narrowing is evidence the server understands the department; an
+unchanged total means the filter was ignored and Food lives somewhere else.
+
+Also worth recording because it wasted three screenshots: the closing notes
+block had lines beginning `[3]` and `[4]`, and slicing the output on a phone
+with `sed -n '/^\[3\]/,/^credits/p'` re-triggered the range on those lines and
+printed to end of file, pushing the real answer off the top twice. No line in
+that block starts with a bracket now.
+
+Still no scraper code. Nothing in this pull request activates Woolworths:
+`STORE_CONFIGS` is untouched, no scraper is registered, and merging it deploys
+nothing that runs.
+
+## Fourth round — the price is a zone, and the filter test was not a test
+
+Dumping every key instead of guessing worked. The price fields are `p10`, `p30`
+and `p60`, each with a `_wp` twin, and nothing containing the word "price" — so
+no keyword list would ever have found them. They also **disagree on the same
+product**: `p10` was 45.99 while `p30` and `p60` were 39.99. That is the same
+class of problem as `storeContexts` in `shopriteGroup.ts`: which number is the
+real price depends on where the shopper is, and picking one silently is how a
+comparison app becomes confidently wrong. It is a question for a human.
+
+The `_wp` twins were all `0` on the first result, which is a full-price item.
+The probe now scans all results for one where a `_wp` is non-zero and prints it,
+because that single example is what identifies the loyalty field — the same
+mistake as reading `results[0]`, one level up.
+
+The product also carries `prodtype` and `fulfiller`, both `Food` on the sample,
+so the department may need no filter at all. Step [6] counts those values across
+results and says plainly whether non-food is leaking.
+
+The worse problem was that step [6] — now [8] — was not a test. It filtered by
+the Food group, saw 558 before and 558 after, and concluded the filter was
+ignored. But an unchanged total is *also* exactly what a working filter returns
+when every result was already food. The two cases were indistinguishable and it
+picked one. It now runs a second search against a non-food control group: if the
+control is also unchanged the filter really is ignored, and if the control
+narrows the filter works. Three outcomes are reported instead of two guesses.
+
+Also removed: the previous filter block was left in place when the new one was
+spliced in, so the script briefly had two step [6]s and made a redundant request.
+Caught by running it, not by reading it.
+
+Still no scraper code, and still nothing that activates Woolworths.
+
+## Fifth round — ask the site where the promotions are
+
+Socks settled the department question the other way from the previous guess:
+439 results, `prodtype: Clothing` 20/20, `fulfiller: CGM`. Clothing is in the
+same index after all. Food matching All for "milk" only ever meant that every
+milk hit was food. So Woolworths does need a department filter, and `prodtype`
+is the signal — `Food` against `Clothing`, unambiguous on both queries. `dept`
+is not: it split 6115/15 within food and 129/567/585/155 within clothing, so it
+is a finer category and would be the wrong thing to filter on.
+
+The loyalty price stayed invisible. `any _wp set` came back 0/20 for milk,
+coffee and chocolate. Three queries, no promotion — guessing search terms and
+hoping one is on special is not a method, it is just a slower assumption. The
+response has advertised an "On Promotion" facet since the first search, so step
+[10] now filters by that facet and prints every promotional-looking field on a
+product the site itself calls promoted. The site knows where its promotions are;
+it only had to be asked.
+
+Two bugs, both mine, both in the reading rather than the probing:
+
+- The notes block contains the sentence "An example with `_wp` set is the
+  loyalty field", and the phone-side slice was `awk '/example with _wp set/'`.
+  It matched the prose, not the data, and printed the notes after every one of
+  five queries. Having already made that block bracket-free to stop `sed` ranges
+  re-triggering, grepping a phrase inside it was the same mistake wearing a
+  different hat. The notes now print only when stdout is a terminal, so piping
+  the output anywhere cannot surface them at all.
+- Steps printed 9, 8, 10 because the facet step lives in the Python block and
+  the filter test in the shell after it. Renumbered to match print order.
+
+Still no scraper code.
+
+## Sixth round — _wp is not the loyalty price
+
+The promotion facet is `onpromo`, and asking for it returned 103 promoted
+products, so the approach worked: the site says where its promotions are. What
+came back killed the hypothesis.
+
+On a product Woolworths itself flags as promoted — a long-life milk six-pack —
+`p10`, `p30` and `p60` were all 126.99 and all three `_wp` fields were `0`.
+**`_wp` is not the WRewards price.** Three queries had shown `any _wp set: 0/20`
+and it was tempting to read that as "no promotions in this sample"; the facet
+proves otherwise. Had the scraper been written on the earlier guess, it would
+have reported a loyalty price of zero, or none at all, on every product.
+
+`promo` was misread too. It is an **array of strings**, and the probe printed
+`str(value)[:20]`, so the output showed `['Limited: 2 items p` — a fragment of
+element one of a Python repr. The first element was a purchase limit, not a
+discount at all. Arrays now print in full, wrapped, up to three elements.
+
+Two changes make the next run decisive rather than another sample:
+
+- The promoted results are diffed against the unfiltered ones for **keys that
+  exist only on promoted products**. A promotional price must live in a field
+  that is absent when there is no promotion, so no amount of looking at ordinary
+  products could ever have revealed it.
+- Every numeric field on a promoted product is printed, not a guessed subset.
+  The last two rounds both failed because a hand-picked key list cannot contain
+  a field nobody has thought of yet.
+
+Also fixed: an empty array printed its label with nothing beneath it, which
+reads as missing data rather than as empty.
+
+Still no scraper code.
+
+## Seventh round — the field is named, but its contents were skipped
+
+The promoted-versus-normal key diff worked on the first try: exactly one field
+exists on promoted products and nowhere else, and it is called
+`product_promo_info`. That is the answer to where the promotional price lives.
+
+The probe then failed to print it. "Every numeric field" is only every *numeric*
+field, and a structured promotion is a list or an object, so the one field worth
+reading was the one silently skipped. Broadening from a guessed key list to all
+numerics was an improvement that still carried the original mistake: it assumed
+the shape of the answer. The promoted-only keys now have their values printed in
+full, whatever type they are.
+
+Two facts did come through, and they agree with each other:
+
+- `_wp set on 0/5 promoted` — settled. `_wp` is not the WRewards price, on
+  products the site itself flags as promoted.
+- The `promo` array's second element read `"Now R99.99 Save R27 Long Life Milk
+  6 x 1 L"`, while `p10`, `p30` and `p60` were all 126.99. 126.99 − 27 = 99.99,
+  so the regular price is `p*` and the promotional price is 99.99. The numbers
+  are consistent, which is the first real corroboration of what the price fields
+  mean.
+
+That text is parseable, but parsing "Now R99.99 Save R27" out of marketing copy
+is the kind of thing that works until a copywriter changes the wording. If
+`product_promo_info` carries the same numbers structurally, that is what the
+scraper should read.
+
+## Eighth round — stop probing, ship the parser, write the note down
+
+Called it on the loyalty field. The VPS web terminal kept dropping before output
+rendered — seven attempts, several of them showing nothing but a lost
+connection — and the thing being chased was the lower-stakes of the two
+unknowns. `product_promo_info` is now issue #28, with the detached one-liner
+that survives a dropped session written into it.
+
+Skipping it costs robustness, not capability. The loyalty price is already read
+from the `promo` copy, and that reading is corroborated: `"Now R99.99 Save R27"`
+against a `p*` of 126.99, and 126.99 − 27 = 99.99. The parser refuses any parsed
+value not below the regular price, so a reworded string yields `null` rather
+than a wrong number — missing, never misleading, the same degradation Shoprite
+already has without its cookie.
+
+What shipped:
+
+- `woolworths.ts`, its own parser. It borrows Constructor.io's request shape
+  from `pnp.ts` and none of its field names, because the probe scored that
+  response 3/4: `value`, `data.id` and `image_url` match, and `priceValue`,
+  `priceConditionType` and `promotionDisplayType` do not exist.
+- 13 tests over the shapes the probe captured, including the two that pin the
+  reasons this store is different: non-food is dropped on `prodtype`, and a
+  promo string that does not parse to less than the regular price yields no
+  loyalty price at all.
+- Registered in `engine.ts` but `active: false`, which is a deliberate pair:
+  `active` is read only by the frontend, so `/api/search?store=woolworths`
+  works for verification while the UI still shows Woolworths as coming soon.
+- `WOOLWORTHS_SEARCH_KEY` and `WOOLWORTHS_PRICE_ZONE` documented in
+  `.env.example`, the second explicitly marked unverified.
+- `loyaltyProgramme` set to WRewards, which had been `null`.
+
+Two things worth recording because both were found by running rather than
+reading:
+
+- Lint caught a `DEFAULT_ZONE` constant that nothing used, because
+  `ZONE_FALLBACKS` already led with `p60`. Deleted rather than silenced.
+- Running the scraper suites together failed a test that passed alone:
+  `engine.test.ts` used `woolworths` as its example of an *unsupported* store,
+  and it stopped being one. Repointed at SPAR, which is declared in
+  `STORE_CONFIGS` and has no scraper. A file-scoped test run would have missed
+  it; the full suite did not.
+
+The store stays off until issue #27 confirms which of `p10`/`p30`/`p60` a
+shopper actually pays. Everything else about Woolworths is settled and
+evidenced, and turning it on afterwards is one line.
+
+## Ninth round — switched on with the zone still unverified
+
+Woolworths is `active: true`. Issue #27 is deliberately still open: which of
+`p10`/`p30`/`p60` a shopper actually pays has not been confirmed, and the
+default remains `p60`. If #27 lands on a different zone, every price shown
+between now and then was wrong by that zone's difference. That is a real cost
+and it is recorded here rather than smoothed over.
+
+The reason it is acceptable to go live first is that the live test is what
+settles it: one search against the running app, one product looked up on
+woolworths.co.za, and the zone is either confirmed or corrected in a one-line
+change. Probing it in the abstract was costing more terminal sessions than it
+was worth — seven dropped connections in an hour.
+
+`WOOLWORTHS_SEARCH_KEY` has to be in the VPS `.env` before the deploy, not
+after. The scraper throws a named error without it rather than silently
+returning nothing, so the failure would have been legible either way, but a
+store that appears in the UI and errors on first click is a bad first
+impression of the feature.

@@ -95,21 +95,22 @@ grep -ohE "[a-z0-9.-]*cnstrc\.com[^\"' )]*" "$TMP/page.html" 2>/dev/null \
 # [2] Ask Constructor with each candidate key until one answers with JSON.
 printf '\n[2] search with that key\n'
 HIT=""
+KEY=""
 while IFS= read -r k; do
   [ -z "$k" ] && continue
   IFS='|' read -r code ctype bytes <<<"$(get "$TMP/s.json" \
     "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${k}&num_results_per_page=20")"
   printf '    %-4s %-5s %sB %s\n' "$code" "$(ct "$ctype")" "$bytes" "$(printf '%s' "$k" | cut -c1-10)"
   if [ "$code" = "200" ] && printf '%s' "$ctype" | grep -qi json; then
-    cp "$TMP/s.json" "$TMP/hit.json"; HIT=yes; break
+    cp "$TMP/s.json" "$TMP/hit.json"; HIT=yes; KEY="$k"; break
   fi
 done < "$TMP/keys"
 [ -z "$HIT" ] && printf '    no key returned JSON\n'
 
-# [3] and [4] together: the shape, and the department.
+# [3] onward: the shape, the price fields, and the department.
 if [ -n "$HIT" ]; then
-  python3 - "$TMP/hit.json" <<'PY'
-import json, sys, textwrap
+  python3 - "$TMP/hit.json" "$TMP/foodgid" "$TMP/ctlgid" "$TMP/promo" <<'PY'
+import json, re, sys, textwrap
 
 def wrap(xs, ind="      "):
     xs = [str(x) for x in xs if x is not None]
@@ -120,22 +121,18 @@ def wrap(xs, ind="      "):
 d = json.load(open(sys.argv[1]))
 r = d.get("response") or {}
 res = r.get("results") or []
+n = len(res)
 
 print("\n[3] pnp parser fit")
-print("    results: %d of %s" % (len(res), r.get("total_num_results", "?")))
+print("    results: %d of %s" % (n, r.get("total_num_results", "?")))
 if not res:
     print("    empty result set"); raise SystemExit
 
 data = res[0].get("data") or {}
-# Every field is counted across all results, never just the first. A loyalty
-# price exists only on promotion items, so reading result zero alone would hide
-# the one field this app exists to find.
 allkeys = set()
 for x in res:
     allkeys |= set((x.get("data") or {}).keys())
 
-n = len(res)
-# Exactly what pnp.ts normalise() reads, per item.
 checks = [("value", lambda x: "value" in x),
           ("data.id", lambda x: "id" in (x.get("data") or {})),
           ("image_url", lambda x: "image_url" in (x.get("data") or {})),
@@ -147,84 +144,266 @@ for label, pred in checks:
     print("      %-10s %d/%d" % (label, c, n))
 print("      -> %d/4 on every result" % score)
 print("      %s" % ("pnp normalise fits as is" if score == 4
-                    else "needs its own parser"))
+                    else "identity yes, price no"))
 
-# Pick n Pay's loyalty branch keys off these two values. Woolworths' programme
-# is WRewards, so the values almost certainly differ even on the same platform.
-def vals(key):
-    return sorted({str((x.get("data") or {}).get(key)) for x in res} - {"None"})
-print("    priceConditionType seen:")
-for l in wrap(vals("priceConditionType")): print(l)
-print("    promotionDisplayType seen:")
-for l in wrap(vals("promotionDisplayType")): print(l)
-hits = sum(1 for x in res
-           if (x.get("data") or {}).get("promotionDisplayType") == "SMART_SHOPPER")
-print("    pnp loyalty rule hits: %d/%d" % (hits, len(res)))
-money = [k for k in allkeys if any(w in k.lower() for w in
-         ("price", "promo", "reward", "loyal", "member", "sav", "discount"))]
-print("    price/loyalty-ish keys:")
-for l in wrap(sorted(money)): print(l)
+print("\n[5] price fields")
+# p10/p30/p60 with a _wp twin each. The bare ones differ from one another on the
+# same product, so they are almost certainly price zones - which one Accucery
+# should quote is a question for a human, not a default.
+zk = sorted(k for k in allkeys if re.fullmatch(r"p\d+(_wp)?", k))
+print("    zone keys:")
+for l in wrap(zk): print(l)
+base = [k for k in zk if not k.endswith("_wp")]
+wps  = [k for k in zk if k.endswith("_wp")]
 
-print("\n[4] Food department")
-facets = r.get("facets") or []
-print("    facets: %d" % len(facets))
-for l in wrap([f.get("display_name") or f.get("name") for f in facets][:8]): print(l)
+def num(v):
+    try: return float(v)
+    except (TypeError, ValueError): return 0.0
 
-groups = r.get("groups") or []
-print("    top groups: %d" % len(groups))
-for g in groups[:6]:
-    print("      %-20s %s" % (str(g.get("display_name"))[:20], g.get("count", "")))
+disagree = sum(1 for x in res
+               if len({str((x.get("data") or {}).get(k)) for k in base}) > 1)
+haswp = [x for x in res
+         if any(num((x.get("data") or {}).get(k)) for k in wps)]
+print("    zones disagree: %d/%d" % (disagree, n))
+print("    any _wp set:    %d/%d" % (len(haswp), n))
 
-def find_food(gs):
-    for g in gs:
-        if any(w in str(g.get("display_name", "")).lower()
-               for w in ("food", "grocer")):
-            return g
-        got = find_food(g.get("children") or [])
-        if got: return got
-    return None
-
-food = find_food(groups)
-if food:
-    print("    Food group id:")
-    for l in wrap([food.get("group_id")]): print(l)
-    gid = food.get("group_id")
-    inside = sum(1 for x in res
-                 if gid in ((x.get("data") or {}).get("group_ids") or []))
-    print("    results in Food: %d/%d" % (inside, len(res)))
-    print("    -> filter by group_id")
+# A _wp that is ever non-zero is the loyalty price. Finding one product with it
+# is what tells us the field, and nothing else in the response will.
+if haswp:
+    ex = haswp[0].get("data") or {}
+    print("    example with _wp set:")
+    print("      %s" % str(haswp[0].get("value", ""))[:32])
+    for k in zk:
+        print("      %-9s %s" % (k, ex.get(k)))
 else:
-    print("    no Food group in response")
-    print("    -> department is not a group;")
-    print("       next probe asks about a")
-    print("       path or filter instead")
+    print("    no promo in these %d results;" % n)
+    print("    rerun with a query likelier")
+    print("    to be on promotion")
 
-# Whether a non-food result can even be told apart is the whole question here.
-print("    group_ids on 1st result:")
-for l in wrap((data.get("group_ids") or [])[:4]): print(l)
+print("\n[6] department from the data")
+# The product carries its own department, so this needs no filter at all.
+for key in ("prodtype", "fulfiller", "dept"):
+    counts = {}
+    for x in res:
+        v = str((x.get("data") or {}).get(key))
+        counts[v] = counts.get(v, 0) + 1
+    if list(counts) == ["None"]:
+        continue
+    print("    %s:" % key)
+    for v, c in sorted(counts.items(), key=lambda kv: -kv[1])[:4]:
+        print("      %-16s %d/%d" % (v[:16], c, n))
+
+print("\n[7] group tree")
+groups = r.get("groups") or []
+
+def walk(gs, depth=0, out=None):
+    if out is None: out = []
+    for g in gs:
+        out.append((depth, g.get("group_id"), g.get("display_name"), g.get("count")))
+        walk(g.get("children") or [], depth + 1, out)
+    return out
+
+tree = walk(groups)
+for depth, gid, name, cnt in tree[:10]:
+    print("      %s%s (%s)" % ("  " * depth, str(name)[:14], cnt))
+
+def is_food(name):
+    return any(w in str(name).lower() for w in ("food", "grocer"))
+
+food = next((t for t in tree if is_food(t[2])), None)
+# A control group that is NOT food. If filtering by it also returns every
+# result, the filter is being ignored; if it narrows, the filter works and
+# "milk" simply happens to be all food. Identical counts alone cannot tell
+# those apart, which is what the previous run got wrong.
+ctl = next((t for t in tree if not is_food(t[2]) and t[1] and t[0] == (food[0] if food else 1)), None)
+if food:
+    open(sys.argv[2], "w").write(str(food[1] or ""))
+    print("    food:    %s" % str(food[1])[:22])
+if ctl:
+    open(sys.argv[3], "w").write(str(ctl[1] or ""))
+    print("    control: %s (%s)" % (str(ctl[1])[:14], str(ctl[2])[:10]))
+else:
+    print("    no non-food sibling to use")
+    print("    as a control")
+print("\n[8] promotion facet")
+facets = r.get("facets") or []
+for f in facets[:6]:
+    print("      %-13s %s" % (str(f.get("display_name"))[:13],
+                              str(f.get("name"))[:16]))
+promo_f = next((f for f in facets
+                if "promo" in (str(f.get("name", "")) +
+                               str(f.get("display_name", ""))).lower()), None)
+if promo_f:
+    opts = promo_f.get("options") or []
+    print("    facet: %s" % str(promo_f.get("name"))[:24])
+    for o in opts[:3]:
+        print("      %-14s %s" % (str(o.get("value"))[:14], o.get("count")))
+    if opts:
+        open(sys.argv[4], "w").write("%s\t%s" % (promo_f.get("name"),
+                                                 opts[0].get("value")))
+else:
+    print("    no promo facet in response")
+PY
+fi
+
+# [9] Two filtered searches, not one. The food filter alone proves nothing:
+# an unchanged total is what you get both when the filter is ignored AND when
+# every result was already food. The control group separates them.
+if [ -n "$HIT" ] && [ -s "$TMP/foodgid" ]; then
+  printf '\n[9] does the filter work?\n'
+  ask_filtered() {
+    IFS='|' read -r code ctype bytes <<<"$(get "$TMP/f.json" \
+      "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${KEY}&num_results_per_page=1&filters%5Bgroup_id%5D=$1")"
+    if [ "$code" = "200" ]; then
+      python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("response") or {}).get("total_num_results","?"))' "$TMP/f.json"
+    else
+      printf 'HTTP %s' "$code"
+    fi
+  }
+  ALL=$(python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("response") or {}).get("total_num_results","?"))' "$TMP/hit.json")
+  FOODN=$(ask_filtered "$(cat "$TMP/foodgid")")
+  printf '    unfiltered : %s\n' "$ALL"
+  printf '    food group : %s\n' "$FOODN"
+  if [ -s "$TMP/ctlgid" ]; then
+    CTLN=$(ask_filtered "$(cat "$TMP/ctlgid")")
+    printf '    control    : %s\n' "$CTLN"
+    if [ "$CTLN" = "$ALL" ]; then
+      printf '    control unchanged too ->\n'
+      printf '    the filter is ignored\n'
+    elif [ "$FOODN" = "$ALL" ]; then
+      printf '    control narrowed but food\n'
+      printf '    did not -> filter works and\n'
+      printf '    every hit is already food\n'
+    else
+      printf '    both narrowed -> filter\n'
+      printf '    works; food is %s of %s\n' "$FOODN" "$ALL"
+    fi
+  else
+    printf '    no control group available\n'
+  fi
+fi
+
+
+# [10] Fetch products the site itself calls promoted, and show every field that
+# could carry the promotional price. Guessing queries found nothing in three
+# tries; the facet is the site telling us where they are.
+if [ -n "$HIT" ] && [ -s "$TMP/promo" ]; then
+  FN="$(cut -f1 "$TMP/promo")"; FV="$(cut -f2 "$TMP/promo")"
+  printf '\n[10] a product on promotion\n'
+  IFS='|' read -r code ctype bytes <<<"$(get "$TMP/promo.json" \
+    "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${KEY}&num_results_per_page=5&filters%5B$(urlenc "$FN")%5D=$(urlenc "$FV")")"
+  printf '    %-4s %-5s %sB\n' "$code" "$(ct "$ctype")" "$bytes"
+  python3 - "$TMP/promo.json" "$TMP/hit.json" <<'PY'
+import json, re, sys, textwrap
+
+def wrap(s, ind="      "):
+    out = textwrap.wrap(str(s), 38 - len(ind), initial_indent=ind,
+                        subsequent_indent=ind)
+    return out or [ind + "(empty)"]
+
+def load(f):
+    r = json.load(open(f)).get("response") or {}
+    return r.get("total_num_results"), (r.get("results") or [])
+
+def keys(rs):
+    k = set()
+    for x in rs:
+        k |= set((x.get("data") or {}).keys())
+    return k
+
+n_promo, promo = load(sys.argv[1])
+_, plain = load(sys.argv[2])
+print("    on promo: %s results" % n_promo)
+if not promo:
+    print("    none came back"); raise SystemExit
+
+# A promotional price would live in a field that only exists when there IS a
+# promotion, so the unfiltered search could never have shown it. This diff is
+# the only place it can turn up.
+extra = sorted(keys(promo) - keys(plain))
+print("    keys only on promoted:")
+for l in wrap(" ".join(extra) if extra else "none"): print(l)
+
+# Those keys are the whole point, so print their VALUES, not just their names.
+# The numeric dump below skips them when they hold a list or an object, which is
+# exactly what a structured promotional price would be.
+for k in extra:
+    holder = next((x for x in promo
+                   if (x.get("data") or {}).get(k) not in (None, "", [], {})), None)
+    if holder is None:
+        print("    %s: empty on all" % k[:22])
+        continue
+    v = (holder.get("data") or {})[k]
+    print("    %s:" % k[:26])
+    txt = v if isinstance(v, str) else json.dumps(v)
+    for l in wrap(txt)[:12]: print(l)
+
+# _wp was the hypothesis for the loyalty price. Test it across every promoted
+# product rather than trusting one sample.
+wpk = [k for k in keys(promo) if re.fullmatch(r"p\d+_wp", k)]
+
+def num(v):
+    try: return float(v)
+    except (TypeError, ValueError): return 0.0
+
+hot = [x for x in promo if any(num((x.get("data") or {}).get(k)) for k in wpk)]
+print("    _wp set on %d/%d promoted" % (len(hot), len(promo)))
+
+sample = hot[0] if hot else promo[0]
+d = sample.get("data") or {}
+print("    sample:")
+for l in wrap(sample.get("value", "")): print(l)
+# Printed in full: these are arrays, and truncating one to 20 characters is how
+# the last run showed a fragment of element one and nothing else.
+for k in ("promo", "bulkpromo"):
+    if k not in d: continue
+    print("    %s:" % k)
+    v = d[k]
+    items = v if isinstance(v, list) else [v]
+    if not items:
+        print("      (empty)")
+    for item in items[:3]:
+        for l in wrap(item): print(l)
+print("    every numeric field:")
+shown = 0
+for k in sorted(d):
+    v = d[k]
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        continue
+    print("      %-14s %s" % (k[:14], v))
+    shown += 1
+    if shown >= 14: break
 PY
 fi
 
 printf '\n%s\n' '--------------------------------------'
 printf 'credits spent: 0 (no proxy used)\n'
 
+if [ -t 1 ]; then
 cat <<'NOTE'
 
 What decides it:
 
-[3] 4/4 + same promo values
-  -> Woolworths reuses pnp.ts, and
-     pnp becomes a shared platform
-     the way checkers did.
+Step 5 names the price. p10/p30/p60
+are price zones; which one a shopper
+really pays is a human decision.
 
-[3] 4/4 but different promo values
-  -> shared fetch, own loyalty rule.
-     Most likely: WRewards is not
-     Smart Shopper.
+Step 6 says whether non-food is
+leaking into the results.
 
-[3] under 4/4
-  -> own parser.
+Step 9 needs its control line. An
+unchanged food count means either
+the filter was ignored or every hit
+was food already, and only the
+non-food control tells those apart.
 
-[4] decides how Food gets isolated.
-No scraper code until both are read.
+Step 10 is the one that matters for
+loyalty: it asks the site for
+products it calls promoted, rather
+than guessing queries and hoping.
+
+These notes print only on a real
+terminal, so piping this into sed or
+awk never shows them.
 NOTE
+fi

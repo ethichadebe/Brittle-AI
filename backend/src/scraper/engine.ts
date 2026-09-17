@@ -2,12 +2,19 @@ import type { Product, StoreSlug } from "@accucery/types";
 import type { Scraper } from "./types.js";
 import { CheckersScraper, ShopriteScraper } from "./shopriteGroup.js";
 import { PnpScraper } from "./pnp.js";
+import { WoolworthsScraper } from "./woolworths.js";
 import { playwrightScraper } from "./playwright.js";
 
 const registry: Partial<Record<StoreSlug, Scraper>> = {
   checkers: new CheckersScraper(),
   shoprite: new ShopriteScraper(),
   "pick-n-pay": new PnpScraper(),
+  // Registered so /api/search can be used to verify it, but STORE_CONFIGS still
+  // has woolworths active: false, so the UI shows it as coming soon and will not
+  // open a list against it. Which of p10/p30/p60 a shopper actually pays is not
+  // yet confirmed, and an unverified price is worse than an absent store — see
+  // WOOLWORTHS_PRICE_ZONE in .env.example.
+  woolworths: new WoolworthsScraper(),
 };
 
 // Per-store serial queue — at most one in-flight request per store at a time.
