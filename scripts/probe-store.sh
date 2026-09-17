@@ -77,20 +77,24 @@ blocked() {
   return 1
 }
 
-# fetch <outfile> <url> [post-body] -> "code|content_type|bytes|via|waf".
+# fetch <outfile> <url> [post-body] -> "code|content_type|bytes|via|waf|final_url".
 # Pipe-separated because content_type carries "; charset=utf-8" - a space.
 # waf reports whether the DIRECT attempt was turned away, which a later proxy
-# success would otherwise hide.
+# success would otherwise hide. final_url is last so it can contain anything.
+#
+# Redirects are followed: spar.co.za answers / with a 302 to a 122-byte stub, and
+# without -L the probe fingerprinted the stub and reported that nothing answered.
 fetch() {
-  local out="$1" url="$2" data="${3:-}" code ctype via="direct" waf="no"
+  local out="$1" url="$2" data="${3:-}" code ctype final via="direct" waf="no"
   : > "$out"
-  local -a args=(-s -o "$out" -w '%{http_code} %{content_type}' -m 90
+  local -a args=(-sL --max-redirs 5 -o "$out"
+                 -w '%{http_code}|%{content_type}|%{url_effective}' -m 90
                  -H "User-Agent: $UA" -H 'Accept-Language: en-ZA,en;q=0.9')
   if [ -n "$data" ]; then
     args+=(-X POST -H 'Content-Type: application/json'
            -H "Origin: $STORE_URL" -H "Referer: $STORE_URL/" --data "$data")
   fi
-  read -r code ctype <<<"$(curl "${args[@]}" "$url" 2>/dev/null || echo '000 -')"
+  IFS='|' read -r code ctype final <<<"$(curl "${args[@]}" "$url" 2>/dev/null || echo '000|-|-')"
 
   if blocked "$code" "$out"; then
     waf="yes"
@@ -100,13 +104,13 @@ fetch() {
     if [ -z "$NO_SCRAPERAPI" ] && [ -n "$SCRAPERAPI_KEY" ] && \
        [ "$spent" -lt "$MAX_CREDITS" ]; then
       printf '%s' "$((spent + 1))" > "$TMP/credits"; via="scraperapi"
-      read -r code ctype <<<"$(curl "${args[@]}" \
+      IFS='|' read -r code ctype final <<<"$(curl "${args[@]}" \
         "http://api.scraperapi.com/?api_key=${SCRAPERAPI_KEY}&url=$(urlenc "$url")&keep_headers=true" \
-        2>/dev/null || echo '000 -')"
+        2>/dev/null || echo '000|-|-')"
     fi
   fi
-  printf '%s|%s|%s|%s|%s' "$code" "${ctype:--}" \
-    "$(wc -c < "$out" 2>/dev/null || echo 0)" "$via" "$waf"
+  printf '%s|%s|%s|%s|%s|%s' "$code" "${ctype:--}" \
+    "$(wc -c < "$out" 2>/dev/null || echo 0)" "$via" "$waf" "${final:-$url}"
 }
 
 printf 'Accucery probe: %s\n' "$(short "$LABEL" 24)"
@@ -120,7 +124,7 @@ printf '\n[1] net baseline (PnP, 0 credits)\n'
 # Same value as backend/src/scraper/pnp.ts: served in pnp.co.za's own public
 # frontend bundle, so it is an identifier, not a credential.
 PNP_PUBLIC_KEY="key_yMuER1c8l84k40e3" # gitleaks:allow — public key served in pnp.co.za's own frontend bundle
-IFS="|" read -r code ctype bytes via waf <<<"$(fetch "$TMP/pnp.json" \
+IFS="|" read -r code ctype bytes via waf final <<<"$(fetch "$TMP/pnp.json" \
   "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${PNP_PUBLIC_KEY}&num_results_per_page=5")"
 n=$(python3 -c 'import json,sys
 try: print(len(json.load(open(sys.argv[1]))["response"]["results"]))
@@ -135,9 +139,13 @@ fi
 
 # [2] Reachable at all from this IP?
 printf '\n[2] reachable?\n'
-IFS="|" read -r code ctype bytes via waf <<<"$(fetch "$TMP/home.html" "$STORE_URL/")"
+IFS="|" read -r code ctype bytes via waf final <<<"$(fetch "$TMP/home.html" "$STORE_URL/")"
 printf '    HTTP %-5s %-5s %sB\n' "$code" "$(ctype "$ctype")" "$bytes"
 printf '    via  %s\n' "$via"
+if [ "${final%/}" != "${STORE_URL%/}" ] && [ -n "$final" ]; then
+  printf '    landed on:\n'
+  printf '      %s\n' "$(short "$(printf '%s' "$final" | sed 's|https\?://||')" 32)"
+fi
 if [ "$waf" = yes ]; then
   printf '%s\n' '    WAF: yes (like Checkers)'
   printf '%s\n' '    -> costs a credit per search'
@@ -150,7 +158,7 @@ fi
 # shopriteGroup.ts rather than a new file.
 printf '\n[3] shoprite-group endpoint?\n'
 SG_BODY=$(printf '{"storeContexts":[],"filterData":{"filter":{"showAllDisplayVariants":false,"showNotRangedProducts":false,"productListSource":{"search":"%s"},"paginationOptions":{"page":0,"pageSize":5},"filterOptions":{"filterIds":[],"dealsOnly":false,"brandOptions":[],"departmentOptions":[],"serviceOptions":[],"facetOptions":[]},"sortOptions":null},"displayOptions":{"includeDisplayCategoryTree":false}},"forYouBonusBuyIds":[],"url":null}' "$QUERY")
-IFS="|" read -r code ctype bytes via waf <<<"$(fetch "$TMP/sg.json" "$STORE_URL/api/catalogue/get-products-filter" "$SG_BODY")"
+IFS="|" read -r code ctype bytes via waf final <<<"$(fetch "$TMP/sg.json" "$STORE_URL/api/catalogue/get-products-filter" "$SG_BODY")"
 printf '    HTTP %-5s %-5s %sB\n' "$code" "$(ctype "$ctype")" "$bytes"
 if [ "$code" = "200" ] && printf '%s' "$ctype" | grep -qi json; then
   printf '%s\n' '    -> JSON came back, see [5]'
@@ -164,7 +172,7 @@ fi
 printf '\n[4] search page fingerprint\n'
 FOUND=""
 for path in "/search?q=$QUERY" "/cat?Ntt=$QUERY" "/catalogue/search?q=$QUERY" "/products?q=$QUERY" "/"; do
-  IFS="|" read -r code ctype bytes via waf <<<"$(fetch "$TMP/s.html" "$STORE_URL$path")"
+  IFS="|" read -r code ctype bytes via waf final <<<"$(fetch "$TMP/s.html" "$STORE_URL$path")"
   printf '    %-5s %-18s %sB\n' "$code" "$(short "${path%%\?*}" 18)" "$bytes"
   if [ "$code" = "200" ] && [ "${bytes:-0}" -gt 2000 ] && ! blocked "$code" "$TMP/s.html"; then
     cp "$TMP/s.html" "$TMP/search.html"; FOUND=yes; break
