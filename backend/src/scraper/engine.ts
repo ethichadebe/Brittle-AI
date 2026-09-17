@@ -3,6 +3,7 @@ import type { Scraper } from "./types.js";
 import { CheckersScraper, ShopriteScraper } from "./shopriteGroup.js";
 import { PnpScraper } from "./pnp.js";
 import { WoolworthsScraper } from "./woolworths.js";
+import { MakroScraper } from "./makro.js";
 import { playwrightScraper } from "./playwright.js";
 
 const registry: Partial<Record<StoreSlug, Scraper>> = {
@@ -15,6 +16,11 @@ const registry: Partial<Record<StoreSlug, Scraper>> = {
   // yet confirmed, and an unverified price is worse than an absent store — see
   // WOOLWORTHS_PRICE_ZONE in .env.example.
   woolworths: new WoolworthsScraper(),
+  // Registered so /api/search can verify it while STORE_CONFIGS keeps makro
+  // active: false and the UI shows it as coming soon. Unlike Woolworths there
+  // is no price-zone ambiguity, but the prices still want checking against the
+  // site before shoppers see them.
+  makro: new MakroScraper(),
 };
 
 // Per-store serial queue — at most one in-flight request per store at a time.
