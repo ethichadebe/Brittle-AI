@@ -175,7 +175,7 @@ done
 if [ -n "$FOUND_HTML" ]; then
   printf '\n    platforms named in the page:\n'
   hit=0
-  for f in "ac.cnstrc.com:constructor(PnP!)" "algolia:algolia" \
+  for f in "cnstrc:constructor(PnP!)" "algolia:algolia" \
            "searchspring:searchspring" "unbxd:unbxd" "bloomreach:bloomreach" \
            "graphql:graphql" "__NEXT_DATA__:next.js" "__NUXT__:nuxt" \
            "get-products-filter:shoprite-grp"; do
@@ -187,13 +187,13 @@ if [ -n "$FOUND_HTML" ]; then
 
   printf '\n    third-party hosts referenced:\n'
   grep -oE 'https?://[a-zA-Z0-9.-]+' "$TMP/search.html" \
-    | sed 's|https\?://||' | grep -v 'woolworths' | sort -u | head -8 \
-    | sed 's/^/      /' | cut -c1-38
+    | sed 's|https\?://||' | grep -v 'woolworths' | cut -c1-32 | sort -u | head -12 \
+    | sed 's/^/      /'
   printf '\n    api-ish paths in the page:\n'
   # Opening quote only, and no query string: "/api/x?q=milk" must still match,
   # and stopping at the ? keeps the line narrow.
   grep -oE "[\"']/[a-zA-Z0-9/_.-]*(api|search|product)[a-zA-Z0-9/_.-]*" "$TMP/search.html" \
-    | tr -d "\"'" | sort -u | head -6 | sed 's/^/      /' | cut -c1-38
+    | tr -d "\"'" | cut -c1-32 | sort -u | head -6 | sed 's/^/      /'
 else
   printf '%s\n' '    no search page answered'
   printf '%s\n' '    (need 200, >2KB, no WAF page)'
@@ -267,7 +267,7 @@ else:
 # WRewards is Woolworths' loyalty programme; the loyalty price is the whole
 # point of this app, so surface every key that could carry one.
 money = [k for k in p if any(w in k.lower() for w in
-         ("price", "promo", "reward", "loyal", "member", "save", "discount"))]
+         ("price", "promo", "reward", "loyal", "member", "sav", "discount"))]
 print("    price/loyalty-ish keys:")
 for l in wrap(sorted(money)): print(l)
 PY

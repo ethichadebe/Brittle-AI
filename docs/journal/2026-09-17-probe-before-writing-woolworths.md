@@ -46,3 +46,49 @@
   - Backend tests were not run: no Postgres in this session, and it fails in
     `globalSetup.ts` before any test file loads. Nothing here touches
     TypeScript. Everything else in the CLAUDE.md list was run and is green.
+
+## Second round — what the VPS actually returned
+
+The probe was run on the VPS and answered three of its four questions:
+
+- **No WAF.** Woolworths served 1.65MB of HTML to the VPS's own datacenter IP,
+  directly, HTTP 200. It needs no residential proxy, so it costs **zero**
+  ScraperAPI credits per search. That is a real difference from Checkers and
+  Shoprite, and it was worth knowing before any budgeting.
+- **Not the Checkers platform.** `/api/catalogue/get-products-filter` returned
+  no JSON, so `shopriteGroup.ts` is out. Expected — different company — but now
+  measured rather than assumed.
+- **It runs Constructor.io**, the same search platform as Pick n Pay.
+
+That last one the probe very nearly hid. The fingerprint list checked for the
+literal `ac.cnstrc.com`; Woolworths references the bare `cnstrc.com`, so the
+report printed **"none recognised"** while the host list two lines below showed
+`cnstrc.com` plainly. The single most valuable thing the probe could find, and
+it said "no idea". The check is a substring now. Two smaller defects went with
+it: the api-path list truncated *after* de-duplicating, so four distinct paths
+collapsed into four identical-looking lines and wasted most of the slots; and
+the host list was capped at eight in alphabetical order, which silently drops
+anything late in the alphabet.
+
+`probe-woolworths-search.sh` is the follow-up, and it exists because "same
+platform as Pick n Pay" is not the same claim as "same fields as Pick n Pay" —
+which is the exact shape of the assumption that cost this project four months.
+It finds Woolworths' own Constructor key (in the HTML, or in a frontend bundle
+as Pick n Pay's is), searches with it, and counts `pnp.ts` `normalise()`'s
+fields against the response.
+
+Its own bug, found by stub rather than by reading: field names were read off
+`results[0]`. A loyalty price only exists on promotion items, and result zero
+was full-price, so `wRewardsPrice` and `oldPriceValue` did not appear in the
+output at all — the probe would have under-reported the one field the app is
+for. Fields are now counted across every result, with coverage (`20/20`) rather
+than yes/no. A related miss: the price-key filter matched `save` but Woolworths'
+field is `savingValue`, which does not contain it. Matching `sav` now.
+
+The other reason it is a second script: Woolworths is not only a grocer. It
+sells clothing, beauty and homeware from the same search index, so a query for
+milk can return a shirt. `STORE_CONFIGS` has no notion of a department — every
+store so far has been a grocer end to end — and a clothing item leaking into a
+price comparison is silently wrong rather than visibly broken. Step [4] asks how
+Food is expressed (a Constructor group, or something else) instead of guessing.
+No scraper code until that is read.
