@@ -163,3 +163,35 @@ spliced in, so the script briefly had two step [6]s and made a redundant request
 Caught by running it, not by reading it.
 
 Still no scraper code, and still nothing that activates Woolworths.
+
+## Fifth round — ask the site where the promotions are
+
+Socks settled the department question the other way from the previous guess:
+439 results, `prodtype: Clothing` 20/20, `fulfiller: CGM`. Clothing is in the
+same index after all. Food matching All for "milk" only ever meant that every
+milk hit was food. So Woolworths does need a department filter, and `prodtype`
+is the signal — `Food` against `Clothing`, unambiguous on both queries. `dept`
+is not: it split 6115/15 within food and 129/567/585/155 within clothing, so it
+is a finer category and would be the wrong thing to filter on.
+
+The loyalty price stayed invisible. `any _wp set` came back 0/20 for milk,
+coffee and chocolate. Three queries, no promotion — guessing search terms and
+hoping one is on special is not a method, it is just a slower assumption. The
+response has advertised an "On Promotion" facet since the first search, so step
+[10] now filters by that facet and prints every promotional-looking field on a
+product the site itself calls promoted. The site knows where its promotions are;
+it only had to be asked.
+
+Two bugs, both mine, both in the reading rather than the probing:
+
+- The notes block contains the sentence "An example with `_wp` set is the
+  loyalty field", and the phone-side slice was `awk '/example with _wp set/'`.
+  It matched the prose, not the data, and printed the notes after every one of
+  five queries. Having already made that block bracket-free to stop `sed` ranges
+  re-triggering, grepping a phrase inside it was the same mistake wearing a
+  different hat. The notes now print only when stdout is a terminal, so piping
+  the output anywhere cannot surface them at all.
+- Steps printed 9, 8, 10 because the facet step lives in the Python block and
+  the filter test in the shell after it. Renumbered to match print order.
+
+Still no scraper code.

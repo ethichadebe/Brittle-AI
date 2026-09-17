@@ -109,7 +109,7 @@ done < "$TMP/keys"
 
 # [3] onward: the shape, the price fields, and the department.
 if [ -n "$HIT" ]; then
-  python3 - "$TMP/hit.json" "$TMP/foodgid" "$TMP/ctlgid" <<'PY'
+  python3 - "$TMP/hit.json" "$TMP/foodgid" "$TMP/ctlgid" "$TMP/promo" <<'PY'
 import json, re, sys, textwrap
 
 def wrap(xs, ind="      "):
@@ -225,14 +225,32 @@ if ctl:
 else:
     print("    no non-food sibling to use")
     print("    as a control")
+print("\n[8] promotion facet")
+facets = r.get("facets") or []
+for f in facets[:6]:
+    print("      %-13s %s" % (str(f.get("display_name"))[:13],
+                              str(f.get("name"))[:16]))
+promo_f = next((f for f in facets
+                if "promo" in (str(f.get("name", "")) +
+                               str(f.get("display_name", ""))).lower()), None)
+if promo_f:
+    opts = promo_f.get("options") or []
+    print("    facet: %s" % str(promo_f.get("name"))[:24])
+    for o in opts[:3]:
+        print("      %-14s %s" % (str(o.get("value"))[:14], o.get("count")))
+    if opts:
+        open(sys.argv[4], "w").write("%s\t%s" % (promo_f.get("name"),
+                                                 opts[0].get("value")))
+else:
+    print("    no promo facet in response")
 PY
 fi
 
-# [8] Two filtered searches, not one. The food filter alone proves nothing:
+# [9] Two filtered searches, not one. The food filter alone proves nothing:
 # an unchanged total is what you get both when the filter is ignored AND when
 # every result was already food. The control group separates them.
 if [ -n "$HIT" ] && [ -s "$TMP/foodgid" ]; then
-  printf '\n[8] does the filter work?\n'
+  printf '\n[9] does the filter work?\n'
   ask_filtered() {
     IFS='|' read -r code ctype bytes <<<"$(get "$TMP/f.json" \
       "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${KEY}&num_results_per_page=1&filters%5Bgroup_id%5D=$1")"
@@ -266,34 +284,61 @@ if [ -n "$HIT" ] && [ -s "$TMP/foodgid" ]; then
 fi
 
 
+# [10] Fetch products the site itself calls promoted, and show every field that
+# could carry the promotional price. Guessing queries found nothing in three
+# tries; the facet is the site telling us where they are.
+if [ -n "$HIT" ] && [ -s "$TMP/promo" ]; then
+  FN="$(cut -f1 "$TMP/promo")"; FV="$(cut -f2 "$TMP/promo")"
+  printf '\n[10] a product on promotion\n'
+  IFS='|' read -r code ctype bytes <<<"$(get "$TMP/promo.json" \
+    "https://ac.cnstrc.com/search/$(urlenc "$QUERY")?key=${KEY}&num_results_per_page=5&filters%5B$(urlenc "$FN")%5D=$(urlenc "$FV")")"
+  printf '    %-4s %-5s %sB\n' "$code" "$(ct "$ctype")" "$bytes"
+  python3 - "$TMP/promo.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1])).get("response") or {}
+res = r.get("results") or []
+print("    on promo: %s results" % r.get("total_num_results"))
+if not res:
+    print("    none came back")
+else:
+    x = res[0]; d = x.get("data") or {}
+    print("    sample:")
+    print("      %s" % str(x.get("value", ""))[:32])
+    for k in ("promo", "bulkpromo", "promotionText", "p10", "p10_wp",
+              "p30", "p30_wp", "p60", "p60_wp"):
+        if k in d:
+            print("      %-11s %s" % (k, str(d[k])[:20]))
+PY
+fi
+
 printf '\n%s\n' '--------------------------------------'
 printf 'credits spent: 0 (no proxy used)\n'
 
+if [ -t 1 ]; then
 cat <<'NOTE'
 
 What decides it:
 
 Step 5 names the price. p10/p30/p60
-look like price zones, each with a
-_wp twin that is the promotional
-price. An example with _wp set is
-the loyalty field; if none appears,
-rerun with a query more likely to
-be on promotion.
+are price zones; which one a shopper
+really pays is a human decision.
 
 Step 6 says whether non-food is
-already leaking into the results.
+leaking into the results.
 
-Step 8 needs its control line. The
-food total alone proves nothing: an
-unchanged count means either the
-filter was ignored or every hit was
-food already, and only a non-food
-control tells those apart.
+Step 9 needs its control line. An
+unchanged food count means either
+the filter was ignored or every hit
+was food already, and only the
+non-food control tells those apart.
 
-No lines here start with a bracket,
-so slicing this output with sed or
-awk cannot re-trigger on them.
+Step 10 is the one that matters for
+loyalty: it asks the site for
+products it calls promoted, rather
+than guessing queries and hoping.
 
-No scraper code until all are read.
+These notes print only on a real
+terminal, so piping this into sed or
+awk never shows them.
 NOTE
+fi
