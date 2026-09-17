@@ -256,3 +256,50 @@ That text is parseable, but parsing "Now R99.99 Save R27" out of marketing copy
 is the kind of thing that works until a copywriter changes the wording. If
 `product_promo_info` carries the same numbers structurally, that is what the
 scraper should read.
+
+## Eighth round — stop probing, ship the parser, write the note down
+
+Called it on the loyalty field. The VPS web terminal kept dropping before output
+rendered — seven attempts, several of them showing nothing but a lost
+connection — and the thing being chased was the lower-stakes of the two
+unknowns. `product_promo_info` is now issue #28, with the detached one-liner
+that survives a dropped session written into it.
+
+Skipping it costs robustness, not capability. The loyalty price is already read
+from the `promo` copy, and that reading is corroborated: `"Now R99.99 Save R27"`
+against a `p*` of 126.99, and 126.99 − 27 = 99.99. The parser refuses any parsed
+value not below the regular price, so a reworded string yields `null` rather
+than a wrong number — missing, never misleading, the same degradation Shoprite
+already has without its cookie.
+
+What shipped:
+
+- `woolworths.ts`, its own parser. It borrows Constructor.io's request shape
+  from `pnp.ts` and none of its field names, because the probe scored that
+  response 3/4: `value`, `data.id` and `image_url` match, and `priceValue`,
+  `priceConditionType` and `promotionDisplayType` do not exist.
+- 13 tests over the shapes the probe captured, including the two that pin the
+  reasons this store is different: non-food is dropped on `prodtype`, and a
+  promo string that does not parse to less than the regular price yields no
+  loyalty price at all.
+- Registered in `engine.ts` but `active: false`, which is a deliberate pair:
+  `active` is read only by the frontend, so `/api/search?store=woolworths`
+  works for verification while the UI still shows Woolworths as coming soon.
+- `WOOLWORTHS_SEARCH_KEY` and `WOOLWORTHS_PRICE_ZONE` documented in
+  `.env.example`, the second explicitly marked unverified.
+- `loyaltyProgramme` set to WRewards, which had been `null`.
+
+Two things worth recording because both were found by running rather than
+reading:
+
+- Lint caught a `DEFAULT_ZONE` constant that nothing used, because
+  `ZONE_FALLBACKS` already led with `p60`. Deleted rather than silenced.
+- Running the scraper suites together failed a test that passed alone:
+  `engine.test.ts` used `woolworths` as its example of an *unsupported* store,
+  and it stopped being one. Repointed at SPAR, which is declared in
+  `STORE_CONFIGS` and has no scraper. A file-scoped test run would have missed
+  it; the full suite did not.
+
+The store stays off until issue #27 confirms which of `p10`/`p30`/`p60` a
+shopper actually pays. Everything else about Woolworths is settled and
+evidenced, and turning it on afterwards is one line.

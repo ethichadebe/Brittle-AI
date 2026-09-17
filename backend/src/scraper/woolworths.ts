@@ -20,7 +20,10 @@ const SEARCH_BASE = "https://ac.cnstrc.com/search";
 // the shopper standing in - except Woolworths bakes it into the payload instead
 // of a cookie. Which zone the site shows an anonymous visitor is NOT yet
 // verified, so it is configurable and the default is recorded as a guess.
-const DEFAULT_ZONE = "p60";
+// Settling it is issue #27, and it is what keeps this store inactive.
+// Tried in order, so the first entry is the default when nothing is configured.
+// A product not sold in a zone reports 0 there, so the rest are real fallbacks
+// rather than decoration.
 const ZONE_FALLBACKS = ["p60", "p30", "p10"];
 
 /** Zones to try, most preferred first: the configured one, then the rest. */
@@ -52,6 +55,10 @@ export function regularPrice(data: any, zones = zoneOrder()): number {
 // a plain discount: the parsed value must be positive and below the regular
 // price. A reworded string therefore yields no loyalty price rather than a
 // wrong one, which is the same way Shoprite degrades without its cookie.
+//
+// product_promo_info is the only field that exists on promoted products and
+// nowhere else, so it is the likelier structured home for this number. We never
+// got to read it. Issue #28.
 const NOW_PRICE = /\bnow\s*R\s*(\d+(?:[.,]\d{1,2})?)/i;
 
 export function loyaltyPrice(

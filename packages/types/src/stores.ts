@@ -35,8 +35,11 @@ export const STORE_CONFIGS: StoreConfig[] = [
     slug: "woolworths",
     name: "Woolworths",
     color: "#1a1a1a",
+    // The scraper works and is registered, but which of Woolworths' price zones
+    // a shopper actually pays is unconfirmed, and a wrong price looks right.
+    // Flip this once issue #27 is settled.
     active: false,
-    loyaltyProgramme: null,
+    loyaltyProgramme: "WRewards",
   },
   {
     slug: "spar",

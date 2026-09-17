@@ -33,8 +33,11 @@ beforeEach(() => {
 });
 
 describe("searchProducts (engine)", () => {
+  // Was "woolworths" until Woolworths got a scraper. SPAR is declared in
+  // STORE_CONFIGS and has none, so it is the live example of a store the
+  // registry does not know.
   it("returns empty array for unsupported store", async () => {
-    const result = await searchProducts("woolworths", "milk");
+    const result = await searchProducts("spar", "milk");
     expect(result).toEqual([]);
   });
 
