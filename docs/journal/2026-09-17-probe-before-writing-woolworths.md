@@ -303,3 +303,23 @@ reading:
 The store stays off until issue #27 confirms which of `p10`/`p30`/`p60` a
 shopper actually pays. Everything else about Woolworths is settled and
 evidenced, and turning it on afterwards is one line.
+
+## Ninth round — switched on with the zone still unverified
+
+Woolworths is `active: true`. Issue #27 is deliberately still open: which of
+`p10`/`p30`/`p60` a shopper actually pays has not been confirmed, and the
+default remains `p60`. If #27 lands on a different zone, every price shown
+between now and then was wrong by that zone's difference. That is a real cost
+and it is recorded here rather than smoothed over.
+
+The reason it is acceptable to go live first is that the live test is what
+settles it: one search against the running app, one product looked up on
+woolworths.co.za, and the zone is either confirmed or corrected in a one-line
+change. Probing it in the abstract was costing more terminal sessions than it
+was worth — seven dropped connections in an hour.
+
+`WOOLWORTHS_SEARCH_KEY` has to be in the VPS `.env` before the deploy, not
+after. The scraper throws a named error without it rather than silently
+returning nothing, so the failure would have been legible either way, but a
+store that appears in the UI and errors on first click is a bad first
+impression of the feature.
