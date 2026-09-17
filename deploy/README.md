@@ -65,17 +65,30 @@ discovered when the site is already broken.
 The same bot the site monitor in `ethichadebe/workflows` already alerts through.
 A chat is properly authenticated, and it is one place to look rather than two.
 
+This block prompts for the two values rather than containing placeholders, so
+there is nothing to paste by mistake. The token is not echoed to the screen.
+
 ```bash
 cd /opt/accucery
-cat >> .env <<'EOF'
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-EOF
+read -rsp 'Bot token: ' TG_T; echo
+read -rp  'Chat id  : ' TG_C
+printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_ID=%s\n' "$TG_T" "$TG_C" >> .env
+unset TG_T TG_C
 bash scripts/auto-deploy.sh --test-notify
 ```
 
 The chat id comes from messaging the bot once and reading
 `https://api.telegram.org/bot<TOKEN>/getUpdates`.
+
+`--test-notify` reports the HTTP code it actually got, so it cannot claim
+success it has not seen:
+
+```
+  Telegram=200                                  delivered
+  Telegram=404 (Not Found)                      the token is wrong
+  Telegram=400 (Bad Request: chat not found)    the chat id is wrong
+  Telegram=000                                  nothing answered at all
+```
 
 Note this puts the bot token on the server as well as in GitHub Actions secrets.
 The token can only send messages as the bot, but it is one more place to rotate

@@ -45,6 +45,7 @@ port=80
 NOTIFY_URL=""
 TG_TOKEN=""
 TG_CHAT=""
+NOTIFY_RESULT=""
 if [ -f .env ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in ''|'#'*) continue ;; *=*) ;; *) continue ;; esac
@@ -76,7 +77,7 @@ BASE="http://127.0.0.1:$port"
 # Never fails the deploy: a notifier that can take the site down with it is worse
 # than no notifier. Short timeout, errors swallowed, no retry.
 notify() {
-  local outcome="$1" body="$2" title emoji priority tags silent text
+  local outcome="$1" body="$2" title emoji priority tags silent text resp code desc
 
   if [ "$outcome" = ok ]; then
     title="Accucery deployed";      emoji="OK";     priority=min;  tags=white_check_mark
@@ -96,17 +97,28 @@ notify() {
     silent=false
     [ "$outcome" = ok ] && silent=true
     text=$(printf '[%s] %s\n\n%s' "$emoji" "$title" "$body")
-    curl -fsS -m 10 -o /dev/null \
+    resp=$(curl -sS -m 10 -w '\n%{http_code}' \
       "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
       --data-urlencode "chat_id=${TG_CHAT}" \
       --data-urlencode "disable_notification=${silent}" \
-      --data-urlencode "text=${text}" 2>/dev/null || true
+      --data-urlencode "text=${text}" 2>/dev/null) || resp=$'\n000'
+    code=$(printf '%s' "$resp" | tail -n1)
+    # Telegram says what was wrong in the body; keep it, never the URL, which
+    # carries the token. Whitespace around the colon is tolerated: the live API
+    # sends compact JSON, but nothing guarantees a proxy will not reformat it.
+    desc=$(printf '%s' "$resp" |
+      grep -o '"description"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+    NOTIFY_RESULT="${NOTIFY_RESULT}Telegram=${code}${desc:+ ($desc)}
+"
   fi
 
   if [ -n "$NOTIFY_URL" ]; then
-    curl -fsS -m 10 \
+    resp=$(curl -sS -m 10 -w '\n%{http_code}' \
       -H "Title: $title" -H "Priority: $priority" -H "Tags: $tags" \
-      -d "$body" "$NOTIFY_URL" >/dev/null 2>&1 || true
+      -d "$body" "$NOTIFY_URL" 2>/dev/null) || resp=$'\n000'
+    code=$(printf '%s' "$resp" | tail -n1)
+    NOTIFY_RESULT="${NOTIFY_RESULT}ACCUCERY_NOTIFY_URL=${code}
+"
   fi
   return 0
 }
@@ -127,17 +139,51 @@ if $TEST_NOTIFY; then
     echo "No notification channel is configured in .env."
     echo
     echo "Telegram (preferred — the bot this project already alerts through):"
-    echo "  TELEGRAM_BOT_TOKEN=..."
-    echo "  TELEGRAM_CHAT_ID=..."
+    echo "  TELEGRAM_BOT_TOKEN=<the real token, from BotFather>"
+    echo "  TELEGRAM_CHAT_ID=<the real chat id>"
     echo
     echo "Or any endpoint that accepts a POST:"
     echo "  ACCUCERY_NOTIFY_URL=https://ntfy.sh/accucery-\$(tr -dc 'a-z0-9' < /dev/urandom | head -c 24)"
     exit 1
   fi
 
+  # The commonest failure by far: someone pasted the documentation verbatim.
+  case "${TG_TOKEN}${TG_CHAT}${NOTIFY_URL}" in
+    *...*)
+      echo "Your .env still contains \"...\" where a real value belongs."
+      echo "Those were placeholders in the instructions, not values to paste."
+      echo
+      grep -nE '^(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|ACCUCERY_NOTIFY_URL)=' .env |
+        sed -E 's/=(.{0,4}).*/=\1.../' | sed 's/^/  /'
+      echo
+      echo "Replace them and run this again."
+      exit 1
+      ;;
+  esac
+
+  echo "Sending one of each via $channels ..."
   notify fail "test from $(hostname) — if you can read this, deploy alerts work"
   notify ok   "test from $(hostname) — this is what a successful deploy looks like"
-  echo "Sent two test notifications via $channels. Check your phone."
+
+  echo
+  printf '%s' "$NOTIFY_RESULT" | sed 's/^/  /'
+  echo
+
+  # Anything other than 200 from every attempt means nothing was delivered. Say
+  # so: a test that reports success it has not verified is worse than no test.
+  if printf '%s' "$NOTIFY_RESULT" | grep -qv '=200$'; then
+    echo "NOT delivered. What the codes mean:"
+    echo "  404  the bot token is wrong — the /bot<token> path does not exist"
+    echo "  401  the token is rejected"
+    echo "  400  usually a wrong chat id; the message above says which"
+    echo "  000  nothing answered — no network, or the URL is malformed"
+    echo
+    echo "The chat id comes from messaging the bot once, then reading"
+    echo "  https://api.telegram.org/bot<TOKEN>/getUpdates"
+    exit 1
+  fi
+
+  echo "Delivered. Two messages should be on your phone: one buzzing, one silent."
   exit 0
 fi
 
