@@ -70,8 +70,19 @@ ctype() {
 }
 
 # A WAF answers 403/202/429, or 200 with a challenge page in the body.
+#
+# The body scan only applies to SMALL responses. A challenge page is a few KB; a
+# real storefront is hundreds. Makro's 2.5MB homepage was classified as blocked
+# because somewhere in it the word "captcha" appears - a login form's reCAPTCHA
+# is enough - so the probe threw away a page it had just paid a credit for and
+# reported that nothing answered.
+CHALLENGE_MAX_BYTES=50000
+
 blocked() {
   case "$1" in 403|429|202|503) return 0 ;; esac
+  local size
+  size=$(wc -c < "$2" 2>/dev/null || echo 0)
+  [ "${size:-0}" -gt "$CHALLENGE_MAX_BYTES" ] && return 1
   grep -qiE 'awswaf|incapsula|cf-browser|captcha|Request unsuccessful|Access Denied' \
     "$2" 2>/dev/null && return 0
   return 1
