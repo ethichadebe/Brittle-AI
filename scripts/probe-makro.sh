@@ -238,7 +238,39 @@ else:
 # __INITIAL_STATE__ and pageDataV4 match overlapping objects. Collapse to the
 # last few segments, which is the part that identifies the field anyway.
 tails = sorted({".".join(f.split(".")[-4:]) for f in price_paths})
-print("[4] price fields anywhere")
+print("[4] how many products in the page")
+ids = {}
+def collect_ids(node, depth=0):
+    if depth > 14: return
+    if isinstance(node, dict):
+        for k, v in node.items():
+            kl = k.lower()
+            if kl in ("productid", "itemid", "pid") and isinstance(v, str) and len(v) > 4:
+                ids.setdefault(kl, set()).add(v)
+            elif isinstance(v, (dict, list)):
+                collect_ids(v, depth + 1)
+    elif isinstance(node, list):
+        for x in node:
+            collect_ids(x, depth + 1)
+
+for _kind, _blob in blobs:
+    collect_ids(_blob)
+if not ids:
+    print("    no product ids found")
+else:
+    for k in sorted(ids):
+        print("      %-10s %d distinct" % (k, len(ids[k])))
+    most = max(len(v) for v in ids.values())
+    if most < 15:
+        print("    fewer than a full page of")
+        print("    results: the rest arrive by")
+        print("    XHR, so a scraper needs")
+        print("    pagination or the API")
+    else:
+        print("    a full page: one request is")
+        print("    likely enough")
+
+print("\n[5] price fields anywhere")
 print("    %d distinct" % len(tails))
 for f in tails[:8]:
     print("      %s" % show(f, 32))
@@ -259,7 +291,7 @@ def is_noise(path):
 
 # [5] The parser needs values, not just paths. Print the best array's first item
 # with its actual contents, analytics stripped out.
-print("\n[5] first product, values")
+print("\n[6] first product, values")
 if not ranked or ranked[0][0] < 3:
     print("    no product-shaped array")
 else:
