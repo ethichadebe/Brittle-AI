@@ -109,8 +109,15 @@ fetch() {
         2>/dev/null || echo '000|-|-')"
     fi
   fi
+  # Belt and braces: suppress the URL entirely when it came back through the
+  # proxy, and strip any api_key that somehow survives into it anyway.
+  if [ "$via" = scraperapi ]; then
+    final="-"
+  else
+    final="$(printf '%s' "${final:-$url}" | sed 's/api_key=[^&]*/api_key=REDACTED/g')"
+  fi
   printf '%s|%s|%s|%s|%s|%s' "$code" "${ctype:--}" \
-    "$(wc -c < "$out" 2>/dev/null || echo 0)" "$via" "$waf" "${final:-$url}"
+    "$(wc -c < "$out" 2>/dev/null || echo 0)" "$via" "$waf" "$final"
 }
 
 printf 'Accucery probe: %s\n' "$(short "$LABEL" 24)"
@@ -142,7 +149,7 @@ printf '\n[2] reachable?\n'
 IFS="|" read -r code ctype bytes via waf final <<<"$(fetch "$TMP/home.html" "$STORE_URL/")"
 printf '    HTTP %-5s %-5s %sB\n' "$code" "$(ctype "$ctype")" "$bytes"
 printf '    via  %s\n' "$via"
-if [ "${final%/}" != "${STORE_URL%/}" ] && [ -n "$final" ]; then
+if [ "${final%/}" != "${STORE_URL%/}" ] && [ -n "$final" ] && [ "$final" != "-" ]; then
   printf '    landed on:\n'
   printf '      %s\n' "$(short "$(printf '%s' "$final" | sed 's|https\?://||')" 32)"
 fi
@@ -295,7 +302,13 @@ else
 fi
 
 printf '\n%s\n' '--------------------------------------'
-printf 'credits spent: %s (cap %s)\n' "$(cat "$TMP/credits")" "$MAX_CREDITS"
+spent="$(cat "$TMP/credits")"
+printf 'credits spent: %s (cap %s)\n' "$spent" "$MAX_CREDITS"
+if [ "$spent" -ge "$MAX_CREDITS" ]; then
+  printf 'cap reached: steps after this ran\n'
+  printf 'direct and were blocked. Rerun\n'
+  printf 'with MAX_CREDITS=8 to finish.\n'
+fi
 
 if [ -t 1 ]; then
 cat <<'NOTE'
