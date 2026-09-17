@@ -9,11 +9,7 @@ export type StoreSlug =
   | "pick-n-pay"
   | "woolworths"
   | "makro"
-  | "game"
-  | "ok-foods"
-  | "usave"
-  | "food-lovers"
-  | "boxer";
+  | "game";
 
 export interface Store {
   slug: StoreSlug;

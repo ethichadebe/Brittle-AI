@@ -61,56 +61,10 @@ export const STORE_CONFIGS: StoreConfig[] = [
     slug: "game",
     name: "Game",
     color: "#e8000d",
-    active: false,
-    loyaltyProgramme: null,
-  },
-
-  // Candidates, none of them probed yet. Every field below is a starting point
-  // rather than a fact: whether each one even has an online catalogue is the
-  // first question, and SPAR failed exactly that test after looking plausible.
-  //
-  // The colours are brand-family approximations, NOT verified against the real
-  // logos - check them before any of these goes live. Three of the seven below
-  // are already a red, so the card's name does more work than its colour.
-  //
-  // loyaltyProgramme stays null until a probe confirms one, the way Woolworths'
-  // WRewards was only filled in once its response showed it.
-
-  // Shoprite Holdings, via the OK Franchise Division. If it runs the same
-  // platform as Checkers and Shoprite it is a third ShopriteGroupSite and
-  // costs almost nothing - but it is a FRANCHISE model, which is what made
-  // SPAR unscrapeable. High ceiling, real chance of zero.
-  {
-    slug: "ok-foods",
-    name: "OK Foods",
-    color: "#e4002b",
-    active: false,
-    loyaltyProgramme: null,
-  },
-  // Shoprite Holdings' discount format. Same shared-platform theory as OK
-  // Foods, same franchise caveat, and a thinner online presence.
-  {
-    slug: "usave",
-    name: "Usave",
-    color: "#ffd100",
-    active: false,
-    loyaltyProgramme: null,
-  },
-  // Fruit & Veg City. An independent grocer with its own online shopping, so
-  // the most likely of these four to be a real catalogue on its own platform.
-  {
-    slug: "food-lovers",
-    name: "Food Lover's Market",
-    color: "#7ab800",
-    active: false,
-    loyaltyProgramme: null,
-  },
-  // Major discount grocer, listed separately from Pick n Pay. Growing fast;
-  // its online presence is the unknown.
-  {
-    slug: "boxer",
-    name: "Boxer",
-    color: "#d31145",
+    // The last unprobed candidate, and the one with a real chance: Game is
+    // Massmart, the same owner as Makro, so it may run the same Flipkart stack
+    // that makro.ts already parses. Nothing here is confirmed - see issue #35.
+    // Colour is a brand-family approximation, not checked against the logo.
     active: false,
     loyaltyProgramme: null,
   },
