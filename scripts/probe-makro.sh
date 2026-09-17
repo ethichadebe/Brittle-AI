@@ -43,6 +43,17 @@ get() {  # get <out> <url> -> "code|content_type|bytes"
   printf '%s|%s|%s' "$code" "${ctype:--}" "$(wc -c < "$out" 2>/dev/null || echo 0)"
 }
 
+post() {  # post <out> <url> <body> -> "code|content_type|bytes"
+  local out="$1" url="$2" body="$3" code ctype
+  : > "$out"
+  IFS='|' read -r code ctype <<<"$(curl -sL --max-redirs 5 -o "$out" \
+    -w '%{http_code}|%{content_type}' -m 90 -X POST \
+    -H "User-Agent: $UA" -H 'Content-Type: application/json' \
+    -H 'Accept: */*' -H "Origin: $MAKRO" -H "Referer: $MAKRO/search" \
+    --data "$body" "$url" 2>/dev/null || echo '000|-')"
+  printf '%s|%s|%s' "$code" "${ctype:--}" "$(wc -c < "$out" 2>/dev/null || echo 0)"
+}
+
 ct() {
   case "$1" in
     *json*) printf json ;; *html*) printf html ;;
@@ -375,6 +386,61 @@ PY
 printf '%s\n' '--------------------------------------'
 printf 'credits spent: 0 (direct, no WAF)\n'
 
+# [7] The page carries five products; the rest arrive by XHR. The page itself
+# references /api/payments/1/page/fetch, so Flipkart's page-fetch family is the
+# obvious place to look - but the body shape is a guess, and this reports what
+# actually comes back rather than assuming one works.
+printf '\n[7] xhr endpoint for the rest\n'
+BODY=$(printf '{"pageUri":"/search?q=%s","pageContext":{}}' "$(urlenc "$QUERY")")
+APIHIT=""
+for n in 4 3 2 1; do
+  path="/api/$n/page/fetch"
+  IFS='|' read -r code ctype bytes <<<"$(post "$TMP/api.json" "$MAKRO$path" "$BODY")"
+  printf '    %-4s %-5s %sB\n' "$code" "$(ct "$ctype")" "$bytes"
+  printf '      %s\n' "$path"
+  if [ "$code" = "200" ] && printf '%s' "$ctype" | grep -qi json; then
+    cp "$TMP/api.json" "$TMP/apihit.json"; APIHIT=yes; break
+  fi
+done
+
+if [ -n "$APIHIT" ]; then
+  python3 - "$TMP/apihit.json" <<'PY'
+import json, sys
+try:
+    blob = json.load(open(sys.argv[1]))
+except Exception as e:
+    print("    JSON did not parse (%s)" % type(e).__name__); raise SystemExit
+
+ids = {}
+def collect(node, depth=0):
+    if depth > 14: return
+    if isinstance(node, dict):
+        for k, v in node.items():
+            kl = k.lower()
+            if kl in ("productid", "itemid", "pid") and isinstance(v, str) and len(v) > 4:
+                ids.setdefault(kl, set()).add(v)
+            elif isinstance(v, (dict, list)):
+                collect(v, depth + 1)
+    elif isinstance(node, list):
+        for x in node: collect(x, depth + 1)
+
+collect(blob)
+if not ids:
+    print("    JSON, but no product ids;")
+    print("    wrong body or wrong endpoint")
+else:
+    for k in sorted(ids):
+        print("      %-10s %d distinct" % (k, len(ids[k])))
+    print("    -> this is where the rest are")
+PY
+else
+  printf '    no 200 from any of them\n'
+  printf '    the body shape is wrong, or\n'
+  printf '    the endpoint needs a header\n'
+  printf '    the browser sends. Capture one\n'
+  printf '    real request from DevTools.\n'
+fi
+
 if [ -t 1 ]; then
 cat <<'NOTE'
 
@@ -388,11 +454,17 @@ it was wrong: Makro's two biggest
 arrays are router config and facet
 values.
 
-Step 4 is the decisive one. No
-numeric price field anywhere in the
-embedded data means the products are
-not in this page at all, and the next
-step is the XHR endpoint the page
-calls after loading.
+Step 4 counts the products actually
+in the page. Five is not a full page
+of results, which is why step 7 goes
+looking for the endpoint the rest
+arrive from.
+
+Step 7 guesses a request body. A 400
+or 404 there means the guess was
+wrong, not that the endpoint is - the
+next move is to copy one real request
+out of DevTools rather than guess
+again.
 NOTE
 fi
