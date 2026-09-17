@@ -16,6 +16,10 @@ const HOST_REFERERS: Record<string, string> = {
   // Woolworths serves product images from a separate assets domain.
   "woolworthsstatic.co.za": "https://www.woolworths.co.za/",
   "woolworths.co.za": "https://www.woolworths.co.za/",
+  // Makro runs Flipkart's stack but serves its own product images, so this is
+  // makro.co.za and NOT flixcart.com - the probe printed the real URLs rather
+  // than letting the platform imply the host.
+  "makro.co.za": "https://www.makro.co.za/",
 };
 
 const ALLOWED_HOSTS = Object.keys(HOST_REFERERS);
