@@ -1,10 +1,33 @@
-// Where does Game's catalogue actually come from?
+// Does a JS-rendered store hand over its catalogue to a real browser?
+//
+// ANSWERED FOR GAME, 2026-09-18: no. Game is removed from STORE_CONFIGS.
+//
+// The run returned a PerimeterX interstitial, not a catalogue and not an empty
+// result set:
+//
+//   [5] title:     Are you a human?
+//       body text: Are you a human? Press and hold the button below to
+//                  confirm. Thank You!
+//
+// The only requests captured were PerimeterX's own telemetry to
+// collector-pxbia59zcf.px-cloud.net, because the app never cleared the gate and
+// so never asked for products. Getting past a press-and-hold challenge means
+// defeating a human-verification mechanism, which this project does not do.
+// Not attempted: USE_PROXY=1, which would present a residential IP and might
+// avoid the challenge being served at all - it was judged not worth a credit
+// for a general merchandiser whose grocery range is thinner than Makro's.
+//
+// The script is kept because it is not Game-specific: TARGET and ORIGIN point
+// it at any store, and it is the only probe here that runs a real browser. If a
+// candidate store serves a shell that renders by JavaScript, start with this.
 //
 // Run inside the backend container, which is the only place with Playwright and
 // Chromium installed. scripts/ is not in the image, so the probe is piped in:
 //
 //   cd /opt/accucery && docker compose -f docker-compose.prod.yml exec -T \
-//     -e QUERY=milk backend node --input-type=module < scripts/probe-game.mjs
+//     -e QUERY=milk -e ORIGIN=https://www.example.co.za \
+//     -e TARGET='https://www.example.co.za/search?q=milk' \
+//     backend node --input-type=module < scripts/probe-game.mjs
 //
 // WHY A BROWSER AND NOT curl
 //
