@@ -71,10 +71,19 @@ try {
 
   // Record every response as it lands. Bodies are read lazily and guarded: a
   // 2MB bundle is not worth parsing and a failed read must not kill the probe.
+  // Every xhr/fetch, not only those declaring JSON. The first version filtered
+  // on content-type and would have missed a catalogue served as text/plain -
+  // and on Game it recorded only PerimeterX's own telemetry, which told us
+  // nothing about whether a catalogue request was ever attempted.
   page.on("response", (res) => {
-    const ct = res.headers()["content-type"] || "";
-    if (!/json/i.test(ct)) return;
-    seen.push({ url: res.url(), status: res.status(), res });
+    const type = res.request().resourceType();
+    if (type !== "xhr" && type !== "fetch") return;
+    seen.push({
+      url: res.url(),
+      status: res.status(),
+      ct: (res.headers()["content-type"] || "-").split(";")[0],
+      res,
+    });
   });
 
   console.log(`\n[2] goto`);
@@ -92,10 +101,17 @@ try {
   await page.waitForTimeout(SETTLE_MS);
   console.log(`    HTTP ${status}  ${Date.now() - started}ms`);
 
-  console.log(`\n[3] bot cookies after load`);
+  console.log(`\n[3] perimeterx cookies`);
   const cookies = await context.cookies(ORIGIN);
-  const px = cookies.find((c) => /^_px/.test(c.name));
-  console.log(`    _px*: ${px ? `set (${w(px.name, 12)})` : "MISSING"}`);
+  const pxNames = cookies.filter((c) => /^_px/i.test(c.name)).map((c) => c.name);
+  // _pxhd is a device id PerimeterX sets on EVERY visit, including ones it goes
+  // on to reject, so its presence says nothing. _px3 is the token granted when
+  // the sensor is satisfied, and it is the only one that answers "did we pass".
+  // The first version matched /^_px/ and reported "set (_pxhd)" on a visit that
+  // never got a token - the right answer to the wrong question.
+  const token = cookies.find((c) => c.name === "_px3");
+  console.log(`    names: ${pxNames.length ? w(pxNames.join(" "), 30) : "none"}`);
+  console.log(`    _px3 (the token): ${token ? "set" : "MISSING"}`);
   console.log(`    cookies total: ${cookies.length}`);
 
   // eslint-disable-next-line no-undef -- this arrow runs inside Chromium via page.evaluate, not in Node, so document is defined there
@@ -103,8 +119,15 @@ try {
   const stuck = /Detecting\.\.\.|Loading\.\.\./i.test(text);
   console.log(`    still "Detecting/Loading": ${stuck ? "YES" : "no"}`);
 
-  console.log(`\n[4] json responses`);
+  console.log(`\n[4] xhr/fetch requests`);
   console.log(`    ${seen.length} seen`);
+  for (const s2 of seen.slice(0, 8)) {
+    console.log(`    ${s2.status} ${w(s2.ct, 18)}`);
+    wrap(s2.url.replace(/^https?:\/\//, ""), "      ", 30);
+  }
+  if (!seen.length) console.log(`    the page made NO xhr at all`);
+
+  console.log(`\n[4b] which look like products`);
   // Rank by how product-like the payload is rather than by size or order: the
   // biggest JSON on a page is usually config, and the first is usually consent.
   const scored = [];
@@ -132,17 +155,26 @@ try {
   }
   if (!scored.length) console.log(`    none parsed as JSON`);
 
-  console.log(`\n[5] prices rendered in the DOM`);
+  console.log(`\n[5] what rendered`);
+  // eslint-disable-next-line no-undef -- runs inside Chromium via page.evaluate
+  const title = await page.evaluate(() => document.title || "");
+  console.log(`    title:`);
+  wrap(w(title, 80), "      ");
+  console.log(`    body text:`);
+  wrap(w(text.replace(/\s+/g, " ").trim() || "(empty)", 240), "      ");
   const prices = (text.match(/R\s?\d[\d\s]*[.,]\d{2}/g) || []);
   console.log(`    ${prices.length} matches`);
   prices.slice(0, 3).forEach((p) => console.log(`      ${w(p.trim(), 20)}`));
 
   console.log(`\n[6] verdict`);
-  if (!px) {
-    console.log(`    PerimeterX did NOT set a`);
-    console.log(`    cookie. Try USE_PROXY=1`);
-    console.log(`    (spends a credit), else`);
-    console.log(`    Game is not reachable.`);
+  if (!token) {
+    console.log(`    no _px3 token: the sensor`);
+    console.log(`    did not clear this browser`);
+    console.log(`    on this IP. Read [5] first:`);
+    console.log(`    a block page and an empty`);
+    console.log(`    result set look alike here.`);
+    console.log(`    Next lever is USE_PROXY=1,`);
+    console.log(`    which spends a credit.`);
   } else if (prices.length > 0 && scored.length) {
     console.log(`    products render AND a json`);
     console.log(`    response exists -> use the`);

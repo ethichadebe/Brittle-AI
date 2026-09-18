@@ -38,7 +38,7 @@ const hasnt = (out, needle, name) =>
 // settle wait passed every assertion until this delay existed.
 const CATALOGUE_DELAY_MS = 1200;
 
-function server({ products = true, setCookie = true } = {}) {
+function server({ products = true, setCookie = true, deviceOnly = false } = {}) {
   return http.createServer((req, res) => {
     const json = (o, extra = {}) => {
       res.writeHead(200, { "content-type": "application/json", ...extra });
@@ -54,7 +54,12 @@ function server({ products = true, setCookie = true } = {}) {
             { sku: "G2", displayName: "Low Fat Milk 1L", currentPrice: 21.5, thumbnail: "/l.jpg" },
           ] }
         : { results: [] }), CATALOGUE_DELAY_MS);
-    const cookie = setCookie ? { "set-cookie": "_px3=abc123; Path=/" } : {};
+    // deviceOnly reproduces Game: PerimeterX hands out _pxhd (a device id it
+    // sets on every visit, rejected ones included) and withholds the _px3
+    // token. The probe once called that "set" and read it as a pass.
+    const cookie = deviceOnly
+      ? { "set-cookie": "_pxhd=deviceid123; Path=/" }
+      : setCookie ? { "set-cookie": "_px3=abc123; Path=/" } : {};
     res.writeHead(200, { "content-type": "text/html", ...cookie });
     res.end(`<html><body><div id=a>Detecting...</div><script>
       fetch('/consent').then(r=>r.json());
@@ -88,7 +93,7 @@ async function runProbe(srv, env = {}) {
 
 console.log("a catalogue XHR among decoys");
 let out = await runProbe(server());
-has(out, "_px*: set", "sees the bot cookie was set");
+has(out, "_px3 (the token): set", "sees the token was granted");
 has(out, 'still "Detecting/Loading": no', "notices the page finished rendering");
 has(out, "/v2/catalogue/query", "names the catalogue request");
 has(out, "score 7", "scores it as product-shaped");
@@ -96,20 +101,50 @@ has(out, "keys: results", "reports its top-level keys");
 has(out, "2 matches", "counts the rendered prices");
 has(out, "use the", "verdict points at interceptsUrl");
 // The decoys are the point: both are JSON, /config is far larger.
-const top = out.slice(out.indexOf("[4]"), out.indexOf("[5]"));
+const top = out.slice(out.indexOf("[4b]"), out.indexOf("[5]"));
 hasnt(top.slice(0, top.indexOf("score", top.indexOf("score") + 1)), "/config",
   "does not rank the big config blob first");
 
 console.log("\nthe sensor never lets go");
 out = await runProbe(server({ setCookie: false, products: false }));
-has(out, "_px*: MISSING", "reports the missing cookie");
-has(out, "not reachable", "verdict says stop rather than guess");
+has(out, "_px3 (the token): MISSING", "reports the missing token");
+has(out, "did not clear this browser", "verdict says stop rather than guess");
 
 console.log("\nreachable, but the query has no results");
 out = await runProbe(server({ products: false }));
-has(out, "_px*: set", "cookie still reported");
+has(out, "_px3 (the token): set", "token still reported");
 has(out, "0 matches", "no prices found");
 has(out, "no prices rendered", "verdict distinguishes this from a block");
+
+console.log("\na device cookie is not a token");
+// The exact shape Game returned: _pxhd set, _px3 never granted, no catalogue
+// request attempted. Matching /^_px/ reported this as "set" and the verdict
+// branched on it, which is the bug this case exists to keep fixed.
+out = await runProbe(server({ deviceOnly: true, products: false }));
+has(out, "_pxhd", "lists the device cookie it did get");
+has(out, "_px3 (the token): MISSING", "does not mistake it for the token");
+has(out, "did not clear this browser", "verdict says the sensor did not pass");
+hasnt(out, "use the", "does not point at an interceptsUrl");
+
+console.log("\na catalogue that is not declared as json");
+// content-type filtering would have hidden this one entirely.
+const plain = http.createServer((req, res) => {
+  if (req.url.startsWith("/api/items")) {
+    return setTimeout(() => {
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end(JSON.stringify({ results: [{ sku: "P1", displayName: "Milk 1L", currentPrice: 19.99 }] }));
+    }, 900);
+  }
+  res.writeHead(200, { "content-type": "text/html", "set-cookie": "_px3=ok; Path=/" });
+  res.end(`<html><body><div id=a>Detecting...</div><script>
+    fetch('/api/items').then(r=>r.text()).then(t=>{
+      document.getElementById('a').innerText =
+        JSON.parse(t).results.map(p=>p.displayName+' R'+p.currentPrice.toFixed(2)).join(' ');});
+  </script></body></html>`);
+});
+out = await runProbe(plain);
+has(out, "/api/items", "still sees an xhr served as text/plain");
+has(out, "1 matches", "and the price it rendered");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
