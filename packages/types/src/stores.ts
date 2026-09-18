@@ -57,15 +57,4 @@ export const STORE_CONFIGS: StoreConfig[] = [
     // Settings as loyalty-capable, which Makro is not.
     loyaltyProgramme: null,
   },
-  {
-    slug: "game",
-    name: "Game",
-    color: "#e8000d",
-    // The last unprobed candidate, and the one with a real chance: Game is
-    // Massmart, the same owner as Makro, so it may run the same Flipkart stack
-    // that makro.ts already parses. Nothing here is confirmed - see issue #35.
-    // Colour is a brand-family approximation, not checked against the logo.
-    active: false,
-    loyaltyProgramme: null,
-  },
 ];
