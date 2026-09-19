@@ -1,0 +1,32 @@
+# Compose deploy, per
+# https://github.com/ethichadebe/workflows/blob/main/docs/compose-destination.md
+#
+# CI builds both images, pushes them to ghcr by digest, and the server pulls.
+# Nothing is built on the box. The database container is never recreated by a
+# deploy, and a destructive pending migration stops the deploy before anything
+# is applied.
+#
+# This must not run until the updated dispatcher is installed on the VPS and its
+# `accucery` block has been checked against the box — until then there is
+# nothing on the other end to receive the manifest.
+
+name: Deploy
+
+on:
+  push:
+    # The spec's example says `main`. This repo's default branch is `master`,
+    # so a literal copy would never fire.
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    uses: ethichadebe/workflows/.github/workflows/compose-deploy.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      app: accucery
+      backend-dockerfile: backend/Dockerfile
+      frontend-dockerfile: frontend/Dockerfile
+    secrets: inherit
