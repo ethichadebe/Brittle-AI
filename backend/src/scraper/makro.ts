@@ -120,7 +120,17 @@ export function fillImageTemplate(url: string): string {
     .replace(/\{@quality\}/g, "70")
     // Any placeholder we do not know would leave literal braces in the URL,
     // which no CDN serves. Dropping it is a guess; keeping it is a certainty.
-    .replace(/\{@[A-Za-z]+\}/g, "");
+    //
+    // `[^}]*` rather than `[A-Za-z]+`: the letters-only version let anything
+    // with a digit or an underscore through - `{@quality_2x}`, `{@w2}` - which
+    // is exactly the case this line exists for, and the test that claimed
+    // otherwise only ever tried a letters-only name.
+    .replace(/\{@[^}]*\}/g, "")
+    // Dropping a placeholder that was a whole path segment leaves `//`, which
+    // 404s just as reliably as the braces did. Same reasoning one line up: a
+    // collapsed path might resolve, a doubled slash will not. The scheme's own
+    // `//` is protected by requiring a non-`:` character before the match.
+    .replace(/([^:])\/{2,}/g, "$1/");
 }
 
 /**
