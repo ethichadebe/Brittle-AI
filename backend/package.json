@@ -11,6 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "test": "vitest run",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:db": "vitest run --config vitest.db.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

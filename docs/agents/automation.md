@@ -20,8 +20,39 @@ Two things follow, and both have been tested rather than assumed:
   be run by a human on the VPS for this reason. This is not a nuisance to
   engineer around; it is why the probe-first discipline exists at all.
 
-So: **every observation of the live system arrives through a person.** Design
+So: **every observation of the *live system* arrives through a person.** Design
 for that instead of forgetting it each time.
+
+## What the container *can* do on its own
+
+The constraint above is about the VPS and the store sites. It is not about the
+code. Measured on 2026-09-20:
+
+- **Postgres 16 is installed in the container**, at
+  `/usr/lib/postgresql/16/bin/`, with a cluster `16/main` on port 5432 that
+  starts down. So the whole backend suite — including the tests that need a real
+  database — runs here, in about three seconds, without asking anyone:
+
+  ```
+  pg_ctlcluster 16 main start
+  su postgres -c "psql -c \"CREATE USER accucery WITH PASSWORD 'accucery' SUPERUSER;\""
+  su postgres -c "psql -c 'CREATE DATABASE accucery_test OWNER accucery;'"
+  npm ci && npm run db:generate -w backend
+  DATABASE_URL="postgresql://accucery:accucery@localhost:5432/accucery_test" \
+    npx prisma migrate deploy --schema backend/prisma/schema.prisma
+  npm run test -w backend
+  ```
+
+  `npm run test:unit -w backend` needs none of that — it is the suite that opens
+  no connection, and it passes with the cluster stopped. That is worth using as
+  a check on the split rather than trusting it.
+
+- **Stopping the cluster is the cheap way to prove a test is pure.**
+  `pg_ctlcluster 16 main stop`, run the suite, and a test that secretly needed a
+  database says so.
+
+Before asking a person to run anything, check whether it is actually the live
+system you need to see, or just the code.
 
 ## The working rule
 

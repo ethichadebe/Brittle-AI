@@ -45,6 +45,14 @@ describe("GET /lists/:id/items", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ items: [] });
   });
+
+  // A missing list must be distinguishable from an empty one. Without this the
+  // route could return 200 with no items for an id that does not exist and the
+  // suite stayed green — found by mutation-checking the 404 branch.
+  it("returns 404 when list does not exist", async () => {
+    const res = await app.inject({ method: "GET", url: "/lists/non-existent-id/items" });
+    expect(res.statusCode).toBe(404);
+  });
 });
 
 describe("POST /lists/:id/items", () => {

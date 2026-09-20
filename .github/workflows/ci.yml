@@ -36,10 +36,60 @@ jobs:
       # typechecks or builds until `db:generate` has run.
       install: npm ci && npm run db:generate -w backend
       lint: npx eslint backend
+      # The pure suite: scrapers, parsing, the image proxy, the compose
+      # env-wiring check. It opens no database connection, so it runs here
+      # alongside lint and build. The suite that does need one runs in
+      # `backend-db` below.
+      test: npm run test:unit -w backend
       build: npm run build -w backend
-      # `npm run test -w backend` is deliberately left out: those tests need a
-      # live Postgres with the migrations applied, which these shared checks do
-      # not provide. See docs/journal/2026-09-16-onboard-to-mobile-delivery.md.
+
+  # Written out longhand rather than called through
+  # `ethichadebe/workflows/.github/workflows/node-checks.yml` because that
+  # workflow takes no `services:` input, and these tests need a live Postgres
+  # with the migrations applied. Everything else mirrors the shared workflow so
+  # the two stay comparable.
+  backend-db:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: accucery
+          POSTGRES_PASSWORD: accucery
+          POSTGRES_DB: accucery_test
+        ports:
+          - 5432:5432
+        # Without this, `prisma migrate deploy` races the server's startup and
+        # fails with P1001.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # A throwaway database created by the service block above and destroyed with
+    # the runner. It is not a credential for anything, and it is the same pair
+    # the local default in `backend/vitest.db.config.ts` already uses.
+    env:
+      DATABASE_URL: postgresql://accucery:accucery@localhost:5432/accucery_test
+      DATABASE_URL_TEST: postgresql://accucery:accucery@localhost:5432/accucery_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm ci && npm run db:generate -w backend
+
+      - name: Apply migrations to the test database
+        run: npx prisma migrate deploy --schema backend/prisma/schema.prisma
+
+      - name: Test
+        run: npm run test:db -w backend
 
   secrets:
     runs-on: ubuntu-latest
