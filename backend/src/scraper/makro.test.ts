@@ -185,13 +185,34 @@ describe("imageOf", () => {
     expect(url).toContain("/asset/rukmini/fccp/416/416/");
   });
 
-  it("leaves no placeholder behind, whatever its name", () => {
+  // The name of this test claimed "whatever its name" while only ever trying
+  // {@unknown}, which is letters-only - the one shape the old
+  // `\{@[A-Za-z]+\}` did handle. A digit or an underscore went straight
+  // through. Each of these is a name that used to survive.
+  it.each([
+    "{@unknown}",
+    "{@quality_2x}",
+    "{@w2}",
+    "{@2x}",
+    "{@image-size}",
+    "{@}",
+  ])("leaves no placeholder behind, whatever its name: %s", (placeholder) => {
     const url = imageOf({
-      media: { images: [{ url: "https://www.makro.co.za/a/{@width}/{@unknown}/b.jpg" }] },
+      media: { images: [{ url: `https://www.makro.co.za/a/{@width}/${placeholder}/b.jpg` }] },
     });
     // A literal brace in a URL is a guaranteed 404, so none may survive.
     expect(url).not.toContain("{@");
     expect(url).not.toContain("}");
+  });
+
+  it("does not leave a doubled slash where a whole segment was a placeholder", () => {
+    const url = imageOf({
+      media: { images: [{ url: "https://www.makro.co.za/a/{@segment}/b.jpg" }] },
+    });
+    // `//` mid-path 404s exactly as reliably as the braces would have.
+    expect(url).toBe("https://www.makro.co.za/a/b.jpg");
+    // ...and the scheme's own doubled slash must survive that collapse.
+    expect(url.startsWith("https://")).toBe(true);
   });
 
   it("substitutes quality as well as size", () => {

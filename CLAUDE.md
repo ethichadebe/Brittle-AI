@@ -11,7 +11,10 @@ This repository ships through Mobile Delivery: someone describes a change from t
   - everything — `npm run lint` (ESLint over all three workspaces from one flat config at the root)
   - `packages/types` — `npm run typecheck -w packages/types`, `npm run build -w packages/types`
   - `frontend` — `npm run typecheck -w frontend`, `npm run test -w frontend`, `npm run build -w frontend`
-  - `backend` — `npm run db:generate -w backend` (Prisma client, needed before anything typechecks), `npm run typecheck -w backend`, `npm run build -w backend`, and `npm run test -w backend` when a Postgres test database is available
+  - `backend` — `npm run db:generate -w backend` (Prisma client, needed before anything typechecks), `npm run typecheck -w backend`, `npm run build -w backend`, and the tests, which are split in two:
+    - `npm run test:unit -w backend` — scrapers, parsing, the image proxy, the compose env-wiring check. Needs no database, so run it always. CI runs it on every pull request.
+    - `npm run test:db -w backend` — the `*.db.test.ts` files, which need a live Postgres with the migrations applied. CI runs it in its own `backend-db` job.
+    - `npm run test -w backend` runs both, so it fails without a database. Prefer it locally when you have one; a new test file is otherwise only picked up by whichever config matches its name.
   - secrets — `gitleaks dir . --config .gitleaks.toml --redact --verbose`. CI runs this on every pull request and fails on a finding. If you do not have gitleaks installed, CI will catch it; it reports only the rule, file and line, so reproduce locally to see what tripped.
 - **Add a change note** to `docs/journal/` in the same pull request: a dated file saying what changed, whether it worked first time, whether a laptop was needed, and anything that got in the way. See `docs/journal/README.md`.
 - Keep the pull request description short and plain: what changed, and why.
