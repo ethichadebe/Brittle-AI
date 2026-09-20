@@ -118,14 +118,14 @@ samples = {}               # dotted path -> one raw value
 evidence = {}              # dotted path -> why it was flagged
 hosts = Counter()
 
-def scan(node, prod, path="", depth=0):
+def scan(node, path="", depth=0):
     if depth > MAX_DEPTH: return
     if isinstance(node, dict):
         for k, v in node.items():
-            scan(v, prod, "%s.%s" % (path, k) if path else k, depth+1)
+            scan(v, "%s.%s" % (path, k) if path else k, depth+1)
     elif isinstance(node, list):
         for i, v in enumerate(node[:3]):
-            scan(v, prod, "%s[%d]" % (path, i), depth+1)
+            scan(v, "%s[%d]" % (path, i), depth+1)
     elif isinstance(node, str) and node:
         leaf = path.split(".")[-1]
         by_ext = bool(IMG_EXT.search(node))
@@ -137,8 +137,8 @@ def scan(node, prod, path="", depth=0):
             h = urlparse(node).hostname
             if h: hosts[h] += 1
 
-for pid, node in products.items():
-    scan(node, pid)
+for node in products.values():
+    scan(node)
 
 total = len(products)
 print("[4] image-ish paths")

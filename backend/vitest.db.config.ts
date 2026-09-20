@@ -12,13 +12,14 @@ export default defineConfig({
     include: ["src/**/*.db.test.ts"],
     globalSetup: "./src/test/globalSetup.ts",
     setupFiles: ["./src/test/setup.ts"],
-    // These suites share one Postgres database and `setup.ts` truncates its
-    // tables in `beforeEach`, so two test files running at once can delete rows
-    // out from under each other. Run the files one at a time.
+    // These files share one Postgres database and `setup.ts` truncates its
+    // tables in `beforeEach`, so two running at once would delete rows out from
+    // under each other. Keep them serial.
     //
-    // This was `poolOptions: { forks: { singleFork: true } }`, which Vitest 4
-    // removed — it was being silently ignored, and the three test files were in
-    // fact running in three separate forks against the same database.
+    // There is exactly one `*.db.test.ts` today, so this is currently holding
+    // the door for the second one rather than fixing a live race. The way to
+    // delete it rather than keep it is per-test isolation — a transaction
+    // rolled back after each test, or a schema per worker — not removing it.
     fileParallelism: false,
     env: {
       DATABASE_URL:
