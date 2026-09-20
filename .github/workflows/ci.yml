@@ -96,8 +96,8 @@ jobs:
 
   # The shell test harnesses. Until this job existed they ran nowhere: `test` in
   # this repo meant "whatever vitest finds inside an npm workspace", and a test
-  # that is neither a vitest file nor inside a workspace had no home, so ~660
-  # lines of it were silently never executed on a pull request.
+  # that is neither a vitest file nor inside a workspace had no home, so 639
+  # lines of it across six files were silently never executed on a pull request.
   #
   # That mattered most for report.test.sh, which exists to prove a secret cannot
   # ride along into a comment on this PUBLIC repo — the same class of risk the

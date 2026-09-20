@@ -8,8 +8,10 @@
 - **Friction:**
 
   - **The biggest find was not a simplification at all: 789 lines of test that
-    CI never ran.** Seven shell harnesses, every one correctly exiting non-zero
-    on failure, and `grep "test.sh" .github/workflows/ci.yml` returned nothing.
+    CI never ran.** Seven harnesses, every one correctly exiting non-zero on
+    failure, and `grep "test.sh" .github/workflows/ci.yml` returned nothing.
+    The new job runs six of them — 639 lines; the seventh is the 150-line
+    `probe-game.test.mjs`, held back for the reason below.
     "Test" in this repo meant "whatever vitest finds inside an npm workspace",
     so a test that is neither a vitest file nor inside a workspace had no home
     and silently was not one. That is the same failure this project has already
