@@ -34,6 +34,25 @@
     contributor follows never mentioned them — so the one command it does name
     is the one that fails without a database. My omission, from my own change.
 
+  - **`smoke-scrapers.sh` cried wolf about loyalty prices.** It printed "no
+    loyalty prices seen (issue #7)" whenever the count was zero, whatever it had
+    searched. Makro's `loyaltyProgramme` is deliberately `null` — its Special
+    Price is a public promotion, not a card-gated one — so a run over Makro
+    reported the warning every single time, which turns a real signal into
+    noise. It now reads which stores have a programme from `STORE_CONFIGS`, the
+    same source Settings lists, rather than carrying a second list to keep in
+    step, and names which store was expected to show one. A config it cannot
+    read or parse says so instead of guessing: warning would be the false alarm
+    again, staying silent would hide issue #7.
+
+  - **That script had no test at all, so it got one.** `curl` is stubbed on
+    `PATH`, so it runs offline against a canned response with no app, no store
+    and no ScraperAPI credits — the first time this script could be checked
+    without a live deployment. Three mutations, each caught: stop stripping
+    `//` comments and Makro's own comment makes it look loyalty-capable; always
+    claim the config was readable and the unreadable case goes unreported; drop
+    the no-card branch and the false alarm returns.
+
   - **Not changed: `probe-store.sh`'s bot-defence heuristic.** It matches
     `hcaptcha|recaptcha/api\.js` anywhere on a homepage, so a captcha on an
     unrelated footer form would report a store as needing a real browser when
