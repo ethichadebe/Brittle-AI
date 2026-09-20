@@ -50,7 +50,8 @@ if [ -z "$ISSUE" ] || [ "$#" -eq 0 ]; then
   echo "usage: bash scripts/report.sh <issue-number> -- <command...>"
   exit 2
 fi
-case "$ISSUE" in ''|*[!0-9]*) echo "issue must be a number"; exit 2 ;; esac
+# The empty case is already handled above, with a better message.
+case "$ISSUE" in *[!0-9]*) echo "issue must be a number"; exit 2 ;; esac
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
@@ -95,9 +96,9 @@ src, dst = sys.argv[1], sys.argv[2]
 # shorter one being replaced inside it.
 secrets = sorted(set(sys.argv[3:]), key=len, reverse=True)
 text = open(src, encoding="utf-8", errors="replace").read()
+# Nothing shorter than 8 characters was collected, so none of these is empty.
 for s in secrets:
-    if s:
-        text = text.replace(s, "***REDACTED***")
+    text = text.replace(s, "***REDACTED***")
 # Credential shapes that may never have been in .env at all.
 for pattern in (r"(api[_-]?key=)[^&\s\"']+", r"(access[_-]?token=)[^&\s\"']+",
                 r"(token=)[^&\s\"']+", r"(password=)[^&\s\"']+",

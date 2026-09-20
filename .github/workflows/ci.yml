@@ -81,6 +81,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          # This job installs the whole workspace to run one test file, so the
+          # registry round-trip is the bulk of it.
+          cache: npm
 
       - name: Install
         run: npm ci && npm run db:generate -w backend
@@ -90,6 +93,40 @@ jobs:
 
       - name: Test
         run: npm run test:db -w backend
+
+  # The shell test harnesses. Until this job existed they ran nowhere: `test` in
+  # this repo meant "whatever vitest finds inside an npm workspace", and a test
+  # that is neither a vitest file nor inside a workspace had no home, so ~660
+  # lines of it were silently never executed on a pull request.
+  #
+  # That mattered most for report.test.sh, which exists to prove a secret cannot
+  # ride along into a comment on this PUBLIC repo — the same class of risk the
+  # `secrets` job below runs on every pull request.
+  #
+  # They need bash and python3 and nothing else: no network, no store, no app,
+  # no ScraperAPI credits, no npm install. That is why this job is cheap enough
+  # to run unconditionally.
+  #
+  # scripts/probe-game.test.mjs is deliberately NOT here. It drives a real
+  # Chromium and needs the workspace installed, so it would turn this job into
+  # a browser job. Running it is a separate decision, not an oversight.
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the shell test harnesses
+        run: |
+          set -uo pipefail
+          status=0
+          for t in scripts/*.test.sh; do
+            echo "=== $t"
+            # Each harness ends in `[ "$FAIL" -eq 0 ]`, so a failure is its exit
+            # status. Keep going rather than stopping at the first one: on a
+            # phone, one CI run showing every failure beats three showing one.
+            bash "$t" || status=1
+          done
+          exit "$status"
 
   secrets:
     runs-on: ubuntu-latest

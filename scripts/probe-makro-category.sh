@@ -183,19 +183,23 @@ if thin:
 def coverage(path):
     return min(present[path][q] / counts[q] for q in live)
 
+# Every value a path takes across the queries that returned products.
+#
+# `present` and `seen` are written together in scan(), so coverage(p) > 0 means
+# every live query has a non-empty set for p. That is what lets the predicates
+# below skip their own emptiness checks: an earlier draft had two of them, and
+# neither could ever fire.
+def values_of(path):
+    union = set()
+    for q in live: union |= seen[path][q]
+    return union
+
 # Separation: the values for one query are disjoint from another's. That is
 # what prodtype did for Woolworths - Food vs Clothing, never both.
 def separates(path):
     sets = [seen[path][q] for q in live]
-    if any(not s for s in sets): return False
     return all(sets[i].isdisjoint(sets[j])
                for i in range(len(sets)) for j in range(i+1, len(sets)))
-
-# One value everywhere is the opposite: present, stable, and useless.
-def constant(path):
-    union = set()
-    for q in live: union |= seen[path][q]
-    return len(union) == 1
 
 # A classification GROUPS products; an identifier does not. A title is distinct
 # on every product, so it is trivially "disjoint" between any two queries and
@@ -204,11 +208,12 @@ def constant(path):
 # one query where the field takes fewer values than there are products is what
 # tells a department from a name.
 def groups(path):
-    return any(0 < len(seen[path][q]) < counts[q] for q in live)
+    return any(len(seen[path][q]) < counts[q] for q in live)
 
+# Two values is the floor: one value everywhere is present, stable and useless.
+# Twelve is the ceiling: beyond that it is not a classification either.
 cands = [p for p in seen
-         if coverage(p) >= 0.5 and not constant(p) and groups(p)
-         and len(set().union(*(seen[p][q] for q in live))) <= 12]
+         if coverage(p) >= 0.5 and groups(p) and 2 <= len(values_of(p)) <= 12]
 
 def wrap(text, indent, width=34):
     for i in range(0, len(text), width):

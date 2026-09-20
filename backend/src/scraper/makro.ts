@@ -109,28 +109,33 @@ export function effectivePrice(pricing: any): number {
 //
 // The client is expected to substitute the size it wants. Left as they are,
 // those braces make the URL 404, so reading the right field is only half of it.
-const IMAGE_WIDTH = 416;
-const IMAGE_HEIGHT = 416;
+// The URL is a template with named parameters, so the values are a table
+// rather than a chain of replacements. Adding a size Makro starts asking for
+// is then a line of data, not another branch.
+const IMAGE_PARAMS: Record<string, string> = {
+  width: "416",
+  height: "416",
+  quality: "70",
+};
 
 /** Substitute Flipkart's {@...} size placeholders so the URL resolves. */
 export function fillImageTemplate(url: string): string {
-  return url
-    .replace(/\{@width\}/g, String(IMAGE_WIDTH))
-    .replace(/\{@height\}/g, String(IMAGE_HEIGHT))
-    .replace(/\{@quality\}/g, "70")
-    // Any placeholder we do not know would leave literal braces in the URL,
-    // which no CDN serves. Dropping it is a guess; keeping it is a certainty.
-    //
-    // `[^}]*` rather than `[A-Za-z]+`: the letters-only version let anything
-    // with a digit or an underscore through - `{@quality_2x}`, `{@w2}` - which
-    // is exactly the case this line exists for, and the test that claimed
-    // otherwise only ever tried a letters-only name.
-    .replace(/\{@[^}]*\}/g, "")
-    // Dropping a placeholder that was a whole path segment leaves `//`, which
-    // 404s just as reliably as the braces did. Same reasoning one line up: a
-    // collapsed path might resolve, a doubled slash will not. The scheme's own
-    // `//` is protected by requiring a non-`:` character before the match.
-    .replace(/([^:])\/{2,}/g, "$1/");
+  return (
+    url
+      // `[^}]*`, not `[A-Za-z]+`: the letters-only version let anything with a
+      // digit or an underscore through - `{@quality_2x}`, `{@w2}` - and the
+      // test claiming otherwise only ever tried a letters-only name.
+      //
+      // A name we do not know resolves to "". Dropping it is a guess; keeping
+      // the literal braces is a certainty, because no CDN serves them.
+      .replace(/\{@([^}]*)\}/g, (_, name: string) => IMAGE_PARAMS[name] ?? "")
+      // Dropping a placeholder that was a whole path segment leaves `//`, which
+      // 404s just as reliably as the braces did - so, by the same reasoning, a
+      // collapsed path might resolve and a doubled slash will not. The scheme's
+      // own `//` survives because a non-`:` character is required before the
+      // match.
+      .replace(/([^:])\/{2,}/g, "$1/")
+  );
 }
 
 /**
