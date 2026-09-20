@@ -134,15 +134,19 @@ Checkers and Shoprite both sit behind the same WAF and both set an
 
 ### Updating
 
-Nothing, once the deploy timer is installed — merge the pull request and the box
-picks it up within a minute. See [`deploy/README.md`](deploy/README.md) for how
-that works and how to install it.
+Nothing — merge the pull request and it deploys itself. A push to `master` runs
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which builds
+both images in CI, pushes them to `ghcr.io` by digest, and hands the VPS a
+manifest to pull. Nothing is built on the server and the database container is
+never recreated.
 
-By hand, if the timer is off:
+To deploy without a merge — re-running a failed deploy, say — use the
+**Deploy** workflow's *Run workflow* button, which is what `workflow_dispatch`
+in that file is for.
 
-```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-```
+This replaced a timer on the box that polled `master` once a minute and built
+there. That path was retired on 2026-09-20 and its files are gone; `docker
+compose up -d --build` on the server no longer works, because the production
+compose file names images rather than build contexts.
 
 Migrations run automatically on startup via the backend entrypoint.
