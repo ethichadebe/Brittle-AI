@@ -91,18 +91,29 @@ everything to that one port is enough.
 how `SCRAPERAPI_KEY` stayed missing from this deployment for four months while
 the repo had it.
 
-### 4. Start the stack
+### 4. Start the stack — from CI, not from the box
 
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
+Run the **Deploy** workflow (*Actions → Deploy → Run workflow*), or push to
+`master`. There is no `docker compose up --build` step any more: the production
+compose file names images rather than build contexts, so there is nothing on the
+box to build from.
 
-This single command:
-- Builds the backend (TypeScript → JS, Playwright Chromium installed)
-- Builds the frontend (`vite build`, served by nginx)
-- Starts PostgreSQL
-- Runs `prisma migrate deploy` on first boot
-- Serves the app on port 80
+The deploy builds both images in CI, pushes them to `ghcr.io` by digest, and
+hands the VPS a manifest. The dispatcher pulls them and writes `BACKEND_IMAGE`
+and `FRONTEND_IMAGE` into this `.env` itself — that is why they are not in
+`.env.example` and must not be set by hand. It then:
+
+- starts PostgreSQL, which no later deploy ever recreates
+- runs `prisma migrate deploy`, stopping first if a pending migration would drop
+  or retype something that already exists
+- brings the candidate containers up on local-only ports and checks them before
+  the live stack moves
+- serves the app on port 80
+
+Compose commands that only talk to what is already running — `logs`, `exec`,
+`up -d --force-recreate backend` in step 5 — work normally on the box, because
+the dispatcher has put those two values in `.env`. On a box that has never
+deployed, they have nothing to point at until the first run of the workflow.
 
 ### 5. Refreshing store cookies
 

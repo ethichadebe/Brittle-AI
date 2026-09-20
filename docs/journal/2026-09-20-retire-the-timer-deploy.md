@@ -45,3 +45,19 @@
     alerts to a phone matter beyond Telegram, that is a new change against
     `compose-deploy.yml` in the workflows repo, not something this repo can
     configure.
+
+  - **A review of the wider diff found one more, in this pull request's own
+    blind spot.** `README.md` step 4, *Start the stack*, still said
+    `docker compose up -d --build` and claimed it "Builds the backend / Builds
+    the frontend". The Updating section below it had been corrected; the
+    first-time-setup section forty lines above had not, and it gave the same
+    impossible command with more confidence. Fixed here rather than left for a
+    follow-up, since it is the same defect this change exists to remove.
+  - **Where `BACKEND_IMAGE` and `FRONTEND_IMAGE` come from was worth checking
+    rather than asserting.** They appear in `docker-compose.prod.yml` and
+    nowhere else in the repo, which reads like an omission. It is not: the
+    workflows repo's `compose-destination.md` says the dispatcher "sets those
+    two values in the app's `.env` at Cutover, and keeps the previous ones so it
+    can put them back." So they are machine-written, `docker compose exec` and
+    `logs` on the box work normally, and adding them to `.env.example` would
+    invite someone to pin an image by hand. Said so in the README instead.
