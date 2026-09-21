@@ -63,6 +63,20 @@ echo "says so when the zones cannot be told apart"
 OUT2="$(run "$(prod C 126.99 126.99 126.99 99.99 27.00)")"
 has "all agree here" "$OUT2" "reports the ambiguity"
 hasnt "is the regular price" "$OUT2" "does not name a winner"
+has "unlucky sample" "$OUT2" "calls it an unlucky sample"
+
+echo
+echo "tells an unlucky sample from a method that cannot work"
+# The live run on 2026-09-21 looked like this: every PROMOTED product had
+# identical zones, while plenty of unpromoted ones did not. That is not bad
+# luck - it says promotions are priced nationally, so no number of retries
+# will ever separate the zones this way.
+NATIONAL="$(run "$(prod P1 126.99 126.99 126.99 99.99 27.00),$(prod P2 50.00 50.00 50.00 40.00 10.00),$(plain U1 45.99),{\"value\":\"u2\",\"data\":{\"id\":\"U2\",\"p10\":45.99,\"p30\":39.99,\"p60\":39.99,\"promo\":[]}}")"
+has "promoted items never" "$NATIONAL" "names the real cause"
+has "not another" "$NATIONAL" "says retrying will not help"
+hasnt "unlucky sample" "$NATIONAL" "does not blame the sample"
+has "promoted: 0/2" "$NATIONAL" "counts promoted zone spread"
+has "all:      1/4" "$NATIONAL" "counts catalogue zone spread"
 
 echo
 echo "says so when no zone matches"
@@ -84,6 +98,19 @@ OUT5="$(run "$(prod G 126.99 126.99 126.99 99.99 27.00 "$PPI")")"
 has "offer.tiers[0].amount" "$OUT5" "reports a path nobody named"
 has "offer.tiers[0].label" "$OUT5" "and its siblings"
 has "2026-10-01" "$OUT5" "and non-price values"
+
+echo
+echo "shows every distinct value a field takes"
+# The live run printed `loyalty false` from one sample and gave no way to tell
+# whether any product carried `true` — which is the whole question for #28.
+#
+# The live 2026-09-21 run printed lowercase `false`, so Woolworths sends these
+# as STRINGS, not JSON booleans — a JSON boolean would render as Python's
+# `False`. Using the real shape here rather than the one I first assumed.
+VARIED='{"offer":{"tiers":[{"label":"WRewards","amount":99.99}]},"loyalty":"false"}'
+VARIED2='{"offer":{"tiers":[{"label":"WRewards","amount":99.99}]},"loyalty":"true"}'
+OUTV="$(run "$(prod V1 126.99 126.99 126.99 99.99 27.00 "$VARIED"),$(prod V2 126.99 126.99 126.99 99.99 27.00 "$VARIED2")")"
+has "false | true" "$OUTV" "both values of a flag are shown"
 
 echo
 echo "answers the question behind #28"

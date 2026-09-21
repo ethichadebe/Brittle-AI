@@ -119,6 +119,7 @@ print("\n[3] #27 zone by Now+Save")
 votes = Counter()
 checked = 0
 misses = []
+promoted_rows = []
 for r in results:
     d = r.get("data") or {}
     lines = promo_lines(d)
@@ -131,6 +132,7 @@ for r in results:
     if now is None or save is None:
         continue
     checked += 1
+    promoted_rows.append(r)
     target = now + save
     # num() is for safety against a non-numeric value, not for excluding zero:
     # a zone a product is not sold in reports 0, and 0 cannot equal a positive
@@ -146,6 +148,19 @@ for r in results:
     if not hit:
         misses.append((target, [num(d.get(z)) for z in ZONES]))
 
+# Does this product cost different amounts in different zones at all?
+#
+# Without this, an all-agree result is unreadable: it could be an unlucky
+# sample, or it could be that promoted products are simply priced the same
+# everywhere - in which case Now+Save can never name a zone however many
+# queries you try, and retrying is wasted effort.
+def zones_differ(d):
+    vals = [v for v in (num(d.get(z)) for z in ZONES) if v is not None]
+    return len(set(vals)) > 1
+
+prom_differ = sum(1 for r in promoted_rows if zones_differ(r.get("data") or {}))
+all_differ = sum(1 for r in results if zones_differ(r.get("data") or {}))
+
 print("    promoted w/ Now+Save: %d" % checked)
 if not checked:
     print("    none in this query -")
@@ -153,17 +168,29 @@ if not checked:
 else:
     for z in ZONES:
         print("    %-4s matched %d/%d" % (z, votes[z], checked))
+    print("    zones differ on")
+    print("      promoted: %d/%d" % (prom_differ, checked))
+    print("      all:      %d/%d" % (all_differ, len(results)))
     # Only a zone that matches every promoted product is an answer. One that
     # matches some is a coincidence of products whose zones happen to agree.
     clean = [z for z in ZONES if votes[z] == checked]
-    ambiguous = len(clean) > 1
     if len(clean) == 1:
         print("    => %s is the regular price" % clean[0])
-    elif ambiguous:
-        print("    => %s all agree here;" % ",".join(clean))
-        print("    zones do not differ on")
-        print("    these products. retry")
-        print("    with another query.")
+    elif len(clean) > 1:
+        print("    => %s all agree here" % ",".join(clean))
+        if prom_differ == 0 and all_differ > 0:
+            # The decisive case: the catalogue IS zone-priced, but the
+            # promoted subset is not. Retrying cannot help.
+            print("    promoted items never")
+            print("    differ by zone, though")
+            print("    %d other products do." % all_differ)
+            print("    Now+Save cannot settle")
+            print("    #27 - needs another")
+            print("    method, not another")
+            print("    query.")
+        else:
+            print("    unlucky sample; retry")
+            print("    with another query.")
     else:
         print("    => no zone matches. the")
         print("    copy may have changed.")
@@ -198,7 +225,15 @@ else:
             print("%s%s" % (indent, text[i:i+width]))
     for p, vals in list(paths.items())[:10]:
         wrap(p, "    ")
-        wrap(str(vals[0])[:96], "      ", 32)
+        # Every DISTINCT value, not just the first. A flag like `loyalty` is
+        # only interesting if some product carries the other value, and
+        # printing one sample hides exactly that.
+        distinct = []
+        for v in vals:
+            s = str(v)
+            if s not in distinct:
+                distinct.append(s)
+        wrap(" | ".join(distinct)[:96], "      ", 32)
 
     # The question behind #28: does a leaf carry the promotional price as a
     # number, so the parser can stop reading marketing copy?
