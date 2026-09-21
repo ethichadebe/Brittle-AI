@@ -23,7 +23,9 @@ _Avoid_: special, deal, promo price
 
 **Conditional Price**:
 A price that applies only when a quantity condition is met, such as "Buy 2 for
-R160" — not a unit price.
+R170" — not a unit price. The till charges the **Shelf Price** for every unit
+and then subtracts the difference once the condition is met, so a **Conditional
+Price** reduces a basket; it never changes what one unit costs.
 _Avoid_: multi-buy price, bulk price
 
 ### Stores
@@ -50,6 +52,10 @@ _Avoid_: region, area, branch pricing
   **Rewards Programme**; a **Promotional Price** requires nothing
 - A **Store** has at most one **Rewards Programme**; Makro has none
 - A **Shelf Price** is quoted for one **Price Zone**
+- A **Conditional Price** attaches to a quantity, not to a unit, so it is
+  neither a **Shelf Price** nor a **Loyalty Price** and cannot be stored as one
+- A **Conditional Price** may be card-gated or not; one product can carry both
+  versions of the same deal at different prices
 
 ## Example dialogue
 
@@ -65,6 +71,12 @@ _Avoid_: region, area, branch pricing
 >
 > **Domain expert:** "That one is card-gated, so it is a **Loyalty Price** —
 > but it is also a **Conditional Price**. R160 is not what one costs."
+>
+> **Dev:** "If I put three of them in the basket, what do I pay?"
+>
+> **Domain expert:** "Two at the deal and one at the **Shelf Price**. The cart
+> reads R299.97, less a R29.98 discount, so R269.99. The deal comes off the
+> basket total — it does not reprice the product."
 
 ## Flagged ambiguities
 
@@ -88,3 +100,31 @@ _Avoid_: region, area, branch pricing
 - **"discount" was used for both a public sale and a card-gated price.**
   Resolved: these are **Promotional Price** and **Loyalty Price**, and they
   differ in who can get them, which changes whose basket total they affect.
+- **What a Conditional Price does past the qualifying quantity.** Measured on
+  2026-09-21 by putting Woolworths' "Salted Butter 500 g" in a cart and
+  changing the quantity:
+
+  | Qty | Cart | Discount shown |
+  |---|---|---|
+  | 1 | R99.99 | none — "Add 1 more! Buy 2 For R170" |
+  | 2 | R170.00 | R29.98 |
+  | 3 | R269.99 | R29.98 |
+
+  Resolved: the **Shelf Price** is R99.99, the deal is worth R29.98
+  (2 × 99.99 − 170), it is applied as a basket-level discount rather than a new
+  unit price, it does **not** leak onto a single unit, and units past the
+  qualifying group are charged at the **Shelf Price**. Still open: at quantity
+  3 there is only one qualifying pair, so this run cannot tell "once per
+  qualifying pair" from "once per basket". Quantity 4 separates them — R340.00
+  if it repeats, R369.98 if it does not.
+- **The cart charged R170, not the R160 MyDifference price.** The two promos on
+  that product differ only in `product_promo_info[].loyalty`, and the cart took
+  the `loyalty: false` one. That is consistent with the flag being the real
+  discriminator and this cart not carrying **WRewards**, but it was not
+  measured signed in, so the R160 path is inferred rather than observed.
+- **The app cannot express a Conditional Price at all.** `computeSummary` is
+  `price(item) * item.quantity` (`frontend/src/lib/summary.ts:13`) — linear in
+  quantity — while a **Conditional Price** is piecewise. `ListItem` carries
+  `regularPrice`, `loyaltyPrice` and `quantity`, and nothing that says "R170 for
+  two". Unresolved: whether the summary bar should price these exactly or the
+  app should only surface the deal as a prompt.
