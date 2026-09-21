@@ -29,6 +29,18 @@ and subtracts a fixed discount for each complete qualifying group, so a
 Units outside a complete group are charged at the **Shelf Price**.
 _Avoid_: multi-buy price, bulk price
 
+### Freshness
+
+**Indicative Price**:
+The price a search result shows: the most recent one Accucery observed, which
+may be up to a day old. Enough to choose between products, not a promise.
+_Avoid_: cached price, stale price, old price
+
+**Basket Price**:
+The price Accucery stands behind in a list's total, refreshed when the shopper
+opens the list.
+_Avoid_: final price, checkout price, real price
+
 ### Stores
 
 **Store**:
@@ -53,6 +65,11 @@ _Avoid_: region, area, branch pricing
   **Rewards Programme**; a **Promotional Price** requires nothing
 - A **Store** has at most one **Rewards Programme**; Makro has none
 - A **Shelf Price** is quoted for one **Price Zone**
+- Every price Accucery shows is either an **Indicative Price** or a **Basket
+  Price**; the two differ in how recently they were observed and in what the
+  shopper is entitled to rely on
+- An **Indicative Price** becomes a **Basket Price** when the shopper adds the
+  product to a list and that list is opened
 - A **Conditional Price** attaches to a quantity, not to a unit, so it is
   neither a **Shelf Price** nor a **Loyalty Price** and cannot be stored as one
 - A **Conditional Price** repeats: a basket of n units is charged
@@ -147,3 +164,11 @@ _Avoid_: region, area, branch pricing
   is enough and no cross-item basket logic is needed. Unresolved, and a product
   question rather than a typing one: whether the summary bar should price these
   exactly or the app should only surface the deal as a prompt.
+\n- **Nothing in the language yet says which Price Zone an observed price
+  belongs to.** An **Indicative Price** is only indicative *for a shopper in
+  the zone it was observed in*, and today every shopper is served one zone
+  (#27 settled which). If location-aware pricing (#66) lands, a price observed
+  for one shopper stops being indicative for another, silently and per user.
+  Unresolved: whether a price is a fact about a product or a fact about a
+  product **and** a zone. The answer decides whether #66 is a migration or a
+  rewrite.
