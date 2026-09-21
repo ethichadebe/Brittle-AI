@@ -54,6 +54,9 @@ _Avoid_: loyalty card, rewards card, loyalty scheme
 
 **Price Zone**:
 The region whose prices a store quotes, which differs by where the shopper is.
+Each store names its zones in its own way and there is no shared vocabulary
+between them — for Woolworths a zone is a price band, for Checkers and Shoprite
+it is a particular physical branch, and Makro appears to have none.
 _Avoid_: region, area, branch pricing
 
 ## Relationships
@@ -64,7 +67,11 @@ _Avoid_: region, area, branch pricing
 - A **Loyalty Price** requires the shopper to be a member of that **Store**'s
   **Rewards Programme**; a **Promotional Price** requires nothing
 - A **Store** has at most one **Rewards Programme**; Makro has none
-- A **Shelf Price** is quoted for one **Price Zone**
+- A **Shelf Price** is quoted for one **Price Zone**; a price Accucery has
+  observed is a fact about a product **and** the zone it was observed in, and
+  the same product in another zone is a different price
+- A **Price Zone** changes what a product **costs**, not which products a store
+  **sells** — verified for Woolworths, asserted for the rest
 - Every price Accucery shows is either an **Indicative Price** or a **Basket
   Price**; the two differ in how recently they were observed and in what the
   shopper is entitled to rely on
@@ -164,11 +171,16 @@ _Avoid_: region, area, branch pricing
   is enough and no cross-item basket logic is needed. Unresolved, and a product
   question rather than a typing one: whether the summary bar should price these
   exactly or the app should only surface the deal as a prompt.
-\n- **Nothing in the language yet says which Price Zone an observed price
-  belongs to.** An **Indicative Price** is only indicative *for a shopper in
-  the zone it was observed in*, and today every shopper is served one zone
-  (#27 settled which). If location-aware pricing (#66) lands, a price observed
-  for one shopper stops being indicative for another, silently and per user.
-  Unresolved: whether a price is a fact about a product or a fact about a
-  product **and** a zone. The answer decides whether #66 is a migration or a
-  rewrite.
+\n- **Nothing in the language said which Price Zone an observed price belonged
+  to.** One zone serves every shopper today (#27 settled which), so it does not
+  bite yet; under #66 a price observed for one shopper would silently stop being
+  indicative for another. Resolved: a price is a fact about a product **and** a
+  zone, so the zone is recorded at the moment of observation even while it is
+  the same for everyone. See ADR 0001 for how a zone is identified.
+- **Whether a Price Zone changes the products a store sells, or only their
+  prices.** Resolved as prices only. This is measured for Woolworths — one
+  response carries p10, p30 and p60 together, so its product set cannot vary by
+  zone — and is the domain expert's judgement for Checkers and Shoprite, where
+  a branch could in principle stock differently. Recorded as asserted rather
+  than measured, because if it is wrong a shopper is shown a product their
+  branch does not carry.
