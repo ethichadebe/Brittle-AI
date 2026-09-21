@@ -41,6 +41,28 @@ The price Accucery stands behind in a list's total, refreshed when the shopper
 opens the list.
 _Avoid_: final price, checkout price, real price
 
+### Comparing
+
+**Comparison**:
+Pricing a shopper's list against a store other than the one it was built for.
+_Avoid_: compare, price check, versus
+
+**Substitute**:
+A product at another store standing in for one on the shopper's list, chosen by
+Accucery rather than by the shopper, because that store does not sell what they
+picked.
+_Avoid_: alternative, match, equivalent, similar product
+
+**Pack Size**:
+How much product one unit contains, as the store names it — 500 g, 2 L,
+6 x 1 L.
+_Avoid_: size, weight, volume, quantity
+
+**Unit Price**:
+What a product costs per standard measure, so that two different **Pack
+Sizes** can be judged against each other.
+_Avoid_: price per kg, unit cost, per-unit
+
 ### Stores
 
 **Store**:
@@ -67,6 +89,19 @@ _Avoid_: region, area, branch pricing
 - A **Loyalty Price** requires the shopper to be a member of that **Store**'s
   **Rewards Programme**; a **Promotional Price** requires nothing
 - A **Store** has at most one **Rewards Programme**; Makro has none
+- A **Comparison** prices a list against **one** other **Store** at a time,
+  chosen by the shopper
+- A **Comparison** covers every item on the list; where the other **Store** does
+  not sell one, Accucery offers a **Substitute** rather than dropping the item,
+  because a store that stocks less would otherwise appear cheaper
+- A total containing a **Substitute** is a total for a basket the shopper did
+  not choose, so every **Substitute** is visible as such and can be removed
+- A **Substitute** is judged against what it replaces by **Unit Price**, not by
+  what one pack costs, because a smaller **Pack Size** is cheaper per pack and
+  need not be cheaper per litre
+- Where a product's **Pack Size** cannot be read, there is no **Substitute** —
+  Accucery says it could not match the item rather than offering one it cannot
+  compare
 - A **Shelf Price** is quoted for one **Price Zone**; a price Accucery has
   observed is a fact about a product **and** the zone it was observed in, and
   the same product in another zone is a different price
