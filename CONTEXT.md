@@ -41,6 +41,18 @@ The price Accucery stands behind in a list's total, refreshed when the shopper
 opens the list.
 _Avoid_: final price, checkout price, real price
 
+### People
+
+**Shopper**:
+The person using Accucery. A **Shopper** without an **Account** is known only by
+the browser they are using, so their lists live on that device and nowhere else.
+_Avoid_: user, customer, visitor
+
+**Account**:
+The credential that identifies a **Shopper** across devices, and the only way
+their lists survive a cleared browser or a new phone.
+_Avoid_: profile, login, sign-up
+
 ### Comparing
 
 **Comparison**:
@@ -89,8 +101,18 @@ _Avoid_: region, area, branch pricing
 - A **Loyalty Price** requires the shopper to be a member of that **Store**'s
   **Rewards Programme**; a **Promotional Price** requires nothing
 - A **Store** has at most one **Rewards Programme**; Makro has none
+- A **List** belongs to exactly one **Shopper**; a list with no owner is visible
+  to nobody
+- A **Shopper** may use Accucery without an **Account**, and their lists are
+  then device-local: if the browser forgets them, nothing can bring them back
+- Creating or signing into an **Account** claims whatever lists are on that
+  device, so signing out can safely leave nothing behind
+- Two lists are the same list only when they share both a name and a **Store**,
+  and even then the **Shopper** decides whether to combine them
+- Within one **List** a product appears once, with a quantity - never twice
 - A **Comparison** prices a list against **one** other **Store** at a time,
-  chosen by the shopper
+  chosen by the shopper, and requires an **Account** — it is the one thing
+  Accucery does that costs money every time it is asked for
 - A **Comparison** covers every item on the list; where the other **Store** does
   not sell one, Accucery offers a **Substitute** rather than dropping the item,
   because a store that stocks less would otherwise appear cheaper
