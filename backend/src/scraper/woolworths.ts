@@ -15,16 +15,33 @@ import type { Scraper } from "./types.js";
 const SEARCH_BASE = "https://ac.cnstrc.com/search";
 
 // Woolworths prices every product for several zones at once: p10, p30 and p60,
-// which disagree on most products (45.99 against 39.99 on the milk sampled).
-// This is the same question storeContexts answers for Checkers - which branch is
-// the shopper standing in - except Woolworths bakes it into the payload instead
-// of a cookie. Which zone the site shows an anonymous visitor is NOT yet
-// verified, so it is configurable and the default is recorded as a guess.
-// Settling it is issue #27, and it is what keeps this store inactive.
-// Tried in order, so the first entry is the default when nothing is configured.
-// A product not sold in a zone reports 0 there, so the rest are real fallbacks
-// rather than decoration.
-const ZONE_FALLBACKS = ["p60", "p30", "p10"];
+// which disagree on 14 of 40 products in a milk search. This is the same
+// question storeContexts answers for Checkers - which branch is the shopper
+// standing in - except Woolworths bakes it into the payload instead of a
+// cookie.
+//
+// p10 IS WHAT THE SITE SHOWS AN ANONYMOUS VISITOR. Measured on 2026-09-21,
+// closing issue #27: "Fresh Full Cream Ayrshire Milk 2 L" carries p10 45.99,
+// p30 39.99, p60 39.99, and woolworths.co.za signed out displayed R45.99.
+//
+// The default used to be p60, so every price this scraper returned for a
+// zone-varying product was the wrong one - R39.99 shown where the shopper
+// actually pays R45.99, under-reporting the basket by R6 on that one item.
+//
+// This was NOT settled by the arithmetic the probe was built around. Promoted
+// products turn out never to differ by zone (0/3 while 14/40 others do), so
+// Woolworths prices promotions nationally and base prices regionally, and
+// "Now R<x> Save R<y>" can never name a zone. See the journal for 2026-09-21.
+//
+// One observation, one location. If Woolworths geolocates by IP even for
+// signed-out visitors, p10 is this region rather than a global default - which
+// is issue #66's question, not this one. Either way p10 beats p60 for a South
+// African shopper, and it stays configurable.
+//
+// Tried in order, so the first entry is the default when nothing is
+// configured. A product not sold in a zone reports 0 there, so the rest are
+// real fallbacks rather than decoration.
+const ZONE_FALLBACKS = ["p10", "p30", "p60"];
 
 /** Zones to try, most preferred first: the configured one, then the rest. */
 export function zoneOrder(configured = process.env.WOOLWORTHS_PRICE_ZONE): string[] {

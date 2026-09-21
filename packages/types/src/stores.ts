@@ -35,11 +35,14 @@ export const STORE_CONFIGS: StoreConfig[] = [
     slug: "woolworths",
     name: "Woolworths",
     color: "#1a1a1a",
-    // Switched on before issue #27 is settled: which of Woolworths' price zones
-    // a shopper actually pays is still unconfirmed, and the default is p60. If
-    // #27 lands on a different zone, every Woolworths price shown until then was
-    // wrong by that zone's difference - which is why #27 stays open rather than
-    // being quietly closed by this going live.
+    // Switched on before issue #27 was settled, with a note that if #27 landed
+    // on a zone other than the p60 default then every price shown until then
+    // was wrong by that zone's difference. It did: #27 closed on 2026-09-21
+    // with p10 measured against the signed-out site, so prices between going
+    // live and that fix were under-reported on every zone-varying product.
+    //
+    // Recorded rather than quietly corrected, because the note was right and
+    // the cost was real - roughly a third of a milk search differs by zone.
     active: true,
     loyaltyProgramme: "WRewards",
   },
