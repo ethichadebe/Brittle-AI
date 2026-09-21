@@ -111,7 +111,8 @@ _Avoid_: region, area, branch pricing
   and even then the **Shopper** decides whether to combine them
 - Within one **List** a product appears once, with a quantity - never twice
 - A **Comparison** prices a list against **one** other **Store** at a time,
-  chosen by the shopper
+  chosen by the shopper, and requires an **Account** — it is the one thing
+  Accucery does that costs money every time it is asked for
 - A **Comparison** covers every item on the list; where the other **Store** does
   not sell one, Accucery offers a **Substitute** rather than dropping the item,
   because a store that stocks less would otherwise appear cheaper

@@ -53,3 +53,13 @@
     unconditionally, with no lookup. Adding milk twice today gives two rows at
     quantity 1 each — a correct total and a list that looks careless. A live
     papercut with its own fix.
+
+  - **Postscript, after the compare feature was re-read against these
+    answers.** Anonymous shoppers plus one-store comparison leaves the only
+    operation that spends money uncapped: twenty credits against Checkers, an
+    allowance of 1,000, and an identity that a cleared browser replaces for
+    free. Neither grilling could have found it; it lives at the seam. ADR 0004
+    requires an **Account** to compare, and the build order hardens to cache,
+    accounts, compare. Also corrected a number I had given earlier - "10
+    credits per comparison" was an average across four stores, which is not a
+    figure anyone actually spends.
