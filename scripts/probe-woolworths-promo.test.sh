@@ -142,6 +142,44 @@ hasnt "Traceback" "$OUT8" "no traceback"
 has "=> p30 is the regular price" "$OUT8" "still answers from the good zones"
 
 echo
+echo "pairs each promo with its own flag, not across products"
+# The aggregate view can say `loyalty: false | true` and `R160 | R170` without
+# saying which goes with which — the exact wall the 2026-09-21 run hit. This
+# is the shape the live box returned: one product, two promos, one loyalty.
+TWO_PROMOS='[{"bulk":"false","loyalty":"true","prd_promomsg":"MyDifference: Buy 2 For R160"},{"bulk":"false","loyalty":"false","prd_promomsg":"Buy 2 for R170"}]'
+OUTP="$(run "{\"value\":\"Salted Butter 500g\",\"data\":{\"id\":\"B1\",\"p10\":89.99,\"p30\":89.99,\"p60\":89.99,\"promo\":[\"x\"],\"product_promo_info\":$TWO_PROMOS}}")"
+has "per product" "$OUTP" "has a per-product section"
+has "Salted Butter 500g" "$OUTP" "names the product"
+has "promo[0]" "$OUTP" "numbers each promo"
+has "promo[1]" "$OUTP" "and the second one"
+# The correlation itself: loyalty true must appear above R160, false above R170.
+PAIRED="$(printf '%s' "$OUTP" | sed -n '/promo\[0\]/,/promo\[1\]/p')"
+has "loyalty: true" "$PAIRED" "first promo carries loyalty true"
+has "R160" "$PAIRED" "and its own message"
+hasnt "R170" "$PAIRED" "not the other promo's message"
+
+echo
+echo "hands over a shortlist for the by-hand check"
+OUT6="$(run "$(prod Z1 45.99 39.99 39.99 30.00 5.00),$(plain Z2 20.00)")"
+has "[6] #27 by hand" "$OUT6" "has the by-hand section"
+has "signed out" "$OUT6" "says to check signed out"
+has "p10  45.99" "$OUT6" "lists the differing prices"
+has "p30  39.99" "$OUT6" "and the others"
+
+echo
+echo "says so when nothing differs by zone"
+OUT7b="$(run "$(prod S1 50.00 50.00 50.00 40.00 10.00)")"
+has "no product differs by" "$OUT7b" "reports nothing to check"
+
+echo
+echo "the by-hand section works with no promo info at all"
+# [6] uses a helper that used to be defined inside [4]'s else branch, so a
+# response with no product_promo_info would have crashed with NameError.
+OUT8="$(run "{\"value\":\"Plain\",\"data\":{\"id\":\"P9\",\"p10\":45.99,\"p30\":39.99,\"p60\":39.99,\"promo\":[]}}")"
+hasnt "Traceback" "$OUT8" "no traceback"
+has "[6] #27 by hand" "$OUT8" "still reaches the by-hand section"
+
+echo
 echo "output fits a phone"
 WIDE="$(printf '%s' "$OUT5" | awk '{ if (length($0) > 40) print length($0)": "$0 }')"
 if [ -z "$WIDE" ]; then ok "all lines <= 40 columns"
