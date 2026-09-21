@@ -101,13 +101,20 @@ describe("isFood", () => {
 });
 
 describe("regularPrice", () => {
+  // These are the real numbers from "Fresh Full Cream Ayrshire Milk 2 L", and
+  // on 2026-09-21 woolworths.co.za signed out displayed R45.99 for it. So the
+  // default has to resolve to p10; it used to resolve to p60 and quote R39.99,
+  // which is the wrong price by R6 on every zone-varying product.
+  const AYRSHIRE_MILK_2L = { p10: 45.99, p30: 39.99, p60: 39.99 };
+
+  it("defaults to the zone an anonymous visitor is actually shown", () => {
+    expect(regularPrice(AYRSHIRE_MILK_2L, zoneOrder(undefined))).toBe(45.99);
+  });
+
   it("prefers the configured zone over the default", () => {
-    // The probe saw p10 45.99 against p30/p60 39.99 on the same product, so
-    // which zone is quoted is a real difference in the price shown, not a tidy-up.
-    const data = { p10: 45.99, p30: 39.99, p60: 39.99 };
-    expect(regularPrice(data, zoneOrder("p10"))).toBe(45.99);
-    expect(regularPrice(data, zoneOrder("p30"))).toBe(39.99);
-    expect(regularPrice(data, zoneOrder(undefined))).toBe(39.99); // default p60
+    expect(regularPrice(AYRSHIRE_MILK_2L, zoneOrder("p30"))).toBe(39.99);
+    expect(regularPrice(AYRSHIRE_MILK_2L, zoneOrder("p60"))).toBe(39.99);
+    expect(regularPrice(AYRSHIRE_MILK_2L, zoneOrder("p10"))).toBe(45.99);
   });
 
   it("falls through a zone the product is not sold in", () => {
