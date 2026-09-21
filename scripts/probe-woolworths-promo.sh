@@ -10,19 +10,29 @@
 # as a guess; if it is wrong, every Woolworths price is wrong and nothing looks
 # broken.
 #
-# The issue proposes reading a product page by eye. That is not needed: on a
-# promoted product the promo copy carries "Now R<x> Save R<y>", and x + y is
-# whatever Woolworths itself treats as the regular price. Comparing that sum
-# against the three zones names the zone arithmetically, on every promoted
-# product in the response at once, with nobody reading anything.
+# This was built around an arithmetic shortcut: on a promoted product the copy
+# carries "Now R<x> Save R<y>", and x + y is whatever Woolworths itself treats
+# as the regular price, so comparing that sum against the three zones should
+# name the zone with nobody reading anything.
+#
+# THE SHORTCUT DOES NOT WORK, and the 2026-09-21 run is why. Promoted products
+# never differ by zone (0/3) while plenty of others do (14/40), so promotions
+# are priced nationally and base prices regionally. No number of queries can
+# separate the zones this way. Section [3] still reports it, because the
+# measurement is what proves the point; section [6] hands over the method that
+# is left - one product checked against the live site, by a person.
 #
 # #28 - WHAT IS INSIDE product_promo_info?
 #
-# It is the one field present on promoted products and absent from the rest,
-# so it is the likely structured home for the promotional price that is
-# currently parsed out of marketing copy. Nobody has ever seen inside it - the
-# VPS terminal kept dropping before the output rendered. This prints its shape
-# and its values, and says whether any leaf equals the price the copy claims.
+# It was assumed to be the structured home of the promotional price that
+# `woolworths.ts` currently parses out of marketing copy. IT IS NOT. It holds
+# multi-buy promotion metadata - prd_promo_typ, prd_promo_qty, prd_promomsg -
+# and the products carrying it are a disjoint set from those with "Now R" copy.
+#
+# What it does carry is a `loyalty` flag that takes both values, on a product
+# that also carries two promos at different prices. That is the lead worth
+# chasing, and it needs the promos shown PER PRODUCT rather than aggregated,
+# which is what section [4] does now.
 #
 # Costs no ScraperAPI credits: Woolworths answers directly, and Constructor.io
 # is a public search endpoint.
@@ -198,6 +208,14 @@ else:
         print("    miss: want %.2f" % target)
         print("      got %s" % zs)
 
+# Fixed-width wrapping, so a long path or product name still fits a phone.
+# Defined here rather than inside [4]: section [6] needs it too, and [4]'s
+# branch does not always run.
+def wrap(text, indent, width=34):
+    for i in range(0, len(text), width):
+        print("%s%s" % (indent, text[i:i+width]))
+
+
 # ---- issue #28: what is inside product_promo_info? --------------------------
 print("\n[4] #28 product_promo_info")
 if not with_ppi:
@@ -220,9 +238,6 @@ else:
         walk((r.get("data") or {}).get("product_promo_info"))
 
     print("    on %d products, %d paths" % (len(with_ppi), len(paths)))
-    def wrap(text, indent, width=34):
-        for i in range(0, len(text), width):
-            print("%s%s" % (indent, text[i:i+width]))
     for p, vals in list(paths.items())[:10]:
         wrap(p, "    ")
         # Every DISTINCT value, not just the first. A flag like `loyalty` is
@@ -234,6 +249,33 @@ else:
             if s not in distinct:
                 distinct.append(s)
         wrap(" | ".join(distinct)[:96], "      ", 32)
+
+    # The paths view above aggregates across products, so it can show that
+    # `loyalty` takes both values without showing WHICH promo carries which.
+    # The live 2026-09-21 run hit exactly that wall: one product appeared to
+    # carry "Buy 2 For R160" and "Buy 2 for R170" with `loyalty` both true and
+    # false, and the aggregate could not say whether true went with R160.
+    #
+    # So: the same promos again, grouped by product. Walked generically rather
+    # than by field name - the shape is known today and would break silently
+    # the day Woolworths renames something.
+    print("\n    per product:")
+    shown = 0
+    for r in with_ppi:
+        if shown >= 3:
+            break
+        d = r.get("data") or {}
+        info = d.get("product_promo_info")
+        promos = info if isinstance(info, list) else [info]
+        name = str(r.get("value") or d.get("id") or "?")
+        wrap(name[:60], "    ")
+        for i, promo in enumerate(promos[:2]):
+            if not isinstance(promo, dict):
+                continue
+            print("      promo[%d]" % i)
+            for k, v in list(promo.items())[:8]:
+                wrap("%s: %s" % (k, v), "        ", 30)
+        shown += 1
 
     # The question behind #28: does a leaf carry the promotional price as a
     # number, so the parser can stop reading marketing copy?
@@ -261,4 +303,32 @@ else:
         print("    the copy; keep parsing it")
     else:
         print("    no 'Now R' to compare to")
+
+# ---- #27, the method that is left -------------------------------------------
+#
+# The live 2026-09-21 run established that promoted products never differ by
+# zone while plenty of unpromoted ones do, so Now+Save cannot name the zone.
+# What is left is the method the issue proposed first: look at what the site
+# shows an anonymous visitor and compare.
+#
+# That needs a person with a browser, so the least this can do is hand them a
+# shortlist instead of "go find a product". Each of these has three different
+# prices; whichever one the site displays names the zone.
+print("\n[6] #27 by hand")
+spread = [r for r in results if zones_differ(r.get("data") or {})]
+if not spread:
+    print("    no product differs by")
+    print("    zone in this response,")
+    print("    so nothing to check.")
+else:
+    print("    open woolworths.co.za")
+    print("    signed out, search one")
+    print("    of these, read the price:")
+    for r in spread[:3]:
+        d = r.get("data") or {}
+        wrap(str(r.get("value") or d.get("id") or "?")[:60], "    ")
+        for z in ZONES:
+            v = num(d.get(z))
+            if v is not None:
+                print("      %-4s %.2f" % (z, v))
 PY
