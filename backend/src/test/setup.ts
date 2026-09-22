@@ -5,4 +5,6 @@ beforeEach(async () => {
   // Truncate all tables in dependency order before each test
   await testPrisma.listItem.deleteMany();
   await testPrisma.list.deleteMany();
+  await testPrisma.session.deleteMany();
+  await testPrisma.account.deleteMany();
 });

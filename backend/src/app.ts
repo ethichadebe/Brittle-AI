@@ -1,10 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerDeviceId } from "./deviceId.js";
+import { registerAccountSession } from "./accountSession.js";
 import { listsRoutes } from "./routes/lists.js";
 import { listItemsRoutes } from "./routes/listItems.js";
 import { searchRoutes } from "./routes/search.js";
 import { imageProxyRoutes } from "./routes/imageProxy.js";
+import { accountsRoutes } from "./routes/accounts.js";
 import type { HealthResponse } from "@accucery/types";
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
@@ -19,6 +21,9 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
 
   // Every request after this point carries `req.deviceId` — see deviceId.ts.
   await registerDeviceId(app);
+  // ...and `req.accountId` when signed in — see accountSession.ts. Requires
+  // registerDeviceId to have already registered @fastify/cookie.
+  await registerAccountSession(app);
 
   app.get<{ Reply: HealthResponse }>("/health", async () => ({ status: "ok" }));
 
@@ -26,6 +31,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   await app.register(listItemsRoutes);
   await app.register(searchRoutes);
   await app.register(imageProxyRoutes);
+  await app.register(accountsRoutes);
 
   return app;
 }
