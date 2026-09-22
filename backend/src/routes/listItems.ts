@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
+import { findOwnedList } from "../listOwnership.js";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { getCachedPrices, isFresh, refreshInBackground, upsertCache } from "../services/priceCache.js";
 
@@ -34,8 +35,8 @@ export async function listItemsRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string }; Reply: { items: ListItem[] } }>(
     "/lists/:id/items",
     async (req, reply) => {
-      const list = await prisma.list.findUnique({
-        where: { id: req.params.id },
+      const list = await prisma.list.findFirst({
+        where: { id: req.params.id, userId: req.deviceId },
         include: { items: { orderBy: { createdAt: "asc" } } },
       });
       if (!list) return reply.status(404).send({ error: "List not found" } as never);
@@ -78,13 +79,40 @@ export async function listItemsRoutes(app: FastifyInstance) {
     Body: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice" | "quantity">;
     Reply: ListItem;
   }>("/lists/:id/items", async (req, reply) => {
-    const list = await prisma.list.findUnique({ where: { id: req.params.id } });
+    const list = await findOwnedList(req.params.id, req.deviceId);
     if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
     const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity } = req.body;
-    const row = await prisma.listItem.create({
-      data: { listId: req.params.id, productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity: quantity ?? 1 },
+    const addedQuantity = quantity ?? 1;
+
+    // The same product added twice is the same item, not two rows — see #83.
+    // isChecked is deliberately left out of the update: merging must never
+    // silently uncheck something the shopper already ticked off.
+    const existing = await prisma.listItem.findFirst({
+      where: { listId: req.params.id, productId },
     });
+    const row = existing
+      ? await prisma.listItem.update({
+          where: { id: existing.id },
+          data: {
+            productName,
+            imageUrl,
+            regularPrice,
+            loyaltyPrice,
+            quantity: existing.quantity + addedQuantity,
+          },
+        })
+      : await prisma.listItem.create({
+          data: {
+            listId: req.params.id,
+            productId,
+            productName,
+            imageUrl,
+            regularPrice,
+            loyaltyPrice,
+            quantity: addedQuantity,
+          },
+        });
 
     // Populate cache immediately — prices are fresh from the scraper
     await upsertCache({
@@ -95,7 +123,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
       loyaltyPrice: loyaltyPrice != null ? Number(loyaltyPrice) : null,
     });
 
-    return reply.status(201).send(toListItem(row));
+    return reply.status(existing ? 200 : 201).send(toListItem(row));
   });
 
   // PATCH /lists/:id/items/:itemId
@@ -104,6 +132,9 @@ export async function listItemsRoutes(app: FastifyInstance) {
     Body: Partial<Pick<ListItem, "quantity" | "isChecked">>;
     Reply: ListItem;
   }>("/lists/:id/items/:itemId", async (req, reply) => {
+    const list = await findOwnedList(req.params.id, req.deviceId);
+    if (!list) return reply.status(404).send({ error: "Item not found" } as never);
+
     const existing = await prisma.listItem.findUnique({ where: { id: req.params.itemId } });
     if (!existing || existing.listId !== req.params.id)
       return reply.status(404).send({ error: "Item not found" } as never);
@@ -123,6 +154,9 @@ export async function listItemsRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string; itemId: string } }>(
     "/lists/:id/items/:itemId",
     async (req, reply) => {
+      const list = await findOwnedList(req.params.id, req.deviceId);
+      if (!list) return reply.status(404).send({ error: "Item not found" } as never);
+
       const existing = await prisma.listItem.findUnique({ where: { id: req.params.itemId } });
       if (!existing || existing.listId !== req.params.id)
         return reply.status(404).send({ error: "Item not found" } as never);

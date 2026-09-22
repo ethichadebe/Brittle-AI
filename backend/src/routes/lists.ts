@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
+import { findOwnedList } from "../listOwnership.js";
 import type { GroceryList, StoreSlug } from "@accucery/types";
 
 export async function listsRoutes(app: FastifyInstance) {
-  // GET /lists — all lists with item count and total price
-  app.get<{ Reply: { lists: GroceryList[] } }>("/lists", async () => {
+  // GET /lists — all lists owned by this device, with item count and total price
+  app.get<{ Reply: { lists: GroceryList[] } }>("/lists", async (req) => {
     const lists = await prisma.list.findMany({
+      where: { userId: req.deviceId },
       orderBy: { createdAt: "desc" },
       include: { items: true },
     });
@@ -25,7 +27,7 @@ export async function listsRoutes(app: FastifyInstance) {
     };
   });
 
-  // POST /lists — create a list
+  // POST /lists — create a list, owned by this device
   app.post<{
     Body: { storeSlug: StoreSlug; name: string };
     Reply: GroceryList;
@@ -37,7 +39,7 @@ export async function listsRoutes(app: FastifyInstance) {
     }
 
     const list = await prisma.list.create({
-      data: { storeSlug, name: name.trim() },
+      data: { storeSlug, name: name.trim(), userId: req.deviceId },
     });
 
     return reply.status(201).send({
@@ -50,11 +52,11 @@ export async function listsRoutes(app: FastifyInstance) {
     });
   });
 
-  // DELETE /lists/:id — delete a list
+  // DELETE /lists/:id — delete a list owned by this device
   app.delete<{ Params: { id: string } }>("/lists/:id", async (req, reply) => {
     const { id } = req.params;
 
-    const existing = await prisma.list.findUnique({ where: { id } });
+    const existing = await findOwnedList(id, req.deviceId);
     if (!existing) return reply.status(404).send({ error: "List not found" } as never);
 
     await prisma.list.delete({ where: { id } });
