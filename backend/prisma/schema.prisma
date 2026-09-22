@@ -19,6 +19,32 @@ model List {
   @@map("lists")
 }
 
+// The credential a Shopper uses across devices (ADR 0003). Deliberately
+// minimal — email and a password hash, nothing else — per #88's "collect
+// only what #84 needs" rule.
+model Account {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+
+  @@map("accounts")
+}
+
+// An opaque, expiring token for one signed-in browser. The session id is
+// the only thing that ever leaves the server, via an httpOnly cookie — see
+// accountSession.ts.
+model Session {
+  id        String   @id @default(uuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
 model PriceCache {
   storeSlug    String
   productId    String
