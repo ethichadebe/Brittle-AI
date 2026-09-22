@@ -83,9 +83,36 @@ export async function listItemsRoutes(app: FastifyInstance) {
     if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
     const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity } = req.body;
-    const row = await prisma.listItem.create({
-      data: { listId: req.params.id, productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity: quantity ?? 1 },
+    const addedQuantity = quantity ?? 1;
+
+    // The same product added twice is the same item, not two rows — see #83.
+    // isChecked is deliberately left out of the update: merging must never
+    // silently uncheck something the shopper already ticked off.
+    const existing = await prisma.listItem.findFirst({
+      where: { listId: req.params.id, productId },
     });
+    const row = existing
+      ? await prisma.listItem.update({
+          where: { id: existing.id },
+          data: {
+            productName,
+            imageUrl,
+            regularPrice,
+            loyaltyPrice,
+            quantity: existing.quantity + addedQuantity,
+          },
+        })
+      : await prisma.listItem.create({
+          data: {
+            listId: req.params.id,
+            productId,
+            productName,
+            imageUrl,
+            regularPrice,
+            loyaltyPrice,
+            quantity: addedQuantity,
+          },
+        });
 
     // Populate cache immediately — prices are fresh from the scraper
     await upsertCache({
@@ -96,7 +123,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
       loyaltyPrice: loyaltyPrice != null ? Number(loyaltyPrice) : null,
     });
 
-    return reply.status(201).send(toListItem(row));
+    return reply.status(existing ? 200 : 201).send(toListItem(row));
   });
 
   // PATCH /lists/:id/items/:itemId

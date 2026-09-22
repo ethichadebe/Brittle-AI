@@ -96,6 +96,73 @@ describe("POST /lists/:id/items", () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  // The product added twice must be one row with a summed quantity, not two
+  // rows of quantity 1 — see #83. Checking the row count is the point: a
+  // total that happens to add up right while the list shows the product
+  // twice is the exact bug this closes.
+  it("merges a second add of the same product instead of duplicating it", async () => {
+    const list = await createList();
+    await inject({ method: "POST", url: `/lists/${list.id}/items`, payload: stubItem });
+    const second = await inject({
+      method: "POST",
+      url: `/lists/${list.id}/items`,
+      payload: { ...stubItem, quantity: 2 },
+    });
+
+    expect(second.statusCode).toBe(200); // merged, not created
+    expect(second.json().quantity).toBe(3); // 1 + 2
+
+    const items = await inject({ method: "GET", url: `/lists/${list.id}/items` });
+    expect(items.json().items).toHaveLength(1);
+    expect(items.json().items[0].quantity).toBe(3);
+  });
+
+  it("still creates a new row for a genuinely different product", async () => {
+    const list = await createList();
+    await inject({ method: "POST", url: `/lists/${list.id}/items`, payload: stubItem });
+    await inject({
+      method: "POST",
+      url: `/lists/${list.id}/items`,
+      payload: { ...stubItem, productId: "prod-2", productName: "Bread" },
+    });
+
+    const items = await inject({ method: "GET", url: `/lists/${list.id}/items` });
+    expect(items.json().items).toHaveLength(2);
+  });
+
+  it("refreshes price and name on merge, from the latest add", async () => {
+    const list = await createList();
+    await inject({ method: "POST", url: `/lists/${list.id}/items`, payload: stubItem });
+    await inject({
+      method: "POST",
+      url: `/lists/${list.id}/items`,
+      payload: { ...stubItem, productName: "KOO Baked Beans 400g (Special)", regularPrice: 15.99 },
+    });
+
+    const items = await inject({ method: "GET", url: `/lists/${list.id}/items` });
+    expect(items.json().items[0]).toMatchObject({
+      productName: "KOO Baked Beans 400g (Special)",
+      regularPrice: 15.99,
+    });
+  });
+
+  // A merge must never silently uncheck something the shopper already
+  // ticked off their list.
+  it("does not reset isChecked when a checked item is merged", async () => {
+    const list = await createList();
+    const added = await inject({ method: "POST", url: `/lists/${list.id}/items`, payload: stubItem });
+    await inject({
+      method: "PATCH",
+      url: `/lists/${list.id}/items/${added.json().id}`,
+      payload: { isChecked: true },
+    });
+
+    await inject({ method: "POST", url: `/lists/${list.id}/items`, payload: stubItem });
+
+    const items = await inject({ method: "GET", url: `/lists/${list.id}/items` });
+    expect(items.json().items[0].isChecked).toBe(true);
+  });
 });
 
 describe("PATCH /lists/:id/items/:itemId", () => {
