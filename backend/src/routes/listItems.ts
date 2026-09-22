@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
-import { findOwnedList } from "../listOwnership.js";
+import { findOwnedList, ownerKey } from "../listOwnership.js";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { getCachedPrices, isFresh, refreshInBackground, upsertCache } from "../services/priceCache.js";
 
@@ -36,7 +36,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
     "/lists/:id/items",
     async (req, reply) => {
       const list = await prisma.list.findFirst({
-        where: { id: req.params.id, userId: req.deviceId },
+        where: { id: req.params.id, userId: ownerKey(req) },
         include: { items: { orderBy: { createdAt: "asc" } } },
       });
       if (!list) return reply.status(404).send({ error: "List not found" } as never);
@@ -79,7 +79,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
     Body: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice" | "quantity">;
     Reply: ListItem;
   }>("/lists/:id/items", async (req, reply) => {
-    const list = await findOwnedList(req.params.id, req.deviceId);
+    const list = await findOwnedList(req.params.id, ownerKey(req));
     if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
     const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity } = req.body;
@@ -132,7 +132,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
     Body: Partial<Pick<ListItem, "quantity" | "isChecked">>;
     Reply: ListItem;
   }>("/lists/:id/items/:itemId", async (req, reply) => {
-    const list = await findOwnedList(req.params.id, req.deviceId);
+    const list = await findOwnedList(req.params.id, ownerKey(req));
     if (!list) return reply.status(404).send({ error: "Item not found" } as never);
 
     const existing = await prisma.listItem.findUnique({ where: { id: req.params.itemId } });
@@ -154,7 +154,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string; itemId: string } }>(
     "/lists/:id/items/:itemId",
     async (req, reply) => {
-      const list = await findOwnedList(req.params.id, req.deviceId);
+      const list = await findOwnedList(req.params.id, ownerKey(req));
       if (!list) return reply.status(404).send({ error: "Item not found" } as never);
 
       const existing = await prisma.listItem.findUnique({ where: { id: req.params.itemId } });

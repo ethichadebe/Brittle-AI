@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../password.js";
+import { claimAnonymousLists } from "../claimAnonymousLists.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -51,6 +52,11 @@ export async function accountsRoutes(app: FastifyInstance) {
     const passwordHash = await hashPassword(password);
     const account = await prisma.account.create({ data: { email, passwordHash } });
 
+    // Per ADR 0003 / #85: whatever lists this device already has, made
+    // before this Account existed, move onto it now. A brand-new Account
+    // has no lists of its own, so nothing here can collide.
+    await claimAnonymousLists(req.deviceId, account.id);
+
     await reply.signIn(account.id);
     return reply.status(201).send(toPublic(account));
   });
@@ -71,6 +77,9 @@ export async function accountsRoutes(app: FastifyInstance) {
 
     const valid = await verifyPassword(password, account.passwordHash);
     if (!valid) return reply.status(401).send(INVALID);
+
+    // See #85: this device may have lists from before this sign-in.
+    await claimAnonymousLists(req.deviceId, account.id);
 
     await reply.signIn(account.id);
     return reply.status(200).send(toPublic(account));
