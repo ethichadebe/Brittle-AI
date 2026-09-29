@@ -75,3 +75,58 @@ export interface ListsResponse {
 export interface ListItemsResponse {
   items: ListItem[];
 }
+
+// Comparison (see ADR 0002, ADR 0004, and #89/#90)
+
+// A Pack Size's common base unit — grams for mass, millilitres for volume.
+// Mass and volume are never comparable to each other; see packSize.ts.
+export type PackUnit = "g" | "ml";
+
+export interface ComparisonMatch {
+  productId: string;
+  name: string;
+  // Per unit of Pack Size, so two products can be judged against each
+  // other regardless of what one pack costs — see ADR 0002.
+  unitPrice: number;
+  unit: PackUnit;
+}
+
+export interface ComparisonMatchedItem {
+  listItemId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  matched: true;
+  // The list item itself, judged by Unit Price the same way the substitute
+  // is, so the two can be compared on equal footing.
+  original: ComparisonMatch;
+  // The Substitute found at the target store.
+  substitute: ComparisonMatch;
+  // What buying the same quantity of the Substitute would cost.
+  cost: number;
+}
+
+export interface ComparisonUnmatchedItem {
+  listItemId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  matched: false;
+  // Why: no candidates at the target store, an unreadable Pack Size on
+  // either product, or an incompatible dimension. Never a guess.
+  reason: string;
+}
+
+export type ComparisonItem = ComparisonMatchedItem | ComparisonUnmatchedItem;
+
+export interface ComparisonResult {
+  storeSlug: StoreSlug;
+  items: ComparisonItem[];
+  // Sum of every matched item's cost. An unmatched item contributes
+  // nothing — per ADR 0002, dropping it silently would let a store that
+  // stocks less look cheaper by omission, so `complete` says so instead.
+  total: number;
+  unmatchedCount: number;
+  itemCount: number;
+  complete: boolean;
+}

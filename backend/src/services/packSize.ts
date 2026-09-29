@@ -5,7 +5,8 @@
 // Unit Price. A name outside these forms parses to null rather than a
 // guess: #89 requires refusing a match, never inventing a size.
 
-export type PackUnit = "g" | "ml";
+import type { PackUnit } from "@accucery/types";
+export type { PackUnit };
 
 export interface PackSize {
   quantity: number;
