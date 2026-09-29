@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import type { GroceryList, ListItem, Product, StoreSlug } from "@accucery/types";
-import { api, imgSrc } from "../lib/api";
+import { STORE_CONFIGS } from "@accucery/types";
+import type { ComparisonResult, GroceryList, ListItem, Product, StoreSlug } from "@accucery/types";
+import { api, ApiError, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
+import { useAccountSession } from "../hooks/useAccountSession";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
 const SEARCH_DEBOUNCE_MS = 350;
@@ -28,6 +30,13 @@ function ListPage() {
   const [swipingId, setSwipingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
+  const { account } = useAccountSession();
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  const [showStorePicker, setShowStorePicker] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [comparison, setComparison] = useState<ComparisonResult | null>(null);
+  const [excludedItems, setExcludedItems] = useState<Set<string>>(new Set());
   const { isEnabled } = useLoyaltySettings();
   const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
@@ -75,6 +84,50 @@ function ListPage() {
 
   const closeSearch = () => { setShowSearch(false); setQuery(""); setSearchResults([]); };
   const closeConfirm = () => { setShowConfirm(false); };
+
+  // Per ADR 0004, comparing is the one thing an anonymous Shopper cannot do
+  // — prompted to sign in, never silently blocked or silently allowed.
+  const openCompare = () => {
+    if (!account) { setShowSignInPrompt(true); return; }
+    setShowStorePicker(true);
+  };
+
+  const runCompare = async (targetStore: StoreSlug) => {
+    setShowStorePicker(false);
+    setComparing(true);
+    setCompareError(null);
+    try {
+      const result = await api.lists.compare(listId, targetStore);
+      setComparison(result);
+      setExcludedItems(new Set());
+    } catch (e) {
+      setCompareError(e instanceof ApiError ? e.message : "Something went wrong");
+    } finally {
+      setComparing(false);
+    }
+  };
+
+  const closeComparison = () => { setComparison(null); setCompareError(null); };
+
+  const toggleExcluded = (listItemId: string) => {
+    setExcludedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(listItemId)) next.delete(listItemId);
+      else next.add(listItemId);
+      return next;
+    });
+  };
+
+  const storeName = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? slug;
+
+  // Recomputed on the client so unchecking a Substitute is instant — the
+  // backend already priced every item, this is just which ones still count.
+  const liveTotal = comparison
+    ? comparison.items.reduce(
+        (sum, item) => (item.matched && !excludedItems.has(item.listItemId) ? sum + item.cost : sum),
+        0
+      )
+    : 0;
 
   const addItem = async (product: Product) => {
     // A second tap on another result, before the first add has round-tripped,
@@ -143,7 +196,10 @@ function ListPage() {
       <header className="list-header">
         <button className="btn-back" onClick={() => navigate({ to: "/" })}>‹</button>
         <h2 className="list-title">{listName || "List"}</h2>
-        <button className="btn-icon btn-icon--dark" onClick={() => navigate({ to: "/settings" })}>⚙</button>
+        <div className="list-header-actions">
+          <button className="btn-icon btn-icon--dark" title="Compare at another store" onClick={openCompare}>⇄</button>
+          <button className="btn-icon btn-icon--dark" onClick={() => navigate({ to: "/settings" })}>⚙</button>
+        </div>
       </header>
 
       {/* Summary bar */}
@@ -281,6 +337,121 @@ function ListPage() {
           </ul>
         </div>
       </div>
+
+      {/* Sign-in prompt — per ADR 0004, compare is the one thing an
+          anonymous Shopper cannot do */}
+      {showSignInPrompt && (
+        <div className="modal-backdrop" onClick={() => setShowSignInPrompt(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Sign in to compare</h3>
+            <p style={{ margin: "0.5rem 0 1.25rem", color: "#6b7280", fontSize: "0.9rem" }}>
+              Comparing a list against another store needs an account, so it can't be spent without limit.
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setShowSignInPrompt(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => navigate({ to: "/account" })}>Sign in</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Store picker */}
+      {showStorePicker && (
+        <div className="modal-backdrop" onClick={() => setShowStorePicker(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Compare against which store?</h3>
+            <ul className="compare-store-options">
+              {STORE_CONFIGS.filter((s) => s.active && s.slug !== storeSlug).map((s) => (
+                <li key={s.slug} className="compare-store-option" onClick={() => runCompare(s.slug)}>
+                  <span className="compare-store-swatch" style={{ background: s.color }} />
+                  {s.name}
+                </li>
+              ))}
+            </ul>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setShowStorePicker(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comparing in progress */}
+      {comparing && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ textAlign: "center" }}>
+            <h3>Comparing prices…</h3>
+            <p style={{ color: "#6b7280", fontSize: "0.9rem" }}>This can take a moment for a longer list.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Compare error */}
+      {compareError && !comparing && (
+        <div className="modal-backdrop" onClick={() => setCompareError(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Couldn't compare</h3>
+            <p style={{ margin: "0.5rem 0 1.25rem", color: "#6b7280", fontSize: "0.9rem" }}>{compareError}</p>
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={() => setCompareError(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comparison result */}
+      {comparison && (
+        <div className="search-overlay search-overlay--open" onClick={closeComparison}>
+          <div className="compare-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="compare-sheet-header">
+              <h3>vs {storeName(comparison.storeSlug)}</h3>
+              <button className="btn-icon" onClick={closeComparison}>✕</button>
+            </div>
+
+            {!comparison.complete && (
+              <p className="compare-incomplete-note">
+                {comparison.unmatchedCount} of {comparison.itemCount} items not found at {storeName(comparison.storeSlug)}
+              </p>
+            )}
+
+            <div className="compare-total">
+              <span className="summary-label">Estimated total</span>
+              <span className="compare-total-value">R {liveTotal.toFixed(2)}</span>
+            </div>
+
+            <ul className="compare-items">
+              {comparison.items.map((item) => (
+                <li key={item.listItemId} className="compare-item-row">
+                  {item.matched ? (
+                    <>
+                      <input
+                        type="checkbox"
+                        className="compare-item-checkbox"
+                        checked={!excludedItems.has(item.listItemId)}
+                        onChange={() => toggleExcluded(item.listItemId)}
+                      />
+                      <div className="item-info">
+                        <span className="item-name">
+                          {item.substitute.name}
+                          <span className="substitute-badge">Substitute</span>
+                        </span>
+                        <span className="compare-item-was">was: {item.productName}</span>
+                        <span className="item-price">R {item.cost.toFixed(2)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="item-info compare-item-info--unmatched">
+                      <span className="item-name">{item.productName}</span>
+                      <span className="compare-item-unmatched-note">
+                        Not found at {storeName(comparison.storeSlug)}
+                      </span>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </>
   );
 }

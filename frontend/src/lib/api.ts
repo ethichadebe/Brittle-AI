@@ -1,4 +1,4 @@
-import type { GroceryList, ListItem, Product, SearchResponse, StoreSlug } from "@accucery/types";
+import type { ComparisonResult, GroceryList, ListItem, Product, SearchResponse, StoreSlug } from "@accucery/types";
 
 const BASE = "/api";
 
@@ -69,6 +69,12 @@ export const api = {
 
     delete: (id: string) =>
       request<void>(`/lists/${id}`, { method: "DELETE" }),
+
+    compare: (id: string, targetStore: StoreSlug) =>
+      request<ComparisonResult>(`/lists/${id}/compare`, {
+        method: "POST",
+        body: JSON.stringify({ targetStore }),
+      }),
   },
 
   items: {

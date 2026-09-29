@@ -1,15 +1,10 @@
-import type { Product, StoreSlug } from "@accucery/types";
-import { parsePackSize, type PackUnit } from "./packSize.js";
+import type { ComparisonMatch, Product, StoreSlug } from "@accucery/types";
+import { parsePackSize } from "./packSize.js";
 
-export interface MatchedProduct {
-  productId: string;
-  name: string;
-  // Per unit of Pack Size — per gram or per millilitre — so two products
-  // can be judged against each other regardless of pack size, per ADR: a
-  // Substitute is judged by Unit Price, not by what one pack costs.
-  unitPrice: number;
-  unit: PackUnit;
-}
+// Same shape #90's comparison result exposes over the wire — matching and
+// comparing are two views of the same Substitute, so there is one type for
+// it rather than a backend-internal one mapped to a public one at the door.
+export type MatchedProduct = ComparisonMatch;
 
 export interface Substitute {
   original: MatchedProduct;
