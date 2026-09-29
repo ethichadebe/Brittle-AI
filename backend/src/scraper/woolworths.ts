@@ -152,6 +152,14 @@ export function normalise(raw: any): Product[] {
 }
 
 export class WoolworthsScraper implements Scraper {
+  // The preferred zone, not necessarily what every product resolves to —
+  // zoneUsed() may fall through per product. Still the right value for
+  // deciding whether a search cache entry answers this store's current
+  // configuration, since it's what a fresh scrape would try first.
+  currentZone(): string {
+    return zoneOrder()[0];
+  }
+
   async search(query: string): Promise<Product[]> {
     // Public client key, served to every visitor in the site's own frontend
     // bundle, exactly like Pick n Pay's. It lives in .env rather than in this

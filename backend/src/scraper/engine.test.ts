@@ -141,7 +141,11 @@ class FakeScraper implements Scraper {
   private inFlight = 0;
   maxConcurrent = 0;
 
-  constructor(private delayMs = 5) {}
+  constructor(private delayMs = 5, private zone = "none") {}
+
+  currentZone(): string {
+    return this.zone;
+  }
 
   async search(): Promise<Product[]> {
     this.calls++;
@@ -233,5 +237,22 @@ describe("createSearchEngine", () => {
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(30); // would be ~30ms if wrongly serialised together
+  });
+});
+
+// #76 needs the current zone without scraping, to check the search cache
+// before deciding whether to scrape at all.
+describe("currentZone", () => {
+  it("reads the registered scraper's own zone, without calling search", async () => {
+    const fake = new FakeScraper(5, "p10");
+    const engine = createSearchEngine({ checkers: fake });
+
+    expect(engine.currentZone("checkers")).toBe("p10");
+    expect(fake.calls).toBe(0);
+  });
+
+  it("is NO_ZONE for a store with no registered scraper", () => {
+    const engine = createSearchEngine({});
+    expect(engine.currentZone("checkers")).toBe("none");
   });
 });

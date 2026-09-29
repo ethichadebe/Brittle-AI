@@ -49,6 +49,7 @@ model PriceCache {
   storeSlug    String
   productId    String
   productName  String
+  imageUrl     String
   // Per ADR 0001: opaque, store-defined Price Zone this price was observed
   // in. Part of the key so a zone change (a new branch cookie, a different
   // Woolworths preference) never serves a price scraped for a different zone.
@@ -59,6 +60,21 @@ model PriceCache {
 
   @@id([storeSlug, productId, zone])
   @@map("price_cache")
+}
+
+// #76: a row means "this store, this zone, this normalised query was
+// answered completely" — the property that lets a cache hit be trusted,
+// which a table keyed on product name alone cannot know. Prices are never
+// duplicated here; a hit is rehydrated from price_cache by productId.
+model SearchCache {
+  storeSlug  String
+  zone       String
+  query      String
+  productIds String[]
+  scrapedAt  DateTime
+
+  @@id([storeSlug, zone, query])
+  @@map("search_cache")
 }
 
 model ListItem {

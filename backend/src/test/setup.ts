@@ -7,4 +7,6 @@ beforeEach(async () => {
   await testPrisma.list.deleteMany();
   await testPrisma.session.deleteMany();
   await testPrisma.account.deleteMany();
+  await testPrisma.priceCache.deleteMany();
+  await testPrisma.searchCache.deleteMany();
 });

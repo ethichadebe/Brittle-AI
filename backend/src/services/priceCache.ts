@@ -24,6 +24,7 @@ export async function upsertCache(entry: {
   storeSlug: string;
   productId: string;
   productName: string;
+  imageUrl: string;
   zone: string;
   regularPrice: number;
   loyaltyPrice: number | null;
@@ -37,6 +38,8 @@ export async function upsertCache(entry: {
       },
     },
     update: {
+      productName: entry.productName,
+      imageUrl: entry.imageUrl,
       regularPrice: entry.regularPrice,
       loyaltyPrice: entry.loyaltyPrice,
       scrapedAt: new Date(),
@@ -58,6 +61,7 @@ export async function refreshItems(
           storeSlug,
           productId: match.productId,
           productName: match.name,
+          imageUrl: match.imageUrl,
           zone: match.zone,
           regularPrice: match.regularPrice,
           loyaltyPrice: match.loyaltyPrice,

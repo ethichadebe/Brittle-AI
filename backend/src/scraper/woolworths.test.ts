@@ -192,4 +192,11 @@ describe("WoolworthsScraper", () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, statusText: "Nope" } as Response);
     await expect(new WoolworthsScraper().search("milk")).rejects.toThrow(/503/);
   });
+
+  // #76 needs this knowable without scraping, to check the search cache first.
+  it("declares the preferred zone as its current zone, without scraping", () => {
+    expect(new WoolworthsScraper().currentZone()).toBe("p10");
+    process.env.WOOLWORTHS_PRICE_ZONE = "p30";
+    expect(new WoolworthsScraper().currentZone()).toBe("p30");
+  });
 });

@@ -170,6 +170,10 @@ describe("MakroScraper", () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, statusText: "Nope" } as Response);
     await expect(new MakroScraper().search("milk")).rejects.toThrow(/503/);
   });
+
+  it("declares no zone ambiguity, without scraping", () => {
+    expect(new MakroScraper().currentZone()).toBe("none");
+  });
 });
 
 // The URL shape scripts/probe-makro-images.sh printed from the live page, kept

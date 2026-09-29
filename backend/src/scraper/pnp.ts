@@ -56,6 +56,10 @@ export function normalise(raw: any): Product[] {
 }
 
 export class PnpScraper implements Scraper {
+  currentZone(): string {
+    return NO_ZONE;
+  }
+
   async search(query: string): Promise<Product[]> {
     const url = `${SEARCH_BASE}/${encodeURIComponent(query)}?key=${API_KEY}&num_results_per_page=20`;
     const res = await fetch(url, {

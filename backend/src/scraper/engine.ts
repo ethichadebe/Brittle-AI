@@ -5,6 +5,7 @@ import { PnpScraper } from "./pnp.js";
 import { WoolworthsScraper } from "./woolworths.js";
 import { MakroScraper } from "./makro.js";
 import { playwrightScraper } from "./playwright.js";
+import { NO_ZONE } from "./zone.js";
 
 export type ScraperRegistry = Partial<Record<StoreSlug, Scraper>>;
 
@@ -41,7 +42,15 @@ export function createSearchEngine(registry: ScraperRegistry) {
     });
   }
 
-  return { searchProducts };
+  // The zone a store is currently configured for, without scraping — #76
+  // checks this against the search cache before deciding whether a live
+  // scrape is even needed. An unregistered store has no zone concept of its
+  // own; NO_ZONE is as good as any value nothing will ever look up.
+  function currentZone(store: StoreSlug): string {
+    return registry[store]?.currentZone() ?? NO_ZONE;
+  }
+
+  return { searchProducts, currentZone };
 }
 
 // Registered so /api/search can be used to verify it, but STORE_CONFIGS still
@@ -59,4 +68,4 @@ const defaultRegistry: ScraperRegistry = {
 
 // Production wiring — unchanged from before #74, just built through the
 // same factory a test uses.
-export const { searchProducts } = createSearchEngine(defaultRegistry);
+export const { searchProducts, currentZone } = createSearchEngine(defaultRegistry);

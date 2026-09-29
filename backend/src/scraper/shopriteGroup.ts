@@ -119,6 +119,10 @@ export function normalise(raw: any): UnzonedProduct[] {
 export class ShopriteGroupScraper implements Scraper {
   constructor(private readonly site: ShopriteGroupSite) {}
 
+  currentZone(): string {
+    return opaqueZone(process.env[this.site.cookieEnv] ?? "");
+  }
+
   async search(query: string): Promise<Product[]> {
     const { site } = this;
     const searchUrl = apiUrl(site);

@@ -124,6 +124,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
       storeSlug: list.storeSlug,
       productId,
       productName,
+      imageUrl,
       zone,
       regularPrice: Number(regularPrice),
       loyaltyPrice: loyaltyPrice != null ? Number(loyaltyPrice) : null,

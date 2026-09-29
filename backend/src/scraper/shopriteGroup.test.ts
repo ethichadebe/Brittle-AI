@@ -176,3 +176,21 @@ describe("carries an opaque Price Zone identifier", () => {
     expect(product.zone).not.toBe(cookie);
   });
 });
+
+// #76 needs the current zone knowable without a network call, to check the
+// search cache before deciding whether to scrape at all.
+describe("currentZone", () => {
+  it("matches what a live search would tag its results with, without scraping", async () => {
+    process.env.SHOPRITE_COOKIES = `storeContexts=${encodeURIComponent('[{"storeId":"shoprite-1"}]')}`;
+    const scraper = new ShopriteScraper();
+
+    const declaredZone = scraper.currentZone();
+    const [product] = await scraper.search("milk");
+
+    expect(declaredZone).toBe(product.zone);
+  });
+
+  it("is unconfigured with no cookie at all", () => {
+    expect(new ShopriteScraper().currentZone()).toBe("unconfigured");
+  });
+});

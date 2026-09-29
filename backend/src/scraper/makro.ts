@@ -222,6 +222,10 @@ export function normalise(html: string): Product[] {
 }
 
 export class MakroScraper implements Scraper {
+  currentZone(): string {
+    return NO_ZONE;
+  }
+
   async search(query: string): Promise<Product[]> {
     const res = await fetch(`${SEARCH_URL}${encodeURIComponent(query)}`, {
       headers: {
