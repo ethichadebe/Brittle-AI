@@ -516,6 +516,39 @@ body {
   color: #6b7280;
 }
 
+.settings-row--nav { cursor: pointer; }
+.settings-row--nav .store-card-chevron { color: #9ca3af; }
+
+/* ── Account ── */
+.account-status {
+  padding: 1.25rem 1rem 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.25rem 1rem 0;
+}
+.account-form .modal-input { margin-bottom: 0; }
+
+.account-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+  margin: -0.3rem 0 0;
+}
+
+.account-switch {
+  background: none;
+  border: none;
+  color: #00aaff;
+  font-size: 0.85rem;
+  padding: 0.4rem 0;
+  cursor: pointer;
+}
+
 /* ── Toggle switch ── */
 .toggle {
   width: 48px;

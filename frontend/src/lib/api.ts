@@ -2,9 +2,31 @@ import type { GroceryList, ListItem, Product, SearchResponse, StoreSlug } from "
 
 const BASE = "/api";
 
+export interface AccountPublic {
+  id: string;
+  email: string;
+}
+
 export function imgSrc(url: string): string {
   if (!url) return "";
   return `${BASE}/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
+// ApiError carries the backend's own message (e.g. "Invalid email or
+// password") rather than a bare status code, so a form can show the shopper
+// something they can act on instead of "401 Unauthorized".
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function errorMessage(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const err = (body as { error?: unknown }).error;
+  return typeof err === "string" ? err : undefined;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -13,7 +35,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (res.status === 204) return undefined as T;
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const message = await res.json().then(errorMessage).catch(() => undefined);
+    throw new ApiError(res.status, message ?? `${res.status} ${res.statusText}`);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -56,4 +81,24 @@ export const api = {
     request<SearchResponse>(`/search?store=${store}&q=${encodeURIComponent(q)}`, {
       signal,
     }).then((r) => r.products),
+
+  account: {
+    // Who, if anyone, this browser is signed in as. Never throws for
+    // "not signed in" — that's `{ account: null }`, not an error.
+    session: () => request<{ account: AccountPublic | null }>("/accounts/session"),
+
+    signUp: (email: string, password: string) =>
+      request<AccountPublic>("/accounts", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+
+    signIn: (email: string, password: string) =>
+      request<AccountPublic>("/accounts/sign-in", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+
+    signOut: () => request<void>("/accounts/sign-out", { method: "POST" }),
+  },
 };
