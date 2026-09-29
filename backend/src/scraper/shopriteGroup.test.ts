@@ -141,3 +141,56 @@ describe("failures", () => {
     await expect(new CheckersScraper().search("milk")).rejects.toThrow("Checkers API returned 403");
   });
 });
+
+// #75: every result search() returns is tagged with an opaque zone
+// identifier derived from the branch cookie, never the cookie itself.
+describe("carries an opaque Price Zone identifier", () => {
+  it("is unconfigured with no cookie at all", async () => {
+    const [product] = await new ShopriteScraper().search("milk");
+    expect(product.zone).toBe("unconfigured");
+  });
+
+  it("is the same identifier for the same cookie", async () => {
+    process.env.SHOPRITE_COOKIES = `storeContexts=${encodeURIComponent('[{"storeId":"shoprite-1"}]')}`;
+    const [first] = await new ShopriteScraper().search("milk");
+    const [second] = await new ShopriteScraper().search("bread");
+    expect(first.zone).toBe(second.zone);
+    expect(first.zone).not.toBe("unconfigured");
+  });
+
+  it("is a different identifier for a different cookie", async () => {
+    process.env.SHOPRITE_COOKIES = `storeContexts=${encodeURIComponent('[{"storeId":"shoprite-1"}]')}`;
+    const [branchOne] = await new ShopriteScraper().search("milk");
+
+    process.env.SHOPRITE_COOKIES = `storeContexts=${encodeURIComponent('[{"storeId":"shoprite-2"}]')}`;
+    const [branchTwo] = await new ShopriteScraper().search("milk");
+
+    expect(branchOne.zone).not.toBe(branchTwo.zone);
+  });
+
+  it("never stores the cookie itself as the zone", async () => {
+    const cookie = `storeContexts=${encodeURIComponent('[{"storeId":"shoprite-1"}]')}`;
+    process.env.SHOPRITE_COOKIES = cookie;
+    const [product] = await new ShopriteScraper().search("milk");
+    expect(product.zone).not.toContain("storeId");
+    expect(product.zone).not.toBe(cookie);
+  });
+});
+
+// #76 needs the current zone knowable without a network call, to check the
+// search cache before deciding whether to scrape at all.
+describe("currentZone", () => {
+  it("matches what a live search would tag its results with, without scraping", async () => {
+    process.env.SHOPRITE_COOKIES = `storeContexts=${encodeURIComponent('[{"storeId":"shoprite-1"}]')}`;
+    const scraper = new ShopriteScraper();
+
+    const declaredZone = scraper.currentZone();
+    const [product] = await scraper.search("milk");
+
+    expect(declaredZone).toBe(product.zone);
+  });
+
+  it("is unconfigured with no cookie at all", () => {
+    expect(new ShopriteScraper().currentZone()).toBe("unconfigured");
+  });
+});

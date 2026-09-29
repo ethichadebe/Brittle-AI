@@ -1,5 +1,6 @@
 import type { Product } from "@accucery/types";
 import type { Scraper } from "./types.js";
+import { opaqueZone } from "./zone.js";
 
 // Checkers and Shoprite are both Shoprite Holdings and run the same commerce
 // platform: same `/api/catalogue/get-products-filter` endpoint, same request
@@ -88,15 +89,20 @@ export function buildBody(query: string, storeContexts: unknown[]) {
   });
 }
 
+// The zone lives in search()'s cookie, not in anything this function reads,
+// so normalise() stays a pure function of the response body - the shape its
+// own tests exercise directly - and returns everything but that field.
+type UnzonedProduct = Omit<Product, "zone">;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the store's response is untyped third-party JSON; the shape is checked field by field below
-export function normalise(raw: any): Product[] {
+export function normalise(raw: any): UnzonedProduct[] {
   const items: unknown[] =
     raw?.products ?? raw?.data?.products ?? raw?.results ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same untyped JSON, one element at a time
   return (items as any[])
     .slice(0, 20)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same untyped JSON, one element at a time
-    .map((item: any): Product | null => {
+    .map((item: any): UnzonedProduct | null => {
       const productId = String(item.id ?? "");
       const name = String(item.name ?? "");
       const imageUrl = String(item.imageProductCardURL ?? item.imageURL ?? "");
@@ -107,11 +113,15 @@ export function normalise(raw: any): Product[] {
       if (!productId || !name) return null;
       return { productId, name, imageUrl, regularPrice, loyaltyPrice };
     })
-    .filter((p): p is Product => p !== null);
+    .filter((p): p is UnzonedProduct => p !== null);
 }
 
 export class ShopriteGroupScraper implements Scraper {
   constructor(private readonly site: ShopriteGroupSite) {}
+
+  currentZone(): string {
+    return opaqueZone(process.env[this.site.cookieEnv] ?? "");
+  }
 
   async search(query: string): Promise<Product[]> {
     const { site } = this;
@@ -143,7 +153,11 @@ export class ShopriteGroupScraper implements Scraper {
       throw new Error(`${site.label} API returned ${res.status} ${res.statusText}`);
     }
     const json = await res.json();
-    return normalise(json);
+    // Attached here, not inside normalise() - the cookie that names the
+    // branch belongs to search(), and normalise() stays a pure function of
+    // the response body, which is what its own tests exercise directly.
+    const zone = opaqueZone(cookies);
+    return normalise(json).map((p) => ({ ...p, zone }));
   }
 }
 

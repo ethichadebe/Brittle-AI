@@ -25,6 +25,11 @@ export interface Product {
   imageUrl: string;
   regularPrice: number;
   loyaltyPrice: number | null;
+  // Per ADR 0001: an opaque, store-defined identifier for the Price Zone
+  // this price was observed in. "none" for a store with no zone ambiguity
+  // (Makro, Pick n Pay); "unconfigured" for a store that has zones but no
+  // branch/cookie is set up yet (Checkers, Shoprite).
+  zone: string;
 }
 
 // List

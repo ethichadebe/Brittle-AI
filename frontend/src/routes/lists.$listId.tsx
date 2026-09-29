@@ -87,6 +87,7 @@ function ListPage() {
         imageUrl: product.imageUrl,
         regularPrice: product.regularPrice,
         loyaltyPrice: product.loyaltyPrice,
+        zone: product.zone,
       });
       setItems((prev) => [...prev, item]);
     }

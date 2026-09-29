@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { SearchResponse, StoreSlug } from "@accucery/types";
-import { searchProducts } from "../scraper/engine.js";
+import { search } from "../services/search.js";
 
 export async function searchRoutes(app: FastifyInstance) {
   app.get<{
@@ -9,7 +9,7 @@ export async function searchRoutes(app: FastifyInstance) {
   }>("/search", async (req, reply) => {
     const { store, q } = req.query;
     if (!q?.trim()) return reply.send({ products: [] });
-    const products = await searchProducts(store as StoreSlug, q.trim());
+    const products = await search(store as StoreSlug, q.trim());
     return reply.send({ products });
   });
 }

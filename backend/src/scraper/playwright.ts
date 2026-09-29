@@ -11,6 +11,7 @@ import {
   type ShopriteGroupSite,
 } from "./shopriteGroup.js";
 import { normalise as parsePnp } from "./pnp.js";
+import { NO_ZONE, UNCONFIGURED_ZONE } from "./zone.js";
 // playwright-extra + stealth give Playwright a real-browser fingerprint to pass AWS WAF Bot Control
 import { chromium as chromiumExtra } from "playwright-extra";
 import { newInjectedContext } from "fingerprint-injector";
@@ -26,7 +27,16 @@ interface Strategy {
   // navigation interception: navigate and intercept the XHR (PnP)
   searchUrl?: (query: string) => string;
   interceptsUrl?: (url: string) => boolean;
-  parse: (json: unknown) => Product[];
+  // parse() stays a pure function of the response body, same as the primary
+  // scrapers' own normalise() — zone is attached in search() below instead.
+  parse: (json: unknown) => Omit<Product, "zone">[];
+  // Which Price Zone to record for a result that came through this fallback.
+  // Checkers/Shoprite resolve storeContexts from a live page cookie inside
+  // browserSearch's closure, which isn't in scope by the time parse() runs —
+  // recorded as unconfigured here rather than threading that value through,
+  // since this is the last-resort path, not the primary write path for
+  // price_cache. See #75.
+  defaultZone: string;
 }
 
 // Checkers and Shoprite are one platform behind one WAF, so they get one
@@ -61,6 +71,7 @@ function shopriteGroupStrategy(site: ShopriteGroupSite): Strategy {
       );
     },
     parse: parseShopriteGroup,
+    defaultZone: UNCONFIGURED_ZONE,
   };
 }
 
@@ -72,6 +83,7 @@ const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
     searchUrl: (q) => `https://www.pnp.co.za/search/${encodeURIComponent(q)}`,
     interceptsUrl: (url) => url.includes("ac.cnstrc.com/search"),
     parse: parsePnp,
+    defaultZone: NO_ZONE,
   },
 };
 
@@ -137,7 +149,7 @@ export class PlaywrightScraper {
         json = await (await responsePromise).json();
       }
 
-      const products = strategy.parse(json);
+      const products = strategy.parse(json).map((p) => ({ ...p, zone: strategy.defaultZone }));
       if (products.length === 0) {
         const keys = json && typeof json === "object" ? Object.keys(json as object) : json;
         console.warn(`[playwright:${store}] 0 products. Raw top-level keys:`, keys);

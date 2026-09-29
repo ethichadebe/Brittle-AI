@@ -122,6 +122,7 @@ describe("collectProducts", () => {
       productId: "MLKHFXJTMMYEPC",
       name: "Parmalat Everfresh Full Cream Milk 6 x 1L",
       imageUrl: "https://www.makro.co.za/parmalat.jpg",
+      zone: "none",
       regularPrice: 215,
       loyaltyPrice: null,
     });
@@ -168,6 +169,10 @@ describe("MakroScraper", () => {
   it("throws on a non-ok response", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, statusText: "Nope" } as Response);
     await expect(new MakroScraper().search("milk")).rejects.toThrow(/503/);
+  });
+
+  it("declares no zone ambiguity, without scraping", () => {
+    expect(new MakroScraper().currentZone()).toBe("none");
   });
 });
 

@@ -10,8 +10,13 @@ export function isFresh(scrapedAt: Date): boolean {
 
 export async function getCachedPrices(storeSlug: string, productIds: string[]) {
   if (productIds.length === 0) return [];
+  // A product can briefly have rows in more than one zone (the cookie or
+  // Woolworths preference just changed, and the old zone's row hasn't
+  // expired yet). Ordering oldest-first and keying a Map by productId means
+  // whichever the caller's own iteration keeps is the freshest one.
   return prisma.priceCache.findMany({
     where: { storeSlug, productId: { in: productIds } },
+    orderBy: { scrapedAt: "asc" },
   });
 }
 
@@ -19,12 +24,22 @@ export async function upsertCache(entry: {
   storeSlug: string;
   productId: string;
   productName: string;
+  imageUrl: string;
+  zone: string;
   regularPrice: number;
   loyaltyPrice: number | null;
 }) {
   await prisma.priceCache.upsert({
-    where: { storeSlug_productId: { storeSlug: entry.storeSlug, productId: entry.productId } },
+    where: {
+      storeSlug_productId_zone: {
+        storeSlug: entry.storeSlug,
+        productId: entry.productId,
+        zone: entry.zone,
+      },
+    },
     update: {
+      productName: entry.productName,
+      imageUrl: entry.imageUrl,
       regularPrice: entry.regularPrice,
       loyaltyPrice: entry.loyaltyPrice,
       scrapedAt: new Date(),
@@ -46,6 +61,8 @@ export async function refreshItems(
           storeSlug,
           productId: match.productId,
           productName: match.name,
+          imageUrl: match.imageUrl,
+          zone: match.zone,
           regularPrice: match.regularPrice,
           loyaltyPrice: match.loyaltyPrice,
         });

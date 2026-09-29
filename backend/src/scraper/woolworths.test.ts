@@ -3,6 +3,7 @@ import {
   WoolworthsScraper,
   normalise,
   regularPrice,
+  zoneUsed,
   loyaltyPrice,
   isFood,
   zoneOrder,
@@ -73,6 +74,7 @@ describe("normalise", () => {
         productId: "20026875",
         name: "Long Life Full Cream Milk 6 x 1 L",
         imageUrl: "https://example.com/milk.jpg",
+        zone: "p10",
         regularPrice: 126.99,
         loyaltyPrice: 99.99,
       },
@@ -125,6 +127,26 @@ describe("regularPrice", () => {
   });
 });
 
+describe("zoneUsed", () => {
+  const AYRSHIRE_MILK_2L = { p10: 45.99, p30: 39.99, p60: 39.99 };
+
+  it("names the preferred zone when the product is sold there", () => {
+    expect(zoneUsed(AYRSHIRE_MILK_2L, zoneOrder(undefined))).toBe("p10");
+  });
+
+  // The case #75 exists for: a product not sold in the preferred zone is
+  // priced from a fallback zone, and that has to be recorded truthfully -
+  // not just assumed to be whatever zone the rest of the response used.
+  it("names the fallback zone the price actually came from, not the preferred one", () => {
+    const notSoldInP10 = { p10: 0, p30: 19.99, p60: 19.99 };
+    expect(zoneUsed(notSoldInP10, zoneOrder(undefined))).toBe("p30");
+  });
+
+  it("names the preferred zone when the product is priced nowhere, rather than nothing", () => {
+    expect(zoneUsed({ p10: 0, p30: 0, p60: 0 }, zoneOrder(undefined))).toBe("p10");
+  });
+});
+
 describe("loyaltyPrice", () => {
   it("reads the promotional price out of the promo copy", () => {
     expect(loyaltyPrice(foodItem.data.promo, 126.99)).toBe(99.99);
@@ -169,5 +191,12 @@ describe("WoolworthsScraper", () => {
   it("throws on a non-ok response", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, statusText: "Nope" } as Response);
     await expect(new WoolworthsScraper().search("milk")).rejects.toThrow(/503/);
+  });
+
+  // #76 needs this knowable without scraping, to check the search cache first.
+  it("declares the preferred zone as its current zone, without scraping", () => {
+    expect(new WoolworthsScraper().currentZone()).toBe("p10");
+    process.env.WOOLWORTHS_PRICE_ZONE = "p30";
+    expect(new WoolworthsScraper().currentZone()).toBe("p30");
   });
 });
