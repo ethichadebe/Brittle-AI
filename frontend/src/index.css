@@ -549,6 +549,12 @@ body {
   cursor: pointer;
 }
 
+.collision-body {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0 0 1rem;
+}
+
 /* ── Toggle switch ── */
 .toggle {
   width: 48px;
