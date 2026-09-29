@@ -27,6 +27,7 @@ function ListPage() {
   const [query, setQuery] = useState("");
   const [swipingId, setSwipingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [addingItem, setAddingItem] = useState(false);
   const { isEnabled } = useLoyaltySettings();
   const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
@@ -76,22 +77,31 @@ function ListPage() {
   const closeConfirm = () => { setShowConfirm(false); };
 
   const addItem = async (product: Product) => {
-    const existing = items.find((i) => i.productId === product.productId);
-    if (existing) {
-      const updated = await api.items.patch(listId, existing.id, { quantity: existing.quantity + 1 });
-      setItems((prev) => prev.map((i) => (i.id === existing.id ? updated : i)));
-    } else {
-      const item = await api.items.add(listId, {
-        productId: product.productId,
-        productName: product.name,
-        imageUrl: product.imageUrl,
-        regularPrice: product.regularPrice,
-        loyaltyPrice: product.loyaltyPrice,
-        zone: product.zone,
-      });
-      setItems((prev) => [...prev, item]);
+    // A second tap on another result, before the first add has round-tripped,
+    // must not also go through — otherwise a burst of taps adds every item
+    // the shopper touched, not just the one they meant to.
+    if (addingItem) return;
+    setAddingItem(true);
+    try {
+      const existing = items.find((i) => i.productId === product.productId);
+      if (existing) {
+        const updated = await api.items.patch(listId, existing.id, { quantity: existing.quantity + 1 });
+        setItems((prev) => prev.map((i) => (i.id === existing.id ? updated : i)));
+      } else {
+        const item = await api.items.add(listId, {
+          productId: product.productId,
+          productName: product.name,
+          imageUrl: product.imageUrl,
+          regularPrice: product.regularPrice,
+          loyaltyPrice: product.loyaltyPrice,
+          zone: product.zone,
+        });
+        setItems((prev) => [...prev, item]);
+      }
+      closeSearch();
+    } finally {
+      setAddingItem(false);
     }
-    closeSearch();
   };
 
   const changeQty = async (item: ListItem, delta: number) => {
@@ -240,7 +250,7 @@ function ListPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <ul className="search-results">
+          <ul className={`search-results${addingItem ? " search-results--busy" : ""}`}>
             {searching && (
               <li className="item-empty">Searching…</li>
             )}
