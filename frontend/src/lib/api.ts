@@ -7,6 +7,20 @@ export interface AccountPublic {
   email: string;
 }
 
+// Named when this device had a list whose name and Store match one already
+// on the Account being signed into — see #86.
+export interface ListCollision {
+  anonymousListId: string;
+  name: string;
+  storeSlug: string;
+}
+
+export interface SignedIn extends AccountPublic {
+  collisions: ListCollision[];
+}
+
+export type CollisionResolution = "combine" | "keep-both";
+
 export function imgSrc(url: string): string {
   if (!url) return "";
   return `${BASE}/image-proxy?url=${encodeURIComponent(url)}`;
@@ -88,17 +102,23 @@ export const api = {
     session: () => request<{ account: AccountPublic | null }>("/accounts/session"),
 
     signUp: (email: string, password: string) =>
-      request<AccountPublic>("/accounts", {
+      request<SignedIn>("/accounts", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
 
     signIn: (email: string, password: string) =>
-      request<AccountPublic>("/accounts/sign-in", {
+      request<SignedIn>("/accounts/sign-in", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
 
     signOut: () => request<void>("/accounts/sign-out", { method: "POST" }),
+
+    resolveCollision: (anonymousListId: string, resolution: CollisionResolution) =>
+      request<void>(`/accounts/collisions/${anonymousListId}/resolve`, {
+        method: "POST",
+        body: JSON.stringify({ resolution }),
+      }),
   },
 };
