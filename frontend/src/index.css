@@ -472,6 +472,13 @@ body {
 
 .search-result-row:hover { background: #f9fafb; }
 
+/* While an add is in flight, the whole list stops accepting taps rather
+   than letting a burst of them add every item the shopper touched. */
+.search-results--busy .search-result-row {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
 /* ── Dark icon button variant (for light backgrounds) ── */
 .btn-icon--dark { color: #374151; }
 
