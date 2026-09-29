@@ -61,6 +61,21 @@ export function regularPrice(data: any, zones = zoneOrder()): number {
   return 0;
 }
 
+// Which zone regularPrice's own loop actually resolved from — a product not
+// sold in the preferred zone falls through to the next, and #75 needs that
+// recorded truthfully rather than assuming every product in one response
+// came from the same zone. Mirrors regularPrice's loop exactly; when nothing
+// matched (price 0 everywhere), reports the preferred zone rather than
+// nothing, since that is still the zone this scraper was configured for.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- same untyped JSON as regularPrice
+export function zoneUsed(data: any, zones = zoneOrder()): string {
+  for (const zone of zones) {
+    const value = Number(data?.[zone]);
+    if (Number.isFinite(value) && value > 0) return zone;
+  }
+  return zones[0];
+}
+
 // The promotional price is not a number anywhere in the search payload. p10_wp,
 // p30_wp and p60_wp looked like the obvious candidates and are 0 even on
 // products the site itself flags as promoted, so they are not it. What does
@@ -128,6 +143,7 @@ export function normalise(raw: any): Product[] {
         productId,
         name,
         imageUrl,
+        zone: zoneUsed(data, zones),
         regularPrice: regular,
         loyaltyPrice: loyaltyPrice(data.promo, regular),
       };

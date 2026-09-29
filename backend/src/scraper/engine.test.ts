@@ -7,6 +7,7 @@ const milk: Product = {
   productId: "p1",
   name: "Full Cream Milk 2L",
   imageUrl: "https://example.com/milk.jpg",
+  zone: "none",
   regularPrice: 29.99,
   loyaltyPrice: 26.99,
 };

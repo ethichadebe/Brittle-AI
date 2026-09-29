@@ -122,6 +122,7 @@ describe("collectProducts", () => {
       productId: "MLKHFXJTMMYEPC",
       name: "Parmalat Everfresh Full Cream Milk 6 x 1L",
       imageUrl: "https://www.makro.co.za/parmalat.jpg",
+      zone: "none",
       regularPrice: 215,
       loyaltyPrice: null,
     });

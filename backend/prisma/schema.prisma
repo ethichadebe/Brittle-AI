@@ -49,11 +49,15 @@ model PriceCache {
   storeSlug    String
   productId    String
   productName  String
+  // Per ADR 0001: opaque, store-defined Price Zone this price was observed
+  // in. Part of the key so a zone change (a new branch cookie, a different
+  // Woolworths preference) never serves a price scraped for a different zone.
+  zone         String
   regularPrice Decimal
   loyaltyPrice Decimal?
   scrapedAt    DateTime
 
-  @@id([storeSlug, productId])
+  @@id([storeSlug, productId, zone])
   @@map("price_cache")
 }
 

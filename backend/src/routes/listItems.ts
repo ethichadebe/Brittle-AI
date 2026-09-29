@@ -76,13 +76,18 @@ export async function listItemsRoutes(app: FastifyInstance) {
   // POST /lists/:id/items
   app.post<{
     Params: { id: string };
-    Body: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice" | "quantity">;
+    Body: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice" | "quantity"> & {
+      // Not part of ListItem — the price a shopper adds is a snapshot, but the
+      // Price Zone it was scraped in is only meaningful for price_cache's key,
+      // relayed from the /search result the item came from. See #75.
+      zone: string;
+    };
     Reply: ListItem;
   }>("/lists/:id/items", async (req, reply) => {
     const list = await findOwnedList(req.params.id, ownerKey(req));
     if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
-    const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity } = req.body;
+    const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity, zone } = req.body;
     const addedQuantity = quantity ?? 1;
 
     // The same product added twice is the same item, not two rows — see #83.
@@ -119,6 +124,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
       storeSlug: list.storeSlug,
       productId,
       productName,
+      zone,
       regularPrice: Number(regularPrice),
       loyaltyPrice: loyaltyPrice != null ? Number(loyaltyPrice) : null,
     });

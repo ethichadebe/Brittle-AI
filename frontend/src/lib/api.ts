@@ -75,7 +75,12 @@ export const api = {
     list: (listId: string) =>
       request<{ items: ListItem[] }>(`/lists/${listId}/items`).then((r) => r.items),
 
-    add: (listId: string, item: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice">) =>
+    add: (
+      listId: string,
+      item: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice"> & {
+        zone: string;
+      }
+    ) =>
       request<ListItem>(`/lists/${listId}/items`, {
         method: "POST",
         body: JSON.stringify({ ...item, quantity: 1 }),

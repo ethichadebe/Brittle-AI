@@ -1,5 +1,6 @@
 import type { Product } from "@accucery/types";
 import type { Scraper } from "./types.js";
+import { NO_ZONE } from "./zone.js";
 
 // Makro runs Flipkart's commerce stack - Walmart owns both Flipkart and, through
 // Massmart, Makro. Probed rather than assumed: see scripts/probe-makro.sh and
@@ -193,6 +194,10 @@ export function collectProducts(blob: unknown): Product[] {
           productId,
           name,
           imageUrl: imageOf(node),
+          // Verified live before switching Makro on: prices[] says by
+          // priceType what each number is, with no zone ambiguity found —
+          // see stores.ts.
+          zone: NO_ZONE,
           regularPrice,
           loyaltyPrice: null,
         });

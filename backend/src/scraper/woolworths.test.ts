@@ -3,6 +3,7 @@ import {
   WoolworthsScraper,
   normalise,
   regularPrice,
+  zoneUsed,
   loyaltyPrice,
   isFood,
   zoneOrder,
@@ -73,6 +74,7 @@ describe("normalise", () => {
         productId: "20026875",
         name: "Long Life Full Cream Milk 6 x 1 L",
         imageUrl: "https://example.com/milk.jpg",
+        zone: "p10",
         regularPrice: 126.99,
         loyaltyPrice: 99.99,
       },
@@ -122,6 +124,26 @@ describe("regularPrice", () => {
     // advertise a free product.
     expect(regularPrice({ p60: 0, p30: 0, p10: 24.99 })).toBe(24.99);
     expect(regularPrice({ p60: 0, p30: 0, p10: 0 })).toBe(0);
+  });
+});
+
+describe("zoneUsed", () => {
+  const AYRSHIRE_MILK_2L = { p10: 45.99, p30: 39.99, p60: 39.99 };
+
+  it("names the preferred zone when the product is sold there", () => {
+    expect(zoneUsed(AYRSHIRE_MILK_2L, zoneOrder(undefined))).toBe("p10");
+  });
+
+  // The case #75 exists for: a product not sold in the preferred zone is
+  // priced from a fallback zone, and that has to be recorded truthfully -
+  // not just assumed to be whatever zone the rest of the response used.
+  it("names the fallback zone the price actually came from, not the preferred one", () => {
+    const notSoldInP10 = { p10: 0, p30: 19.99, p60: 19.99 };
+    expect(zoneUsed(notSoldInP10, zoneOrder(undefined))).toBe("p30");
+  });
+
+  it("names the preferred zone when the product is priced nowhere, rather than nothing", () => {
+    expect(zoneUsed({ p10: 0, p30: 0, p60: 0 }, zoneOrder(undefined))).toBe("p10");
   });
 });
 

@@ -45,6 +45,7 @@ describe("refreshItems", () => {
     productId: "abc123",
     name: "Clover Milk 1L",
     imageUrl: "https://example.com/img.jpg",
+    zone: "p10",
     regularPrice: 22.99,
     loyaltyPrice: 19.99,
   };
@@ -59,9 +60,27 @@ describe("refreshItems", () => {
     expect(mockUpsert).toHaveBeenCalledOnce();
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeSlug_productId: { storeSlug: "checkers", productId: "abc123" } },
+        where: {
+          storeSlug_productId_zone: { storeSlug: "checkers", productId: "abc123", zone: "p10" },
+        },
       })
     );
+  });
+
+  // The whole point of keying price_cache by zone: two zones for the same
+  // product must be two rows, never one overwriting the other. Removing
+  // `zone` from upsertCache's `where` (collapsing back to the old
+  // storeSlug_productId key) makes this fail by upserting the same row twice.
+  it("keys the cache upsert by zone, not just store and product", async () => {
+    mockSearch.mockResolvedValueOnce([{ ...product, zone: "p10" }]);
+    await refreshItems("checkers", [{ productId: "abc123", productName: "Clover Milk 1L" }]);
+
+    mockSearch.mockResolvedValueOnce([{ ...product, zone: "p30" }]);
+    await refreshItems("checkers", [{ productId: "abc123", productName: "Clover Milk 1L" }]);
+
+    expect(mockUpsert).toHaveBeenCalledTimes(2);
+    const zonesUsed = mockUpsert.mock.calls.map((call) => call[0]!.where.storeSlug_productId_zone!.zone);
+    expect(zonesUsed).toEqual(["p10", "p30"]);
   });
 
   it("does not upsert when scraper returns no matching product", async () => {

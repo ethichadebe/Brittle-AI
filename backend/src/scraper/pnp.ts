@@ -1,5 +1,6 @@
 import type { Product } from "@accucery/types";
 import type { Scraper } from "./types.js";
+import { NO_ZONE } from "./zone.js";
 
 const SEARCH_BASE = "https://ac.cnstrc.com/search";
 // Public API key embedded in pnp.co.za frontend JS
@@ -45,7 +46,11 @@ export function normalise(raw: any): Product[] {
         }
       }
 
-      return { productId, name, imageUrl, regularPrice, loyaltyPrice };
+      // Not investigated the way Woolworths was — no zone-carrying fields
+      // (p10/p30/p60 or similar) have been seen in this store's response,
+      // so treated as zone-less until shown otherwise. See #66 if that
+      // changes.
+      return { productId, name, imageUrl, zone: NO_ZONE, regularPrice, loyaltyPrice };
     })
     .filter((p): p is Product => p !== null);
 }
