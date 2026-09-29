@@ -9,9 +9,12 @@ COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json
 RUN npm ci
 
-# Copy source and compile
+# Copy source and compile. packages/types is built too — a backend route
+# that imports a real value from it (not just `import type`, erased by tsc)
+# needs actual JS to run against in the stage below, not just types.
 COPY packages/ packages/
 COPY backend/ backend/
+RUN npm run build -w packages/types
 WORKDIR /repo/backend
 RUN npx prisma generate && npx tsc
 
@@ -20,10 +23,19 @@ RUN npx prisma generate && npx tsc
 FROM node:22-slim AS runner
 WORKDIR /app
 
-# Copy workspace node_modules (includes prisma CLI, playwright, fastify, etc.)
-# All @accucery/types imports in the backend are `import type` — erased at
-# compile time — so the dangling workspace symlink causes no runtime errors.
+# Copy workspace node_modules (includes prisma CLI, playwright, fastify, etc.).
+# node_modules/@accucery/types is an npm workspace symlink pointing outside
+# this stage's filesystem (../../packages/types, never copied in), so it
+# dangles. Every import of it used to be `import type` and got erased by
+# tsc, so the dangling link cost nothing at runtime — until a route needed
+# an actual value (STORE_CONFIGS). Replaced here with the package's real
+# compiled output and a minimal package.json of its own, so `import` resolves.
 COPY --from=builder /repo/node_modules ./node_modules
+RUN rm -rf ./node_modules/@accucery/types && \
+    mkdir -p ./node_modules/@accucery/types && \
+    printf '{"name":"@accucery/types","private":true,"type":"module","main":"./dist/index.js"}' \
+      > ./node_modules/@accucery/types/package.json
+COPY --from=builder /repo/packages/types/dist ./node_modules/@accucery/types/dist
 COPY --from=builder /repo/backend/dist ./dist
 COPY --from=builder /repo/backend/prisma ./prisma
 
