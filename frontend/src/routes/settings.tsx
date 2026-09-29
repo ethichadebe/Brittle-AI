@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { STORE_CONFIGS } from "@accucery/types";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
+import { useAccountSession } from "../hooks/useAccountSession";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -9,6 +10,7 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const navigate = useNavigate();
   const { isEnabled, toggle } = useLoyaltySettings();
+  const { account } = useAccountSession();
 
   const loyaltyStores = STORE_CONFIGS.filter((s) => s.loyaltyProgramme !== null);
 
@@ -19,6 +21,24 @@ function SettingsPage() {
         <h2 className="list-title">Settings</h2>
         <div style={{ width: 32 }} />
       </header>
+
+      <div className="settings-section">
+        <h3 className="settings-section-title">Account</h3>
+        <div
+          className="settings-row settings-row--nav"
+          onClick={() => navigate({ to: "/account" })}
+        >
+          <div className="settings-row-info">
+            <span className="settings-row-label">
+              {account ? "Signed in" : "Sign in or create an account"}
+            </span>
+            <span className="settings-row-sub">
+              {account ? account.email : "Save your lists across devices"}
+            </span>
+          </div>
+          <span className="store-card-chevron">›</span>
+        </div>
+      </div>
 
       <div className="settings-section">
         <h3 className="settings-section-title">Loyalty cards</h3>
