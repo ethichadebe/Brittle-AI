@@ -91,6 +91,52 @@ describe("matchItem", () => {
     expect(result.reason).toContain("2000ml");
     expect(result.reason).toContain("500g");
   });
+
+  // A real report: a snack matched to a condiment purely because both names
+  // share a brand ("Mrs H.S. Ball's") and the word "Chutney" — the chips'
+  // own name only uses it as a flavour, but plain word-overlap can't tell
+  // the difference. The target store's search also returns two chutney
+  // jars in this brand line (as it would for a real "...Chutney..." query),
+  // which is what lets rarity weighting recognise "mrs"/"ball's"/"chutney"
+  // as common to this whole result set and no longer decisive, leaving the
+  // words that actually say what the product is — "chips", "potato" — to
+  // pick the real chip candidate instead.
+  it("does not let a shared brand and flavour word outweigh what the product actually is", async () => {
+    const chips = {
+      productId: "chips-1",
+      productName: "Simba Mrs H.S. Ball's Chutney Flavoured Potato Chips 120g",
+      regularPrice: 24.99,
+    };
+    const search = catalogue([
+      product({ productId: "jar-original", name: "Mrs H.S.Ball's Original Chutney 1.1 kg", regularPrice: 84.99 }),
+      product({ productId: "jar-peach", name: "Mrs H.S.Ball's Peach Chutney 470 g", regularPrice: 42.99 }),
+      product({
+        productId: "chips-willards",
+        name: "Willards Chutney Flavoured Potato Chips 125 g",
+        regularPrice: 22.99,
+      }),
+    ]);
+
+    const result = await matchItem(chips, "woolworths", search);
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.substitute.substitute.productId).toBe("chips-willards");
+  });
+
+  // The other half of the same fix: when nothing returned is actually
+  // similar, the old "best of whatever came back" rule would still pick
+  // one. #89's own refuse-to-guess philosophy (already applied to an
+  // incomparable pack size above) applies here too.
+  it("refuses even the closest candidate when nothing found is actually similar", async () => {
+    const search = catalogue([product({ productId: "irrelevant", name: "White Bread 700 g", regularPrice: 19.99 })]);
+
+    const result = await matchItem(original, "checkers", search);
+
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.reason.toLowerCase()).toContain("dissimilar");
+  });
 });
 
 describe("nameSimilarity", () => {
