@@ -27,7 +27,7 @@ function product(overrides: Partial<Product>): Product {
 }
 
 describe("matchItem", () => {
-  it("ranks candidates best-first and computes both Unit Prices", async () => {
+  it("matches to the best-named candidate and computes both Unit Prices", async () => {
     const search = catalogue([
       product({ productId: "unrelated", name: "White Bread 700 g", regularPrice: 19.99 }),
       product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 }),
@@ -37,11 +37,11 @@ describe("matchItem", () => {
 
     expect(result.matched).toBe(true);
     if (!result.matched) throw new Error("expected a match");
-    expect(result.substitute.candidates[0].productId).toBe("match-1");
+    expect(result.substitute.substitute.productId).toBe("match-1");
     expect(result.substitute.original.unitPrice).toBeCloseTo(29.99 / 2000);
-    expect(result.substitute.candidates[0].unitPrice).toBeCloseTo(27.99 / 2000);
+    expect(result.substitute.substitute.unitPrice).toBeCloseTo(27.99 / 2000);
     expect(result.substitute.original.unit).toBe("ml");
-    expect(result.substitute.candidates[0].unit).toBe("ml");
+    expect(result.substitute.substitute.unit).toBe("ml");
   });
 
   it("is unmatched, not an error, when the target store has no candidates at all", async () => {
@@ -49,6 +49,7 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("checkers");
+    expect(result.suggestions).toEqual([]);
   });
 
   it("is unmatched when the list item's own name has no readable pack size", async () => {
@@ -59,43 +60,29 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("pack size");
+    expect(result.suggestions).toEqual([]);
   });
 
-  it("is unmatched when every candidate's own name has no readable pack size", async () => {
+  it("is unmatched when the best candidate's own name has no readable pack size", async () => {
     const search = catalogue([product({ productId: "c1", name: "Full Cream Milk", regularPrice: 27.99 })]);
 
     const result = await matchItem(original, "checkers", search);
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("pack size");
+    expect(result.suggestions).toEqual([]);
   });
 
   // #89's own mutation check: a candidate whose pack size is a different
-  // dimension entirely (mass vs volume) must be excluded — not merely
-  // ranked lower — since there is no such thing as "a worse comparison" for
-  // two incomparable dimensions, only a nonsensical one. Removing the
-  // unit-compatibility check would instead let it through as a Substitute,
-  // computing "price per gram vs price per millilitre" as if that meant
-  // something.
-  it("excludes a candidate whose pack size is a different dimension, even as one option among several", async () => {
+  // dimension entirely (mass vs volume) must be refused, and refused by
+  // name — "pack size" must appear in the reason, not just "no match".
+  // Removing the unit-compatibility check would instead let this through
+  // as a wrong Substitute, computing a nonsensical "price per gram vs price
+  // per millilitre" comparison rather than refusing it.
+  it("refuses a candidate whose pack size is a different dimension, naming pack size as why", async () => {
     const search = catalogue([
-      // Milk POWDER, sold by mass — not the liquid milk by volume the
-      // shopper actually has on their list — alongside a real liquid-milk
-      // candidate, so this proves the powder is dropped, not just outranked.
-      product({ productId: "powder-1", name: "Full Cream Milk Powder 500 g", regularPrice: 89.99 }),
-      product({ productId: "liquid-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 }),
-    ]);
-
-    const result = await matchItem(original, "checkers", search);
-
-    expect(result.matched).toBe(true);
-    if (!result.matched) throw new Error("expected a match");
-    expect(result.substitute.candidates).toHaveLength(1);
-    expect(result.substitute.candidates[0].productId).toBe("liquid-1");
-  });
-
-  it("is unmatched when the only candidate's pack size is an incomparable dimension", async () => {
-    const search = catalogue([
+      // The only candidate is milk POWDER, sold by mass, not the liquid
+      // milk by volume the shopper actually has on their list.
       product({ productId: "powder-1", name: "Full Cream Milk Powder 500 g", regularPrice: 89.99 }),
     ]);
 
@@ -104,6 +91,9 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason.toLowerCase()).toContain("pack size");
+    // No suggestions either — a candidate this dimensionally incomparable
+    // can't be priced, so it isn't offered as one, unlike a merely weak match.
+    expect(result.suggestions).toEqual([]);
   });
 
   // A real report: a snack matched to a condiment purely because both names
@@ -114,8 +104,8 @@ describe("matchItem", () => {
   // which is what lets rarity weighting recognise "mrs"/"ball's"/"chutney"
   // as common to this whole result set and no longer decisive, leaving the
   // words that actually say what the product is — "chips", "potato" — to
-  // rank the real chip candidate first.
-  it("ranks the word that says what the product is above a shared brand and flavour word", async () => {
+  // pick the real chip candidate instead.
+  it("does not let a shared brand and flavour word outweigh what the product actually is", async () => {
     const chips = {
       productId: "chips-1",
       productName: "Simba Mrs H.S. Ball's Chutney Flavoured Potato Chips 120g",
@@ -135,42 +125,48 @@ describe("matchItem", () => {
 
     expect(result.matched).toBe(true);
     if (!result.matched) throw new Error("expected a match");
-    // All three are viable (same dimension, readable pack size), so all
-    // three are offered — but the chip product, not either jar, is first.
-    expect(result.substitute.candidates).toHaveLength(3);
-    expect(result.substitute.candidates[0].productId).toBe("chips-willards");
+    expect(result.substitute.substitute.productId).toBe("chips-willards");
   });
 
-  // A report on the fix for the above: rejecting a weak top score outright
-  // felt like "compare doesn't work" whenever nothing better existed either
-  // — every item just vanished. Ranking without a score floor, and handing
-  // the shopper up to MAX_CANDIDATES choices, is the actual fix: even a
-  // single mediocre candidate is still surfaced (as the closest thing
-  // found, not a forced pick), rather than the item disappearing outright.
-  it("still surfaces the closest candidate found, even when nothing returned is a strong match", async () => {
-    const search = catalogue([product({ productId: "irrelevant", name: "White Bread 2 L", regularPrice: 19.99 })]);
-
-    const result = await matchItem(original, "checkers", search);
-
-    expect(result.matched).toBe(true);
-    if (!result.matched) throw new Error("expected a match");
-    expect(result.substitute.candidates[0].productId).toBe("irrelevant");
-  });
-
-  it("offers up to MAX_CANDIDATES options, best first, not just one", async () => {
+  // The other half of the same fix: when nothing returned is actually
+  // similar, the old "best of whatever came back" rule would still auto-pick
+  // one. Refusing outright once made that read as "compare doesn't work" for
+  // any item where nothing scored well — so a weak top score is now offered
+  // as a suggestion (something the shopper can still choose), not hidden.
+  it("offers the closest candidates as suggestions, not an auto-pick, when nothing found is a strong match", async () => {
+    // Same dimension as the shopper's milk (both liquid, ml) so it clears
+    // the pack-size check and the low score is what refuses it — not an
+    // incomparable pack size.
     const search = catalogue([
-      product({ productId: "c-3rd", name: "Low Fat Milk 2 L", regularPrice: 24.99 }),
-      product({ productId: "c-1st", name: "Clover Full Cream Milk 2 L", regularPrice: 28.99 }),
-      product({ productId: "c-2nd", name: "Full Cream Milk 2 L", regularPrice: 27.99 }),
-      product({ productId: "c-4th", name: "Orange Juice 2 L", regularPrice: 22.99 }),
+      product({ productId: "irrelevant", name: "Dishwashing Liquid 750 ml", regularPrice: 19.99 }),
     ]);
 
     const result = await matchItem(original, "checkers", search);
 
-    expect(result.matched).toBe(true);
-    if (!result.matched) throw new Error("expected a match");
-    expect(result.substitute.candidates).toHaveLength(3);
-    expect(result.substitute.candidates.map((c) => c.productId)).toEqual(["c-1st", "c-2nd", "c-3rd"]);
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.reason.toLowerCase()).toContain("dissimilar");
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0].productId).toBe("irrelevant");
+  });
+
+  it("caps suggestions at MAX_SUGGESTIONS, best first", async () => {
+    // Four candidates, all sharing only "milk" with the item — none score
+    // above the confidence cutoff, so all four are suggestion candidates;
+    // only the top 3 should come back.
+    const search = catalogue([
+      product({ productId: "c-far-1", name: "Soy Milk 1 L", regularPrice: 24.99 }),
+      product({ productId: "c-close", name: "Low Fat Milk 2 L", regularPrice: 25.99 }),
+      product({ productId: "c-far-2", name: "Oat Milk 1 L", regularPrice: 26.99 }),
+      product({ productId: "c-far-3", name: "Almond Milk 1 L", regularPrice: 27.99 }),
+    ]);
+
+    const result = await matchItem(original, "checkers", search);
+
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.suggestions).toHaveLength(3);
+    expect(result.suggestions[0].productId).toBe("c-close");
   });
 });
 

@@ -37,11 +37,11 @@ function ListPage() {
   const [compareError, setCompareError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [excludedItems, setExcludedItems] = useState<Set<string>>(new Set());
-  // Which of a matched item's ranked candidates the shopper wants as the
-  // actual Substitute — defaults to the top-ranked one, but matching by
-  // name alone can still rank a wrong product first, so this is a choice,
-  // not a verdict the shopper is stuck with.
-  const [chosenCandidate, setChosenCandidate] = useState<Map<string, number>>(new Map());
+  // For an unmatched item that came with suggestions (nothing scored
+  // confidently enough to auto-apply): which one, if any, the shopper has
+  // picked as the actual Substitute. Picking one counts it in the total
+  // right away, same as a confident match already does.
+  const [selectedSuggestion, setSelectedSuggestion] = useState<Map<string, number>>(new Map());
   const { isEnabled } = useLoyaltySettings();
   const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
@@ -105,7 +105,7 @@ function ListPage() {
       const result = await api.lists.compare(listId, targetStore);
       setComparison(result);
       setExcludedItems(new Set());
-      setChosenCandidate(new Map(result.items.filter((i) => i.matched).map((i) => [i.listItemId, 0])));
+      setSelectedSuggestion(new Map());
     } catch (e) {
       setCompareError(e instanceof ApiError ? e.message : "Something went wrong");
     } finally {
@@ -124,20 +124,29 @@ function ListPage() {
     });
   };
 
-  const selectCandidate = (listItemId: string, index: number) => {
-    setChosenCandidate((prev) => new Map(prev).set(listItemId, index));
+  // Tapping the already-picked suggestion again un-picks it — back to
+  // "not found", excluded from the total, not stuck once tapped.
+  const selectSuggestion = (listItemId: string, index: number) => {
+    setSelectedSuggestion((prev) => {
+      const next = new Map(prev);
+      if (next.get(listItemId) === index) next.delete(listItemId);
+      else next.set(listItemId, index);
+      return next;
+    });
   };
 
   const storeName = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? slug;
 
-  // Recomputed on the client so unchecking a Substitute, or swapping which
-  // candidate is chosen, is instant — the backend already priced every
-  // candidate, this is just which one (if any) still counts.
+  // Recomputed on the client so unchecking a Substitute, or picking a
+  // suggestion for an item that wasn't confidently matched, is instant —
+  // the backend already priced every option, this is just which ones count.
   const liveTotal = comparison
     ? comparison.items.reduce((sum, item) => {
-        if (!item.matched || excludedItems.has(item.listItemId)) return sum;
-        const candidate = item.candidates[chosenCandidate.get(item.listItemId) ?? 0];
-        return candidate ? sum + candidate.cost : sum;
+        if (item.matched) return excludedItems.has(item.listItemId) ? sum : sum + item.cost;
+        const chosen = selectedSuggestion.get(item.listItemId);
+        if (chosen === undefined) return sum;
+        const suggestion = item.suggestions[chosen];
+        return suggestion ? sum + suggestion.cost : sum;
       }, 0)
     : 0;
 
@@ -442,22 +451,12 @@ function ListPage() {
                         onChange={() => toggleExcluded(item.listItemId)}
                       />
                       <div className="item-info">
-                        <span className="compare-item-was">
-                          was: {item.productName}
+                        <span className="item-name">
+                          {item.substitute.name}
                           <span className="substitute-badge">Substitute</span>
                         </span>
-                        <ul className="compare-candidate-list">
-                          {item.candidates.map((candidate, index) => (
-                            <li
-                              key={candidate.substitute.productId}
-                              className={`compare-candidate${(chosenCandidate.get(item.listItemId) ?? 0) === index ? " compare-candidate--chosen" : ""}`}
-                              onClick={() => selectCandidate(item.listItemId, index)}
-                            >
-                              <span className="item-name">{candidate.substitute.name}</span>
-                              <span className="item-price">R {candidate.cost.toFixed(2)}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <span className="compare-item-was">was: {item.productName}</span>
+                        <span className="item-price">R {item.cost.toFixed(2)}</span>
                       </div>
                     </>
                   ) : (
@@ -466,6 +465,20 @@ function ListPage() {
                       <span className="compare-item-unmatched-note">
                         Not found at {storeName(comparison.storeSlug)}
                       </span>
+                      {item.suggestions.length > 0 && (
+                        <ul className="compare-candidate-list">
+                          {item.suggestions.map((suggestion, index) => (
+                            <li
+                              key={suggestion.substitute.productId}
+                              className={`compare-candidate${selectedSuggestion.get(item.listItemId) === index ? " compare-candidate--chosen" : ""}`}
+                              onClick={() => selectSuggestion(item.listItemId, index)}
+                            >
+                              <span className="item-name">{suggestion.substitute.name}</span>
+                              <span className="item-price">R {suggestion.cost.toFixed(2)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </li>

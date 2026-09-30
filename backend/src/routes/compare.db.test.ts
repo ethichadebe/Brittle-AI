@@ -128,7 +128,7 @@ describe("POST /lists/:id/compare", () => {
     expect(body.unmatchedCount).toBe(0);
     expect(body.items).toHaveLength(1);
     expect(body.items[0].matched).toBe(true);
-    expect(body.items[0].candidates[0].substitute.productId).toBe("sr-milk");
+    expect(body.items[0].substitute.productId).toBe("sr-milk");
     expect(body.total).toBeCloseTo(27);
   });
 

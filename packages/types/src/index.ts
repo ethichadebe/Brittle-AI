@@ -91,27 +91,27 @@ export interface ComparisonMatch {
   unit: PackUnit;
 }
 
-export interface ComparisonCandidate {
-  // A candidate Substitute found at the target store.
-  substitute: ComparisonMatch;
-  // What buying the same quantity of this candidate would cost.
-  cost: number;
-}
-
 export interface ComparisonMatchedItem {
   listItemId: string;
   productId: string;
   productName: string;
   quantity: number;
   matched: true;
-  // The list item itself, judged by Unit Price the same way each candidate
-  // is, so they can be compared on equal footing.
+  // The list item itself, judged by Unit Price the same way the substitute
+  // is, so the two can be compared on equal footing.
   original: ComparisonMatch;
-  // Ranked candidates at the target store, closest match first — never
-  // auto-picked. Matching by name alone can rank a wrong product above a
-  // right one (see matchItem.ts), so the shopper chooses which, if any, is
-  // the actual Substitute; never empty when `matched` is true.
-  candidates: ComparisonCandidate[];
+  // The Substitute found at the target store.
+  substitute: ComparisonMatch;
+  // What buying the same quantity of the Substitute would cost.
+  cost: number;
+}
+
+export interface ComparisonSuggestion {
+  // A candidate Substitute found at the target store, not confident
+  // enough to auto-apply.
+  substitute: ComparisonMatch;
+  // What buying the same quantity of this candidate would cost, if picked.
+  cost: number;
 }
 
 export interface ComparisonUnmatchedItem {
@@ -121,8 +121,14 @@ export interface ComparisonUnmatchedItem {
   quantity: number;
   matched: false;
   // Why: no candidates at the target store, an unreadable Pack Size on
-  // either product, or an incompatible dimension. Never a guess.
+  // either product, an incompatible dimension, or the closest candidate
+  // found was too dissimilar to trust. Never a guess.
   reason: string;
+  // Up to 3 ranked candidates that weren't confident enough to auto-apply
+  // as the Substitute, offered as a manual pick instead of a verdict.
+  // Empty when nothing at the target store even had a comparable, readable
+  // pack size to suggest.
+  suggestions: ComparisonSuggestion[];
 }
 
 export type ComparisonItem = ComparisonMatchedItem | ComparisonUnmatchedItem;
