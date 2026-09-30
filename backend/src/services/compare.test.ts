@@ -35,8 +35,8 @@ describe("compareList", () => {
     const [item] = result.items;
     expect(item.matched).toBe(true);
     if (!item.matched) throw new Error("expected a match");
-    expect(item.cost).toBeCloseTo(4000 * (8 / 1000)); // 4L need × price-per-ml
-    expect(result.total).toBeCloseTo(item.cost);
+    expect(item.candidates[0].cost).toBeCloseTo(4000 * (8 / 1000)); // 4L need × price-per-ml
+    expect(result.total).toBeCloseTo(item.candidates[0].cost);
     expect(result.complete).toBe(true);
     expect(result.unmatchedCount).toBe(0);
   });

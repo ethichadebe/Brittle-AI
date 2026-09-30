@@ -720,3 +720,27 @@ body {
   padding: 0.1rem 0.45rem;
   margin-left: 0.4rem;
 }
+
+.compare-candidate-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.compare-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.compare-candidate--chosen {
+  border-color: #2563eb;
+  background: #eff6ff;
+}

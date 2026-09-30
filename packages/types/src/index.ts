@@ -91,19 +91,27 @@ export interface ComparisonMatch {
   unit: PackUnit;
 }
 
+export interface ComparisonCandidate {
+  // A candidate Substitute found at the target store.
+  substitute: ComparisonMatch;
+  // What buying the same quantity of this candidate would cost.
+  cost: number;
+}
+
 export interface ComparisonMatchedItem {
   listItemId: string;
   productId: string;
   productName: string;
   quantity: number;
   matched: true;
-  // The list item itself, judged by Unit Price the same way the substitute
-  // is, so the two can be compared on equal footing.
+  // The list item itself, judged by Unit Price the same way each candidate
+  // is, so they can be compared on equal footing.
   original: ComparisonMatch;
-  // The Substitute found at the target store.
-  substitute: ComparisonMatch;
-  // What buying the same quantity of the Substitute would cost.
-  cost: number;
+  // Ranked candidates at the target store, closest match first — never
+  // auto-picked. Matching by name alone can rank a wrong product above a
+  // right one (see matchItem.ts), so the shopper chooses which, if any, is
+  // the actual Substitute; never empty when `matched` is true.
+  candidates: ComparisonCandidate[];
 }
 
 export interface ComparisonUnmatchedItem {

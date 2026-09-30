@@ -1,4 +1,4 @@
-import type { ComparisonItem, ComparisonResult, StoreSlug } from "@accucery/types";
+import type { ComparisonCandidate, ComparisonItem, ComparisonResult, StoreSlug } from "@accucery/types";
 import { matchItem } from "./matchItem.js";
 import { search } from "./search.js";
 
@@ -41,12 +41,16 @@ export async function compareList(
       // How many base units (grams or millilitres) the shopper's own
       // quantity represents, recovered from the original's price and Unit
       // Price rather than re-parsing its Pack Size a second time. Costing
-      // the Substitute by that same need, not by "one pack for one pack",
+      // each candidate by that same need, not by "one pack for one pack",
       // is the whole point of judging by Unit Price (ADR 0002): a smaller
-      // pack of the substitute must not look like a cheaper like-for-like.
+      // pack of a candidate must not look like a cheaper like-for-like.
       const originalPackQuantity = item.regularPrice / match.substitute.original.unitPrice;
       const neededBaseUnits = item.quantity * originalPackQuantity;
-      const cost = neededBaseUnits * match.substitute.substitute.unitPrice;
+
+      const candidates: ComparisonCandidate[] = match.substitute.candidates.map((substitute) => ({
+        substitute,
+        cost: neededBaseUnits * substitute.unitPrice,
+      }));
 
       return {
         listItemId: item.id,
@@ -55,14 +59,16 @@ export async function compareList(
         quantity: item.quantity,
         matched: true,
         original: match.substitute.original,
-        substitute: match.substitute.substitute,
-        cost,
+        candidates,
       };
     })
   );
 
   const unmatchedCount = results.filter((r) => !r.matched).length;
-  const total = results.reduce((sum, r) => (r.matched ? sum + r.cost : sum), 0);
+  // Prices each matched item at its top-ranked candidate — a starting
+  // figure, not a promise; the shopper's own choice among candidates,
+  // made client-side, may land on a different total.
+  const total = results.reduce((sum, r) => (r.matched ? sum + r.candidates[0].cost : sum), 0);
 
   return {
     items: results,

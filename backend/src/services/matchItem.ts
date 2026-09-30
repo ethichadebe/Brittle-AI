@@ -6,18 +6,20 @@ import { parsePackSize } from "./packSize.js";
 // it rather than a backend-internal one mapped to a public one at the door.
 export type MatchedProduct = ComparisonMatch;
 
+// How many ranked candidates a shopper is shown per item — enough to offer
+// a real choice without asking them to read a whole search result.
+export const MAX_CANDIDATES = 3;
+
 export interface Substitute {
   original: MatchedProduct;
-  substitute: MatchedProduct;
+  // Ranked candidates at the target store, best first, never auto-picked.
+  // Word-overlap matching (below) can still rank a wrong product above a
+  // right one — the fix is putting the choice in front of the shopper, not
+  // pretending the algorithm can always tell on its own.
+  candidates: MatchedProduct[];
 }
 
 export type MatchResult = { matched: true; substitute: Substitute } | { matched: false; reason: string };
-
-// Below this, even the closest candidate this search returned is too weak
-// to trust as a Substitute — refusing here is the same "won't guess" rule
-// applied just below to an incomparable pack size, applied to the name
-// match itself instead.
-const MIN_MATCH_SCORE = 0.3;
 
 function tokenize(name: string): Set<string> {
   return new Set(
@@ -40,15 +42,15 @@ export function nameSimilarity(a: string, b: string): number {
   return shared / Math.max(ta.size, tb.size);
 }
 
-// Picks the best of `candidates` by word overlap with `itemName`, same as
-// nameSimilarity, but weights each shared word by how rare it is across
-// this search's own candidates. A brand or flavour word that shows up on
-// most of them ("Mrs H.S. Ball's", "Chutney Flavoured") counts for little,
-// so a candidate that only shares those doesn't outrank one that also
-// shares the word that actually says what the product is ("Chips" not
-// found on any chutney jar). A word this search's candidates never used at
-// all gets full weight, since there's no data here to say it's common.
-function bestCandidate(itemName: string, candidates: Product[]): { product: Product; score: number } {
+// Ranks every candidate by word overlap with `itemName`, weighting each
+// shared word by how rare it is across this search's own candidates. A
+// brand or flavour word most of them share ("Mrs H.S. Ball's", "Chutney
+// Flavoured") counts for little, so a candidate that only shares those
+// doesn't outrank one that also shares the word that actually says what
+// the product is ("Chips", found on no chutney jar). A word this search's
+// candidates never used at all gets full weight, since there's no data
+// here to say it's common.
+function rankCandidates(itemName: string, candidates: Product[]): Product[] {
   const itemTokens = tokenize(itemName);
   const candidateTokens = candidates.map((c) => tokenize(c.name));
 
@@ -58,28 +60,28 @@ function bestCandidate(itemName: string, candidates: Product[]): { product: Prod
   }
   const weight = (t: string): number => 1 / (documentFrequency.get(t) ?? 1);
 
-  let best = { product: candidates[0], score: -1 };
-  candidates.forEach((product, i) => {
-    const tokens = candidateTokens[i];
-    const union = new Set([...itemTokens, ...tokens]);
-    let sharedWeight = 0;
-    let unionWeight = 0;
-    for (const t of union) {
-      const w = weight(t);
-      unionWeight += w;
-      if (itemTokens.has(t) && tokens.has(t)) sharedWeight += w;
-    }
-    const score = unionWeight === 0 ? 0 : sharedWeight / unionWeight;
-    if (score > best.score) best = { product, score };
-  });
-
-  return best;
+  return candidates
+    .map((product, i) => {
+      const tokens = candidateTokens[i];
+      const union = new Set([...itemTokens, ...tokens]);
+      let sharedWeight = 0;
+      let unionWeight = 0;
+      for (const t of union) {
+        const w = weight(t);
+        unionWeight += w;
+        if (itemTokens.has(t) && tokens.has(t)) sharedWeight += w;
+      }
+      return { product, score: unionWeight === 0 ? 0 : sharedWeight / unionWeight };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((r) => r.product);
 }
 
 /**
- * Matches a list item to its equivalent at another store, per #89 / ADR 0002.
- * `search` is injected rather than imported so this can be tested with a
- * canned catalogue and no network access, the same substitution #74 built.
+ * Finds candidate Substitutes for a list item at another store, per #89 /
+ * ADR 0002. `search` is injected rather than imported so this can be tested
+ * with a canned catalogue and no network access, the same substitution #74
+ * built.
  */
 export async function matchItem(
   item: { productId: string; productName: string; regularPrice: number },
@@ -91,36 +93,33 @@ export async function matchItem(
     return { matched: false, reason: `${targetStore} has no products matching "${item.productName}"` };
   }
 
-  const { product: best, score } = bestCandidate(item.productName, candidates);
-  if (score < MIN_MATCH_SCORE) {
-    return {
-      matched: false,
-      reason:
-        `${targetStore}'s closest candidate for "${item.productName}" was "${best.name}", ` +
-        `too dissimilar to trust as a Substitute`,
-    };
-  }
-
   const originalSize = parsePackSize(item.productName);
   if (!originalSize) {
     return { matched: false, reason: `pack size could not be read from "${item.productName}"` };
   }
 
-  const candidateSize = parsePackSize(best.name);
-  if (!candidateSize) {
-    return { matched: false, reason: `pack size could not be read from "${best.name}"` };
+  // Mass and volume are not the same dimension, and a candidate with no
+  // readable Pack Size at all can't be priced by Unit Price either — both
+  // are dropped here rather than offered as a choice, per #89: never let a
+  // nonsensical "price per gram vs price per millilitre" comparison stand
+  // in for a Substitute just because its name ranked well.
+  const viable: MatchedProduct[] = [];
+  for (const product of rankCandidates(item.productName, candidates)) {
+    if (viable.length >= MAX_CANDIDATES) break;
+    const candidateSize = parsePackSize(product.name);
+    if (!candidateSize || candidateSize.unit !== originalSize.unit) continue;
+    viable.push({
+      productId: product.productId,
+      name: product.name,
+      unitPrice: product.regularPrice / candidateSize.quantity,
+      unit: candidateSize.unit,
+    });
   }
 
-  // Mass and volume are not the same dimension — 500 g of one product and
-  // 2 L of another cannot be judged against each other by Unit Price at
-  // all, so this is a refusal, not a worse comparison.
-  if (candidateSize.unit !== originalSize.unit) {
+  if (viable.length === 0) {
     return {
       matched: false,
-      reason:
-        `pack size units are not comparable for "${item.productName}" ` +
-        `(${originalSize.quantity}${originalSize.unit}) and "${best.name}" ` +
-        `(${candidateSize.quantity}${candidateSize.unit})`,
+      reason: `${targetStore} has no candidate for "${item.productName}" with a comparable, readable pack size`,
     };
   }
 
@@ -133,12 +132,7 @@ export async function matchItem(
         unitPrice: item.regularPrice / originalSize.quantity,
         unit: originalSize.unit,
       },
-      substitute: {
-        productId: best.productId,
-        name: best.name,
-        unitPrice: best.regularPrice / candidateSize.quantity,
-        unit: candidateSize.unit,
-      },
+      candidates: viable,
     },
   };
 }
