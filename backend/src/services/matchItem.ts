@@ -13,6 +13,12 @@ export interface Substitute {
 
 export type MatchResult = { matched: true; substitute: Substitute } | { matched: false; reason: string };
 
+// Below this, even the closest candidate this search returned is too weak
+// to trust as a Substitute — refusing here is the same "won't guess" rule
+// applied just below to an incomparable pack size, applied to the name
+// match itself instead.
+const MIN_MATCH_SCORE = 0.3;
+
 function tokenize(name: string): Set<string> {
   return new Set(
     name
@@ -34,6 +40,42 @@ export function nameSimilarity(a: string, b: string): number {
   return shared / Math.max(ta.size, tb.size);
 }
 
+// Picks the best of `candidates` by word overlap with `itemName`, same as
+// nameSimilarity, but weights each shared word by how rare it is across
+// this search's own candidates. A brand or flavour word that shows up on
+// most of them ("Mrs H.S. Ball's", "Chutney Flavoured") counts for little,
+// so a candidate that only shares those doesn't outrank one that also
+// shares the word that actually says what the product is ("Chips" not
+// found on any chutney jar). A word this search's candidates never used at
+// all gets full weight, since there's no data here to say it's common.
+function bestCandidate(itemName: string, candidates: Product[]): { product: Product; score: number } {
+  const itemTokens = tokenize(itemName);
+  const candidateTokens = candidates.map((c) => tokenize(c.name));
+
+  const documentFrequency = new Map<string, number>();
+  for (const tokens of candidateTokens) {
+    for (const t of tokens) documentFrequency.set(t, (documentFrequency.get(t) ?? 0) + 1);
+  }
+  const weight = (t: string): number => 1 / (documentFrequency.get(t) ?? 1);
+
+  let best = { product: candidates[0], score: -1 };
+  candidates.forEach((product, i) => {
+    const tokens = candidateTokens[i];
+    const union = new Set([...itemTokens, ...tokens]);
+    let sharedWeight = 0;
+    let unionWeight = 0;
+    for (const t of union) {
+      const w = weight(t);
+      unionWeight += w;
+      if (itemTokens.has(t) && tokens.has(t)) sharedWeight += w;
+    }
+    const score = unionWeight === 0 ? 0 : sharedWeight / unionWeight;
+    if (score > best.score) best = { product, score };
+  });
+
+  return best;
+}
+
 /**
  * Matches a list item to its equivalent at another store, per #89 / ADR 0002.
  * `search` is injected rather than imported so this can be tested with a
@@ -49,9 +91,15 @@ export async function matchItem(
     return { matched: false, reason: `${targetStore} has no products matching "${item.productName}"` };
   }
 
-  const best = candidates.reduce((a, b) =>
-    nameSimilarity(item.productName, b.name) > nameSimilarity(item.productName, a.name) ? b : a
-  );
+  const { product: best, score } = bestCandidate(item.productName, candidates);
+  if (score < MIN_MATCH_SCORE) {
+    return {
+      matched: false,
+      reason:
+        `${targetStore}'s closest candidate for "${item.productName}" was "${best.name}", ` +
+        `too dissimilar to trust as a Substitute`,
+    };
+  }
 
   const originalSize = parsePackSize(item.productName);
   if (!originalSize) {
