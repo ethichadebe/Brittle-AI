@@ -131,6 +131,10 @@ _Avoid_: region, area, branch pricing
   still sells it
 - Leaving a **Substitute** Accucery applied in the total is not choosing it;
   only a deliberate pick or removal is remembered
+- Removing a **Substitute** rules out that product as a stand-in for that one
+  item at that **Store**, not everywhere; the item shows as unmatched, naming
+  what was removed, rather than vanishing, until the **Shopper** undoes it
+- A **Shopper** holds one decision per pairing, and the most recent one wins
 - A **Substitute** is judged against what it replaces by **Unit Price**, not by
   what one pack costs, because a smaller **Pack Size** is cheaper per pack and
   need not be cheaper per litre
