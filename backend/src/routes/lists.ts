@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import type { GroceryList, StoreSlug } from "@accucery/types";
+import { latestPrices } from "../services/basketPrices.js";
 
 export async function listsRoutes(app: FastifyInstance) {
   // GET /lists — all lists owned by this Shopper, with item count and total price
@@ -12,18 +13,31 @@ export async function listsRoutes(app: FastifyInstance) {
       include: { items: true },
     });
 
+    // Per #77, a total for a list that isn't open is an estimate: each item
+    // at the latest price Accucery has observed, of any age, and nothing is
+    // scraped to get it. The price stored when the item was added is only a
+    // fallback — it never moves, so on its own it would drift for weeks.
+    const latestByStore = new Map<string, Map<string, number>>();
+    for (const storeSlug of new Set(lists.map((l) => l.storeSlug))) {
+      const productIds = lists.filter((l) => l.storeSlug === storeSlug).flatMap((l) => l.items.map((i) => i.productId));
+      latestByStore.set(storeSlug, await latestPrices(storeSlug, productIds));
+    }
+
     return {
-      lists: lists.map((l) => ({
-        id: l.id,
-        storeSlug: l.storeSlug as StoreSlug,
-        name: l.name,
-        createdAt: l.createdAt.toISOString(),
-        itemCount: l.items.length,
-        totalPrice: l.items.reduce(
-          (sum, item) => sum + item.regularPrice.toNumber() * item.quantity,
-          0
-        ),
-      })),
+      lists: lists.map((l) => {
+        const latest = latestByStore.get(l.storeSlug)!;
+        return {
+          id: l.id,
+          storeSlug: l.storeSlug as StoreSlug,
+          name: l.name,
+          createdAt: l.createdAt.toISOString(),
+          itemCount: l.items.length,
+          totalPrice: l.items.reduce(
+            (sum, item) => sum + (latest.get(item.productId) ?? item.regularPrice.toNumber()) * item.quantity,
+            0
+          ),
+        };
+      }),
     };
   });
 

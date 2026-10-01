@@ -805,3 +805,21 @@ body {
   border-color: #2563eb;
   background: #eff6ff;
 }
+
+/* ── #77: prices that aren't Basket Prices yet ── */
+.summary-provisional {
+  font-size: 0.75rem;
+  color: #b45309;
+  background: #fffbeb;
+  text-align: center;
+  padding: 0.3rem 0.75rem;
+}
+
+.item-price-status {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.item-price-status--outdated {
+  color: #b45309;
+}

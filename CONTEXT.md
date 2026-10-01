@@ -162,6 +162,9 @@ _Avoid_: region, area, branch pricing
 - A price that cannot be refreshed stays in the total at its last observed
   value, marked with how old it is, and keeps the total provisional; it is
   never dropped, because a total missing an item understates the basket
+- Only an opened list's total stands on **Basket Prices**; a total shown for a
+  list that is not open is an estimate from the latest prices Accucery has
+  observed, and says so
 - A **Conditional Price** attaches to a quantity, not to a unit, so it is
   neither a **Shelf Price** nor a **Loyalty Price** and cannot be stored as one
 - A **Conditional Price** repeats: a basket of n units is charged

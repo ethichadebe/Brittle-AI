@@ -13,6 +13,7 @@ import type {
 } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
+import { priceAge } from "../lib/priceAge";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
@@ -20,6 +21,12 @@ import { useAccountSession } from "../hooks/useAccountSession";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
 const SEARCH_DEBOUNCE_MS = 350;
+
+// While any price on the list is being refreshed, ask again this often —
+// one item takes a few seconds to scrape — and give up after this long, so
+// a refresh that never reports back can't keep the page asking forever.
+const PRICE_POLL_MS = 3000;
+const PRICE_POLL_LIMIT_MS = 2 * 60 * 1000;
 
 export const Route = createFileRoute("/lists/$listId")({
   component: ListPage,
@@ -69,6 +76,24 @@ function ListPage() {
       if (found) { setListName(found.name); setStoreSlug(found.storeSlug); }
     });
   }, [listId]);
+
+  // #77: opening a list returns its prices at once and refreshes old ones
+  // in the background, so the page keeps asking until none are updating.
+  const pollingSince = useRef<number | null>(null);
+  const updatingPrices = items.some((i) => i.priceStatus === "updating");
+  const outdatedPrices = items.some((i) => i.priceStatus === "outdated");
+  useEffect(() => {
+    if (!updatingPrices) {
+      pollingSince.current = null;
+      return;
+    }
+    pollingSince.current ??= Date.now();
+    if (Date.now() - pollingSince.current > PRICE_POLL_LIMIT_MS) return;
+    const timer = setTimeout(() => {
+      api.items.list(listId).then(setItems).catch(console.error);
+    }, PRICE_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [items, updatingPrices, listId]);
 
   useEffect(() => {
     if (showSearch) requestAnimationFrame(() => searchRef.current?.focus());
@@ -223,7 +248,6 @@ function ListPage() {
           imageUrl: product.imageUrl,
           regularPrice: product.regularPrice,
           loyaltyPrice: product.loyaltyPrice,
-          zone: product.zone,
         });
         setItems((prev) => [...prev, item]);
       }
@@ -294,6 +318,15 @@ function ListPage() {
         </div>
       </div>
 
+      {/* #77: a total isn't one to rely on until every price in it is current */}
+      {(updatingPrices || outdatedPrices) && (
+        <p className="summary-provisional">
+          {updatingPrices
+            ? "Updating prices… totals may change"
+            : "Some prices couldn't be updated — totals may be out of date"}
+        </p>
+      )}
+
       {/* Item list */}
       <ul className="item-list">
         {items.length === 0 && (
@@ -324,6 +357,14 @@ function ListPage() {
                 )}
                 {" "}× {item.quantity} = R {(price(item) * item.quantity).toFixed(2)}
               </span>
+              {item.priceStatus === "updating" && <span className="item-price-status">updating…</span>}
+              {item.priceStatus === "outdated" && (
+                <span className="item-price-status item-price-status--outdated">
+                  {item.priceObservedAt
+                    ? `price from ${priceAge(item.priceObservedAt)}, couldn't update`
+                    : "couldn't update this price"}
+                </span>
+              )}
             </div>
 
             <div className="item-qty">

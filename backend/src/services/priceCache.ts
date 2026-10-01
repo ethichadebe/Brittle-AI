@@ -72,10 +72,3 @@ export async function refreshItems(
     }
   }
 }
-
-export function refreshInBackground(
-  storeSlug: StoreSlug,
-  items: { productId: string; productName: string }[]
-): void {
-  refreshItems(storeSlug, items).catch(console.error);
-}

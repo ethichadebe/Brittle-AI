@@ -40,6 +40,8 @@ export interface GroceryList {
   name: string;
   createdAt: string;
   itemCount: number;
+  // An estimate from the latest prices Accucery has observed, not Basket
+  // Prices — only an opened list's total stands on those (#77).
   totalPrice: number;
 }
 
@@ -56,7 +58,17 @@ export interface ListItem {
   quantity: number;
   isChecked: boolean;
   createdAt: string;
+  // When Accucery last observed this price (#77), or null if it never has
+  // beyond what the shopper's phone sent when adding it.
+  priceObservedAt: string | null;
+  priceStatus: BasketPriceStatus;
 }
+
+// Whether a list item's price is a Basket Price yet (#77):
+// - "current": observed within the Basket Price window
+// - "updating": older, and being refreshed right now
+// - "outdated": older, and the last refresh couldn't update it
+export type BasketPriceStatus = "current" | "updating" | "outdated";
 
 // API response shapes
 

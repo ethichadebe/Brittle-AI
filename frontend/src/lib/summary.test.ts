@@ -13,6 +13,8 @@ const item = (overrides: Partial<ListItem> = {}): ListItem => ({
   quantity: 1,
   isChecked: false,
   createdAt: new Date().toISOString(),
+  priceObservedAt: null,
+  priceStatus: "current",
   ...overrides,
 });
 
