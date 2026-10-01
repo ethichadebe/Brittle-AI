@@ -76,6 +76,9 @@ export const api = {
         body: JSON.stringify({ storeSlug, name }),
       }),
 
+    rename: (id: string, name: string) =>
+      request<void>(`/lists/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+
     delete: (id: string) =>
       request<void>(`/lists/${id}`, { method: "DELETE" }),
 

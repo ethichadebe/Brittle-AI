@@ -1,184 +1,548 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
 import type { GroceryList, StoreSlug } from "@accucery/types";
 import { api } from "../lib/api";
+import { formatRand, initials } from "../lib/format";
+import { restoreList, withoutList } from "../lib/listOrder";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
+import { useAccountSession } from "../hooks/useAccountSession";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
+// How long "List removed · UNDO" stays up before the list is really deleted.
+const UNDO_MS = 5000;
+// Width of the Rename + Delete buttons a card slides over to reveal.
+const ACTIONS_WIDTH = 168;
+
+const ACTIVE_STORES = STORE_CONFIGS.filter((s) => s.active);
+const storeOf = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug);
+
+interface PendingDelete {
+  list: GroceryList;
+  index: number;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 function HomePage() {
   const navigate = useNavigate();
-  const [lists, setLists] = useState<GroceryList[]>([]);
-  const [creating, setCreating] = useState<StoreSlug | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const modal = useAnimatedMount(showModal);
-  const [newName, setNewName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const { account } = useAccountSession();
+  // null while loading, so the empty state never flashes before lists arrive.
+  const [lists, setLists] = useState<GroceryList[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [openSwipe, setOpenSwipe] = useState<string | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState<GroceryList | null>(null);
+  const pending = useRef<PendingDelete | null>(null);
+  const compact = useCompactOnScroll();
 
   useEffect(() => {
-    api.lists.list().then(setLists).catch(console.error);
+    api.lists
+      .list()
+      .then(setLists)
+      .catch((e) => {
+        console.error(e);
+        setLoadError(true);
+      });
   }, []);
 
-  const listsByStore = (slug: StoreSlug) =>
-    lists.filter((l) => l.storeSlug === slug);
-
-  const totalItems = (slug: StoreSlug) =>
-    listsByStore(slug).reduce((s, l) => s + l.itemCount, 0);
-
-  const totalPrice = (slug: StoreSlug) =>
-    listsByStore(slug).reduce((s, l) => s + l.totalPrice, 0);
-
-  const openCreate = (slug: StoreSlug) => {
-    setCreating(slug);
-    setNewName("");
-    setCreateError(null);
-    setShowModal(true);
+  // Deleting for real once the undo window passes. If the server refuses,
+  // the list comes back rather than silently vanishing from this screen only.
+  const commitDelete = (p: PendingDelete) => {
+    clearTimeout(p.timer);
+    if (pending.current === p) {
+      pending.current = null;
+      setUndoing(null);
+    }
+    api.lists.delete(p.list.id).catch((e) => {
+      console.error(e);
+      setLists((prev) => (prev ? restoreList(prev, p.list, p.index) : prev));
+    });
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setTimeout(() => setCreating(null), 280);
+  // Leaving the screen ends the undo window: the delete happens now.
+  useEffect(
+    () => () => {
+      if (pending.current) commitDelete(pending.current);
+    },
+    []
+  );
+
+  const removeList = (list: GroceryList) => {
+    if (!lists) return;
+    // One undo at a time: a second delete settles the first.
+    if (pending.current) commitDelete(pending.current);
+    const { lists: rest, index } = withoutList(lists, list.id);
+    setLists(rest);
+    setOpenSwipe(null);
+    setMenuFor(null);
+    const p: PendingDelete = { list, index, timer: setTimeout(() => commitDelete(p), UNDO_MS) };
+    pending.current = p;
+    setUndoing(list);
+  };
+
+  const undo = () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    setUndoing(null);
+    setLists((prev) => (prev ? restoreList(prev, p.list, p.index) : prev));
+  };
+
+  // Rename sheet
+  const [renaming, setRenaming] = useState<GroceryList | null>(null);
+  const renameSheet = useAnimatedMount(renaming !== null);
+  const [renameTo, setRenameTo] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
+  // Kept while the sheet animates out, so its title doesn't blank mid-exit.
+  const [renameTitle, setRenameTitle] = useState("");
+
+  const startRename = (list: GroceryList) => {
+    setOpenSwipe(null);
+    setMenuFor(null);
+    setRenameTo(list.name);
+    setRenameTitle(list.name);
+    setRenameError(null);
+    setRenaming(list);
+  };
+
+  const saveRename = async () => {
+    const name = renameTo.trim();
+    if (!renaming || !name) return;
+    if (name === renaming.name) {
+      setRenaming(null);
+      return;
+    }
+    setRenameSaving(true);
+    try {
+      await api.lists.rename(renaming.id, name);
+      const id = renaming.id;
+      setLists((prev) => prev?.map((l) => (l.id === id ? { ...l, name } : l)) ?? prev);
+      setRenaming(null);
+    } catch (e) {
+      setRenameError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setRenameSaving(false);
+    }
+  };
+
+  // New list. Until #111 replaces it, this is the old flow with a store
+  // picker in front, since the store cards it hung off are gone.
+  const [showCreate, setShowCreate] = useState(false);
+  const createSheet = useAnimatedMount(showCreate);
+  const [newStore, setNewStore] = useState<StoreSlug>(ACTIVE_STORES[0].slug);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const openCreate = () => {
+    // The store last shopped at is the likeliest next one.
+    setNewStore(lists?.[0]?.storeSlug ?? ACTIVE_STORES[0].slug);
+    setNewName("");
+    setCreateError(null);
+    setShowCreate(true);
   };
 
   const handleCreate = async () => {
-    if (!creating || !newName.trim()) return;
-    setSaving(true);
+    const name = newName.trim();
+    if (!name) return;
+    setCreating(true);
     try {
-      const list = await api.lists.create(creating, newName.trim());
-      setLists((prev) => [list, ...prev]);
-      closeModal();
+      const list = await api.lists.create(newStore, name);
+      setShowCreate(false);
       void navigate({ to: "/lists/$listId", params: { listId: list.id } });
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
-      setSaving(false);
+      setCreating(false);
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    await api.lists.delete(id);
-    setLists((prev) => prev.filter((l) => l.id !== id));
-  };
-
-  const storeName = STORE_CONFIGS.find((s) => s.slug === creating)?.name ?? "";
+  const avatar = account ? initials(account.email) : "";
 
   return (
-    <div className="page-fade-in">
-      <header className="app-header">
-        <h1>Accucery</h1>
-        <button className="btn-icon btn-icon--dark" style={{ marginLeft: "auto" }} onClick={() => navigate({ to: "/settings" })}>⚙</button>
+    <div className="page-fade-in home">
+      <header className="home-header">
+        <h1>Lists</h1>
+        <button
+          className="avatar"
+          aria-label={account ? `Account and settings (${account.email})` : "Settings and sign in"}
+          onClick={() => navigate({ to: "/settings" })}
+        >
+          {avatar || <PersonIcon />}
+        </button>
       </header>
 
-      <div className="store-list">
-        {STORE_CONFIGS.map((store) => {
-          const storeLists = listsByStore(store.slug);
-          return (
-            <div
-              key={store.slug}
-              className={`store-card${store.active ? "" : " coming-soon"}`}
-              style={{ background: store.color }}
-              onClick={() => store.active && openCreate(store.slug)}
-            >
-              <div className="store-card-header">
-                <h2>{store.name}</h2>
-                {store.active ? (
-                  <span className="store-card-chevron">&rsaquo;&rsaquo;</span>
-                ) : (
-                  <span className="coming-soon-badge">Coming soon</span>
-                )}
-              </div>
+      {loadError && <p className="home-error">Couldn't load your lists. Check your connection and try again.</p>}
 
-              <div className="store-card-stats">
-                <div className="store-stat">
-                  <span className="store-stat-label">🛒 Items</span>
-                  <span className="store-stat-value">{totalItems(store.slug)}</span>
-                </div>
-                <div className="store-stat">
-                  <span className="store-stat-label">💳 Est. total</span>
-                  {/* An estimate from the latest prices seen, not Basket
-                      Prices — only an opened list stands behind its total (#77). */}
-                  <span className="store-stat-value" title="Estimated from the latest prices seen. Open a list for current prices.">
-                    ≈ R {totalPrice(store.slug).toFixed(2)}
-                  </span>
-                </div>
-              </div>
+      {lists && lists.length === 0 && !loadError && (
+        <div className="home-empty">
+          <EmptyIllustration />
+          <h2>Let's plan your shopping</h2>
+          <p>Make a list for a store, and see what it costs before you go.</p>
+          <button className="btn btn-primary btn-pill" onClick={openCreate}>
+            New list
+          </button>
+        </div>
+      )}
 
-              {store.active && storeLists.length > 0 && (
-                <div className="store-lists" onClick={(e) => e.stopPropagation()}>
-                  {storeLists.map((list) => (
-                    <div
-                      key={list.id}
-                      className="list-row"
-                      onClick={() =>
-                        navigate({ to: "/lists/$listId", params: { listId: list.id } })
-                      }
-                    >
-                      <span className="list-row-name">{list.name}</span>
-                      <div className="list-row-actions">
-                        <button
-                          className="btn-icon"
-                          title="Delete list"
-                          onClick={(e) => handleDelete(e, list.id)}
-                        >
-                          🗑
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  <button
-                    className="add-list-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openCreate(store.slug);
-                    }}
-                  >
-                    + New list
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {lists && lists.length > 0 && (
+        <ul className="list-cards">
+          {lists.map((list) => (
+            <ListCard
+              key={list.id}
+              list={list}
+              open={openSwipe === list.id}
+              menuOpen={menuFor === list.id}
+              onOpenChange={(open) => setOpenSwipe(open ? list.id : null)}
+              onMenu={(open) => setMenuFor(open ? list.id : null)}
+              onSelect={() => navigate({ to: "/lists/$listId", params: { listId: list.id } })}
+              onRename={() => startRename(list)}
+              onDelete={() => removeList(list)}
+            />
+          ))}
+        </ul>
+      )}
 
-      {modal.rendered && (
-        <div
-          className={`modal-backdrop${modal.closing ? " modal-backdrop--closing" : ""}`}
-          onClick={closeModal}
+      {lists && lists.length > 0 && (
+        <button
+          className={`new-list-pill${compact ? " new-list-pill--compact" : ""}${undoing ? " new-list-pill--raised" : ""}`}
+          aria-label="New list"
+          onClick={openCreate}
         >
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>New {storeName} list</h3>
+          <PlusIcon />
+          <span className="new-list-pill-label">New list</span>
+        </button>
+      )}
+
+      {undoing && (
+        <div className="snackbar" role="status">
+          <span className="snackbar-text">List removed</span>
+          <button className="snackbar-action" onClick={undo}>
+            UNDO
+          </button>
+        </div>
+      )}
+
+      {renameSheet.rendered && (
+        <div
+          className={`modal-backdrop${renameSheet.closing ? " modal-backdrop--closing" : ""}`}
+          onClick={() => setRenaming(null)}
+        >
+          <div className="modal" role="dialog" aria-label="Rename list" onClick={(e) => e.stopPropagation()}>
+            <h3>Rename "{renameTitle}"</h3>
             <input
               className="modal-input"
+              aria-label="List name"
+              autoFocus
+              value={renameTo}
+              onChange={(e) => setRenameTo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveRename()}
+            />
+            {renameError && <p className="form-error">{renameError}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setRenaming(null)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" disabled={!renameTo.trim() || renameSaving} onClick={saveRename}>
+                {renameSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createSheet.rendered && (
+        <div
+          className={`modal-backdrop${createSheet.closing ? " modal-backdrop--closing" : ""}`}
+          onClick={() => setShowCreate(false)}
+        >
+          <div className="modal" role="dialog" aria-label="New list" onClick={(e) => e.stopPropagation()}>
+            <h3>New list</h3>
+            <div className="store-picker" role="radiogroup" aria-label="Store">
+              {ACTIVE_STORES.map((s) => (
+                <button
+                  key={s.slug}
+                  role="radio"
+                  aria-checked={newStore === s.slug}
+                  className={`store-chip${newStore === s.slug ? " store-chip--on" : ""}`}
+                  onClick={() => setNewStore(s.slug)}
+                >
+                  <span className="store-dot" style={{ background: s.color }} />
+                  {s.name}
+                </button>
+              ))}
+            </div>
+            <input
+              className="modal-input"
+              aria-label="List name"
               placeholder='e.g. "Weekly shop"'
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
-            {createError && (
-              <p style={{ color: "#dc2626", fontSize: "0.8rem", margin: "0 0 8px" }}>{createError}</p>
-            )}
+            {createError && <p className="form-error">{createError}</p>}
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeModal}>
+              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>
                 Cancel
               </button>
-              <button
-                className="btn btn-primary"
-                disabled={!newName.trim() || saving}
-                onClick={handleCreate}
-              >
-                {saving ? "Creating…" : "Create"}
+              <button className="btn btn-primary" disabled={!newName.trim() || creating} onClick={handleCreate}>
+                {creating ? "Creating…" : "Create"}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+interface ListCardProps {
+  list: GroceryList;
+  open: boolean;
+  menuOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onMenu: (open: boolean) => void;
+  onSelect: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}
+
+// A list on the home screen. Swiping it left uncovers Rename and Delete;
+// a vertical drag is left to the browser (touch-action: pan-y) so the page
+// still scrolls.
+function ListCard({ list, open, menuOpen, onOpenChange, onMenu, onSelect, onRename, onDelete }: ListCardProps) {
+  const store = storeOf(list.storeSlug);
+  const [drag, setDrag] = useState<number | null>(null);
+  const gesture = useRef<{ x: number; y: number; base: number; horizontal: boolean | null } | null>(null);
+  // A drag ends with a click on the card; this stops it opening the list.
+  const dragged = useRef(false);
+
+  const offset = drag ?? (open ? -ACTIONS_WIDTH : 0);
+  const progress = list.itemCount > 0 ? list.checkedCount / list.itemCount : 0;
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    gesture.current = { x: e.clientX, y: e.clientY, base: open ? -ACTIONS_WIDTH : 0, horizontal: null };
+    dragged.current = false;
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const g = gesture.current;
+    if (!g) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (g.horizontal === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      // Any drag, either way, isn't a tap on the card.
+      dragged.current = true;
+      g.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (!g.horizontal) {
+        gesture.current = null;
+        return;
+      }
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    }
+    setDrag(Math.min(0, Math.max(-ACTIONS_WIDTH, g.base + dx)));
+  };
+
+  const onPointerEnd = () => {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g?.horizontal || drag === null) return;
+    onOpenChange(drag < -ACTIONS_WIDTH / 2);
+    setDrag(null);
+  };
+
+  const onCardClick = () => {
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
+    if (open) onOpenChange(false);
+    else onSelect();
+  };
+
+  return (
+    <li className={`list-card-wrap${offset < 0 ? " list-card-wrap--revealed" : ""}`}>
+      <div className="list-card-actions" aria-hidden={!open}>
+        <button className="list-card-action" tabIndex={open ? 0 : -1} onClick={onRename}>
+          <PencilIcon />
+          Rename
+        </button>
+        <button className="list-card-action list-card-action--danger" tabIndex={open ? 0 : -1} onClick={onDelete}>
+          <TrashIcon />
+          Delete
+        </button>
+      </div>
+
+      <div
+        className={`list-card${drag !== null ? " list-card--dragging" : ""}`}
+        style={{ transform: `translateX(${offset}px)` }}
+        role="link"
+        tabIndex={0}
+        aria-label={`${list.name}, ${store?.name ?? list.storeSlug}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onClick={onCardClick}
+        onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && onSelect()}
+      >
+        <div className="list-card-head">
+          <div className="list-card-title">
+            <h2 className="list-card-name">{list.name}</h2>
+            <span className="store-label">
+              <span className="store-dot" style={{ background: store?.color }} />
+              {store?.name ?? list.storeSlug}
+            </span>
+          </div>
+          <button
+            className="list-card-more"
+            aria-label={`More for ${list.name}`}
+            aria-expanded={menuOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMenu(!menuOpen);
+            }}
+          >
+            <MoreIcon />
+          </button>
+        </div>
+
+        <div className="list-card-foot">
+          {list.itemCount > 0 ? (
+            <>
+              <div className="progress-bar" aria-hidden="true">
+                <i style={{ width: `${progress * 100}%` }} />
+              </div>
+              <span className="list-card-count" aria-label={`${list.checkedCount} of ${list.itemCount} ticked`}>
+                {list.checkedCount}/{list.itemCount}
+              </span>
+              {/* An estimate from the latest prices seen, not Basket Prices —
+                  only an opened list stands behind its total (#77). */}
+              <span className="list-card-total" title="Estimated from the latest prices seen. Open the list for current prices.">
+                ≈ {formatRand(list.totalPrice)}
+              </span>
+            </>
+          ) : (
+            <span className="list-card-empty">No items yet</span>
+          )}
+        </div>
+      </div>
+
+      {menuOpen && (
+        <>
+          <div className="menu-dismiss" onClick={() => onMenu(false)} />
+          <div className="card-menu" role="menu">
+            <button role="menuitem" onClick={onRename}>
+              <PencilIcon />
+              Rename
+            </button>
+            <button role="menuitem" className="card-menu-danger" onClick={onDelete}>
+              <TrashIcon />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </li>
+  );
+}
+
+// True while scrolling down past the top, so the New list pill shrinks out of
+// the way of the cards; scrolling up or reaching the top grows it back.
+function useCompactOnScroll() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y <= 24) setCompact(false);
+      else if (y > last + 4) setCompact(true);
+      else if (y < last - 4) setCompact(false);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return compact;
+}
+
+// Icons are drawn inline, in the text colour, rather than emoji, so they
+// match the theme in light and dark.
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+};
+
+function PlusIcon() {
+  return (
+    <svg {...iconProps} strokeWidth={2.5}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+      <path d="M13.5 6.5l4 4" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg {...iconProps} fill="currentColor" stroke="none">
+      <circle cx="12" cy="5" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="12" cy="19" r="1.8" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+    </svg>
+  );
+}
+
+// A basket with a ticked list: Accucery's own, in the theme's teal.
+function EmptyIllustration() {
+  return (
+    <svg className="home-empty-art" width="168" height="140" viewBox="0 0 168 140" fill="none" aria-hidden="true">
+      <circle cx="84" cy="74" r="62" fill="var(--primary-soft)" />
+      <rect x="58" y="20" width="56" height="70" rx="8" fill="var(--surface)" stroke="var(--primary)" strokeWidth="3" />
+      <path d="M68 38l4 4 7-8M68 56l4 4 7-8" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M86 39h18M86 57h18M68 74h36" stroke="var(--line-strong)" strokeWidth="3" strokeLinecap="round" />
+      <path d="M36 82h96l-10 40a8 8 0 0 1-7.8 6H53.8a8 8 0 0 1-7.8-6L36 82z" fill="var(--primary)" />
+      <path d="M62 94v22M84 94v22M106 94v22" stroke="var(--on-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <path d="M50 82l16-22M118 82l-16-22" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" />
+    </svg>
   );
 }

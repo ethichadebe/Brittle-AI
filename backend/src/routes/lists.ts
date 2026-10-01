@@ -32,6 +32,7 @@ export async function listsRoutes(app: FastifyInstance) {
           name: l.name,
           createdAt: l.createdAt.toISOString(),
           itemCount: l.items.length,
+          checkedCount: l.items.filter((i) => i.isChecked).length,
           totalPrice: l.items.reduce(
             (sum, item) => sum + (latest.get(item.productId) ?? item.regularPrice.toNumber()) * item.quantity,
             0
@@ -62,8 +63,22 @@ export async function listsRoutes(app: FastifyInstance) {
       name: list.name,
       createdAt: list.createdAt.toISOString(),
       itemCount: 0,
+      checkedCount: 0,
       totalPrice: 0,
     });
+  });
+
+  // PATCH /lists/:id — rename a list owned by this Shopper. Two lists may
+  // share a name and a Store (CONTEXT.md), so a rename never collides.
+  app.patch<{ Params: { id: string }; Body: { name?: string } }>("/lists/:id", async (req, reply) => {
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (!name) return reply.status(400).send({ error: "name is required" } as never);
+
+    const existing = await findOwnedList(req.params.id, ownerKey(req));
+    if (!existing) return reply.status(404).send({ error: "List not found" } as never);
+
+    await prisma.list.update({ where: { id: existing.id }, data: { name } });
+    return reply.status(204).send();
   });
 
   // DELETE /lists/:id — delete a list owned by this Shopper

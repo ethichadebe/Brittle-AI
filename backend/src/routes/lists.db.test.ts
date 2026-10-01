@@ -127,3 +127,51 @@ describe("a list belongs to the device that created it", () => {
     expect(stillThere).not.toBeNull();
   });
 });
+
+// #110: the home screen renames a list in place and shows how much of it is
+// ticked off.
+describe("renaming a list and its progress", () => {
+  async function aliceWithList() {
+    const alice = asDevice(randomUUID());
+    const list = (await alice({ method: "POST", url: "/lists", payload: { storeSlug: "checkers", name: "Weekly" } })).json();
+    return { alice, list };
+  }
+
+  it("renames a list for its owner", async () => {
+    const { alice, list } = await aliceWithList();
+
+    const res = await alice({ method: "PATCH", url: `/lists/${list.id}`, payload: { name: "  Braai  " } });
+
+    expect(res.statusCode).toBe(204);
+    const names = (await alice({ method: "GET", url: "/lists" })).json().lists.map((l: { name: string }) => l.name);
+    expect(names).toEqual(["Braai"]);
+  });
+
+  it("refuses an empty name", async () => {
+    const { alice, list } = await aliceWithList();
+    expect((await alice({ method: "PATCH", url: `/lists/${list.id}`, payload: { name: "   " } })).statusCode).toBe(400);
+  });
+
+  it("cannot be renamed by a different device", async () => {
+    const { list } = await aliceWithList();
+    const bob = asDevice(randomUUID());
+
+    expect((await bob({ method: "PATCH", url: `/lists/${list.id}`, payload: { name: "Mine now" } })).statusCode).toBe(404);
+    const stored = await testPrisma.list.findUnique({ where: { id: list.id } });
+    expect(stored?.name).toBe("Weekly");
+  });
+
+  it("reports how many items are ticked off", async () => {
+    const { alice, list } = await aliceWithList();
+    const item = (n: number) => ({
+      productId: `p${n}`, productName: `Product ${n}`, imageUrl: "", regularPrice: 10, loyaltyPrice: null, quantity: 1,
+    });
+    const added = [];
+    for (const n of [1, 2, 3]) added.push((await alice({ method: "POST", url: `/lists/${list.id}/items`, payload: item(n) })).json());
+    await alice({ method: "PATCH", url: `/lists/${list.id}/items/${added[0].id}`, payload: { isChecked: true } });
+
+    const [summary] = (await alice({ method: "GET", url: "/lists" })).json().lists;
+    expect(summary.itemCount).toBe(3);
+    expect(summary.checkedCount).toBe(1);
+  });
+});

@@ -2,6 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { STORE_CONFIGS } from "@accucery/types";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
 import { useAccountSession } from "../hooks/useAccountSession";
+import { useAppearance } from "../hooks/useAppearance";
+import type { Appearance } from "../lib/appearance";
+
+const APPEARANCES: { value: Appearance; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -11,6 +19,7 @@ function SettingsPage() {
   const navigate = useNavigate();
   const { isEnabled, toggle } = useLoyaltySettings();
   const { account } = useAccountSession();
+  const { appearance, setAppearance } = useAppearance();
 
   const loyaltyStores = STORE_CONFIGS.filter((s) => s.loyaltyProgramme !== null);
 
@@ -36,7 +45,26 @@ function SettingsPage() {
               {account ? account.email : "Save your lists across devices"}
             </span>
           </div>
-          <span className="store-card-chevron">›</span>
+          <span className="chevron">›</span>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section-title">Appearance</h3>
+        <div className="settings-row">
+          <div className="segmented" role="radiogroup" aria-label="Appearance">
+            {APPEARANCES.map((a) => (
+              <button
+                key={a.value}
+                role="radio"
+                aria-checked={appearance === a.value}
+                className={`segmented-option${appearance === a.value ? " segmented-option--on" : ""}`}
+                onClick={() => setAppearance(a.value)}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
