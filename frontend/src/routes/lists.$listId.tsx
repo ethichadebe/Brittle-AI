@@ -10,6 +10,7 @@ import type {
   Product,
   StoreSlug,
   SubstituteChoice,
+  SubstituteSource,
 } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
@@ -21,6 +22,13 @@ import { useAccountSession } from "../hooks/useAccountSession";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
 const SEARCH_DEBOUNCE_MS = 350;
+
+// Who put a Substitute in a comparison total, as the shopper reads it.
+const SOURCE_BADGE: Record<SubstituteSource, string> = {
+  accucery: "Substitute",
+  shopper: "Your pick",
+  popular: "Popular pick",
+};
 
 // While any price on the list is being refreshed, ask again this often —
 // one item takes a few seconds to scrape — and give up after this long, so
@@ -550,7 +558,7 @@ function ListPage() {
                       <div className="item-info">
                         <span className="item-name">
                           {item.substitute.name}
-                          <span className="substitute-badge">{item.chosenByShopper ? "Your pick" : "Substitute"}</span>
+                          <span className={`substitute-badge substitute-badge--${item.source}`}>{SOURCE_BADGE[item.source]}</span>
                         </span>
                         <span className="compare-item-was">
                           <img className="compare-thumb compare-thumb--small" src={imgSrc(ownImage(item.listItemId))} alt="" />

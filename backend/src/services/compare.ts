@@ -83,7 +83,7 @@ export async function compareList(
         original: match.substitute.original,
         substitute: match.substitute.substitute,
         cost,
-        chosenByShopper: match.chosenByShopper,
+        source: match.source,
       };
     })
   );

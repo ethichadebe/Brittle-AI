@@ -1,4 +1,4 @@
-import type { ComparisonMatch, Product, StoreSlug } from "@accucery/types";
+import type { ComparisonMatch, Product, StoreSlug, SubstituteSource } from "@accucery/types";
 import { parsePackSize } from "./packSize.js";
 
 // Same shape #90's comparison result exposes over the wire — matching and
@@ -88,8 +88,9 @@ export type MatchResult =
   | {
       matched: true;
       substitute: Substitute;
-      // The Shopper's own earlier pick (#91), not one Accucery chose.
-      chosenByShopper: boolean;
+      // Who chose it: Accucery's own match, the Shopper's own earlier pick
+      // (#91), or a Popular Substitute other Shoppers chose (#103).
+      source: SubstituteSource;
     }
   | {
       matched: false;
@@ -114,6 +115,10 @@ export interface ShopperDecisions {
   // A Substitute picked for this item earlier, applied without asking
   // while the store still sells it.
   chosen?: { productId: string; name: string };
+  // A Popular Substitute for this item (#103): what enough other Shoppers
+  // chose. Outranked by the Shopper's own pick, and never applied if the
+  // Shopper removed it.
+  popular?: { productId: string; name: string };
 }
 
 function priced(product: Product, size: { quantity: number; unit: MatchedProduct["unit"] }): MatchedProduct {
@@ -149,22 +154,29 @@ export async function matchItem(
       }
     : undefined;
 
-  // A remembered pick is looked for by its own name: no store can be asked
-  // for a product by id, and searching for it instead of for the list
-  // item keeps this to one search when it's still there. Gone — or no
-  // longer comparable — falls through to ordinary matching, and the
-  // decision itself is kept for when it comes back.
-  if (decisions.chosen && originalSize && original) {
-    const { productId, name } = decisions.chosen;
-    const found = (await search(targetStore, name)).find((p) => p.productId === productId);
-    const foundSize = found && parsePackSize(found.name);
-    if (found && foundSize && foundSize.unit === originalSize.unit) {
-      return { matched: true, chosenByShopper: true, substitute: { original, substitute: priced(found, foundSize) } };
+  // A remembered pick, then a Popular Substitute, is looked for by its own
+  // name: no store can be asked for a product by id, and searching for it
+  // instead of for the list item keeps this to one search when it's still
+  // there. Gone — or no longer comparable — falls through to the next, and
+  // finally to ordinary matching; the decisions themselves are kept for
+  // when it comes back.
+  const removedIds = decisions.removed ?? new Set<string>();
+  const remembered: { pick: { productId: string; name: string }; source: SubstituteSource }[] = [];
+  if (decisions.chosen) remembered.push({ pick: decisions.chosen, source: "shopper" });
+  if (decisions.popular && !removedIds.has(decisions.popular.productId)) {
+    remembered.push({ pick: decisions.popular, source: "popular" });
+  }
+  if (originalSize && original) {
+    for (const { pick, source } of remembered) {
+      const found = (await search(targetStore, pick.name)).find((p) => p.productId === pick.productId);
+      const foundSize = found && parsePackSize(found.name);
+      if (found && foundSize && foundSize.unit === originalSize.unit) {
+        return { matched: true, source, substitute: { original, substitute: priced(found, foundSize) } };
+      }
     }
   }
 
   const results = await search(targetStore, item.productName);
-  const removedIds = decisions.removed ?? new Set<string>();
   const removed = results
     .filter((p) => removedIds.has(p.productId))
     .map((p) => ({ productId: p.productId, name: p.name, imageUrl: p.imageUrl }));
@@ -209,7 +221,7 @@ export async function matchItem(
   }
 
   if (viable[0].score >= MIN_MATCH_SCORE) {
-    return { matched: true, chosenByShopper: false, substitute: { original, substitute: viable[0].candidate } };
+    return { matched: true, source: "accucery", substitute: { original, substitute: viable[0].candidate } };
   }
 
   return {

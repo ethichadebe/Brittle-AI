@@ -69,6 +69,12 @@ A candidate **Substitute** that Accucery was not confident enough to apply on
 its own, so offers instead; it becomes a **Substitute** when the shopper picks it.
 _Avoid_: option, candidate, alternative
 
+**Popular Substitute**:
+A **Substitute** enough **Shoppers** have chosen for the same product at the
+same **Store** that Accucery applies it for everyone who has not decided
+otherwise.
+_Avoid_: official substitute, community substitute, crowd pick
+
 **Pack Size**:
 How much product one unit contains, as the store names it — 500 g, 2 L,
 6 x 1 L.
@@ -135,6 +141,15 @@ _Avoid_: region, area, branch pricing
   item at that **Store**, not everywhere; the item shows as unmatched, naming
   what was removed, rather than vanishing, until the **Shopper** undoes it
 - A **Shopper** holds one decision per pairing, and the most recent one wins
+- A **Popular Substitute** is applied without asking, shown as popular rather
+  than as Accucery's own choice, and can be removed like any other; a
+  **Shopper**'s own decision about a pairing always outranks its popularity
+- Only each **Shopper**'s current decision counts towards popularity, and
+  removals count against it: a pairing is popular while enough **Shoppers**
+  have chosen it and clearly more chose it than removed it, and stops being
+  popular by itself when that is no longer true
+- Only an established **Account** counts towards popularity, so that creating
+  accounts is not a way to make a pairing popular
 - A decision belongs to the **Shopper** and the product, not to a **List**, so it
   applies on every list that product is on; the same product bought at a
   different **Store** is a different product, so the decision does not follow it

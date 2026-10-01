@@ -62,3 +62,59 @@ export async function loadDecisions(
   }
   return decisions;
 }
+
+// #103 / ADR 0005: when a pairing becomes a Popular Substitute. Raised by
+// hand as the app grows, never scaled automatically — a pairing must not
+// stop being popular just because more people signed up.
+export const POPULAR_MIN_CHOICES = 3;
+// Choices must outnumber removals by at least this much, so a pairing many
+// Shoppers rejected isn't popular just because a few chose it.
+export const POPULAR_CHOICE_RATIO = 2;
+// Only Accounts at least this old count, so creating accounts isn't a way
+// to make a pairing popular.
+export const ESTABLISHED_ACCOUNT_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+
+// The Popular Substitute for each of these products at `toStore`, if one
+// exists, keyed by the list item's productId. Every Shopper's current
+// decision counts once; when two pairings qualify for one product, the one
+// more Shoppers chose wins.
+export async function loadPopular(
+  fromStore: StoreSlug,
+  toStore: StoreSlug,
+  fromProductIds: string[]
+): Promise<Map<string, { productId: string; name: string }>> {
+  const rows = await prisma.substituteDecision.findMany({
+    where: {
+      fromStore,
+      toStore,
+      fromProductId: { in: fromProductIds },
+      account: { createdAt: { lte: new Date(Date.now() - ESTABLISHED_ACCOUNT_AGE_MS) } },
+    },
+    select: { fromProductId: true, toProductId: true, toProductName: true, choice: true },
+  });
+
+  const tallies = new Map<string, { fromProductId: string; productId: string; name: string; chosen: number; removed: number }>();
+  for (const row of rows) {
+    const key = `${row.fromProductId}\u0000${row.toProductId}`;
+    const tally = tallies.get(key) ?? {
+      fromProductId: row.fromProductId,
+      productId: row.toProductId,
+      name: row.toProductName,
+      chosen: 0,
+      removed: 0,
+    };
+    if (row.choice === "chosen") tally.chosen++;
+    else tally.removed++;
+    tallies.set(key, tally);
+  }
+
+  const popular = new Map<string, { productId: string; name: string; chosen: number }>();
+  for (const t of tallies.values()) {
+    if (t.chosen < POPULAR_MIN_CHOICES || t.chosen < POPULAR_CHOICE_RATIO * t.removed) continue;
+    const current = popular.get(t.fromProductId);
+    if (!current || t.chosen > current.chosen) {
+      popular.set(t.fromProductId, { productId: t.productId, name: t.name, chosen: t.chosen });
+    }
+  }
+  return new Map([...popular].map(([from, { productId, name }]) => [from, { productId, name }]));
+}
