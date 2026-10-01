@@ -8,6 +8,7 @@ import { searchRoutes } from "./routes/search.js";
 import { imageProxyRoutes } from "./routes/imageProxy.js";
 import { accountsRoutes } from "./routes/accounts.js";
 import { compareRoutes } from "./routes/compare.js";
+import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
 import type { HealthResponse } from "@accucery/types";
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
@@ -34,6 +35,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   await app.register(imageProxyRoutes);
   await app.register(accountsRoutes);
   await app.register(compareRoutes);
+  await app.register(substituteDecisionsRoutes);
 
   return app;
 }

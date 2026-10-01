@@ -100,4 +100,32 @@ describe("compareList", () => {
     // Unpicked suggestions don't count toward the server-computed total.
     expect(result.total).toBe(0);
   });
+
+  // #91: a decision is keyed by the list item's product, so a removal made
+  // for one item never reaches another item that happens to share a
+  // candidate.
+  it("applies a Shopper's decisions only to the product they were made for", async () => {
+    mockSearch.mockImplementation(async () => [
+      product({ productId: "m1", name: "Full Cream Milk 2 L", regularPrice: 25 }),
+    ]);
+
+    const result = await compareList(
+      [
+        { id: "li1", productId: "orig-1", productName: "Full Cream Milk 2 L", regularPrice: 30, quantity: 1 },
+        { id: "li2", productId: "orig-2", productName: "Full Cream Milk 2 L", regularPrice: 30, quantity: 1 },
+      ],
+      "checkers" as StoreSlug,
+      new Map([["orig-1", { removed: new Set(["m1"]) }]])
+    );
+
+    const [removedFor, untouched] = result.items;
+    expect(removedFor.matched).toBe(false);
+    if (removedFor.matched) throw new Error("expected no match");
+    expect(removedFor.removed).toEqual([{ productId: "m1", name: "Full Cream Milk 2 L" }]);
+
+    expect(untouched.matched).toBe(true);
+    if (!untouched.matched) throw new Error("expected a match");
+    expect(untouched.substitute.productId).toBe("m1");
+    expect(untouched.chosenByShopper).toBe(false);
+  });
 });
