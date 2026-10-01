@@ -154,6 +154,11 @@ _Avoid_: region, area, branch pricing
   shopper is entitled to rely on
 - An **Indicative Price** becomes a **Basket Price** when the shopper adds the
   product to a list and that list is opened
+- Until every price on an open list has been refreshed, its total is shown as
+  provisional rather than held back; it becomes a total the shopper can rely
+  on only once each price in it is a **Basket Price**
+- Adding a product to a list does not make its price any fresher: the price
+  is as old as when Accucery last observed it, not when the shopper tapped it
 - A **Conditional Price** attaches to a quantity, not to a unit, so it is
   neither a **Shelf Price** nor a **Loyalty Price** and cannot be stored as one
 - A **Conditional Price** repeats: a basket of n units is charged
