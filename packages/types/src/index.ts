@@ -106,6 +106,14 @@ export interface ComparisonMatchedItem {
   cost: number;
 }
 
+export interface ComparisonSuggestion {
+  // A candidate Substitute found at the target store, not confident
+  // enough to auto-apply.
+  substitute: ComparisonMatch;
+  // What buying the same quantity of this candidate would cost, if picked.
+  cost: number;
+}
+
 export interface ComparisonUnmatchedItem {
   listItemId: string;
   productId: string;
@@ -113,8 +121,14 @@ export interface ComparisonUnmatchedItem {
   quantity: number;
   matched: false;
   // Why: no candidates at the target store, an unreadable Pack Size on
-  // either product, or an incompatible dimension. Never a guess.
+  // either product, an incompatible dimension, or the closest candidate
+  // found was too dissimilar to trust. Never a guess.
   reason: string;
+  // Up to 3 ranked candidates that weren't confident enough to auto-apply
+  // as the Substitute, offered as a manual pick instead of a verdict.
+  // Empty when nothing at the target store even had a comparable, readable
+  // pack size to suggest.
+  suggestions: ComparisonSuggestion[];
 }
 
 export type ComparisonItem = ComparisonMatchedItem | ComparisonUnmatchedItem;

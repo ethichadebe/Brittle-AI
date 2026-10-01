@@ -49,6 +49,7 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("checkers");
+    expect(result.suggestions).toEqual([]);
   });
 
   it("is unmatched when the list item's own name has no readable pack size", async () => {
@@ -59,6 +60,7 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("pack size");
+    expect(result.suggestions).toEqual([]);
   });
 
   it("is unmatched when the best candidate's own name has no readable pack size", async () => {
@@ -68,6 +70,7 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("pack size");
+    expect(result.suggestions).toEqual([]);
   });
 
   // #89's own mutation check: a candidate whose pack size is a different
@@ -88,8 +91,9 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason.toLowerCase()).toContain("pack size");
-    expect(result.reason).toContain("2000ml");
-    expect(result.reason).toContain("500g");
+    // No suggestions either — a candidate this dimensionally incomparable
+    // can't be priced, so it isn't offered as one, unlike a merely weak match.
+    expect(result.suggestions).toEqual([]);
   });
 
   // A real report: a snack matched to a condiment purely because both names
@@ -125,17 +129,44 @@ describe("matchItem", () => {
   });
 
   // The other half of the same fix: when nothing returned is actually
-  // similar, the old "best of whatever came back" rule would still pick
-  // one. #89's own refuse-to-guess philosophy (already applied to an
-  // incomparable pack size above) applies here too.
-  it("refuses even the closest candidate when nothing found is actually similar", async () => {
-    const search = catalogue([product({ productId: "irrelevant", name: "White Bread 700 g", regularPrice: 19.99 })]);
+  // similar, the old "best of whatever came back" rule would still auto-pick
+  // one. Refusing outright once made that read as "compare doesn't work" for
+  // any item where nothing scored well — so a weak top score is now offered
+  // as a suggestion (something the shopper can still choose), not hidden.
+  it("offers the closest candidates as suggestions, not an auto-pick, when nothing found is a strong match", async () => {
+    // Same dimension as the shopper's milk (both liquid, ml) so it clears
+    // the pack-size check and the low score is what refuses it — not an
+    // incomparable pack size.
+    const search = catalogue([
+      product({ productId: "irrelevant", name: "Dishwashing Liquid 750 ml", regularPrice: 19.99 }),
+    ]);
 
     const result = await matchItem(original, "checkers", search);
 
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason.toLowerCase()).toContain("dissimilar");
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0].productId).toBe("irrelevant");
+  });
+
+  it("caps suggestions at MAX_SUGGESTIONS, best first", async () => {
+    // Four candidates, all sharing only "milk" with the item — none score
+    // above the confidence cutoff, so all four are suggestion candidates;
+    // only the top 3 should come back.
+    const search = catalogue([
+      product({ productId: "c-far-1", name: "Soy Milk 1 L", regularPrice: 24.99 }),
+      product({ productId: "c-close", name: "Low Fat Milk 2 L", regularPrice: 25.99 }),
+      product({ productId: "c-far-2", name: "Oat Milk 1 L", regularPrice: 26.99 }),
+      product({ productId: "c-far-3", name: "Almond Milk 1 L", regularPrice: 27.99 }),
+    ]);
+
+    const result = await matchItem(original, "checkers", search);
+
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.suggestions).toHaveLength(3);
+    expect(result.suggestions[0].productId).toBe("c-close");
   });
 });
 

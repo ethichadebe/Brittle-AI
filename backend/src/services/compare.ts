@@ -1,4 +1,4 @@
-import type { ComparisonItem, ComparisonResult, StoreSlug } from "@accucery/types";
+import type { ComparisonItem, ComparisonResult, ComparisonSuggestion, StoreSlug } from "@accucery/types";
 import { matchItem } from "./matchItem.js";
 import { search } from "./search.js";
 
@@ -28,6 +28,20 @@ export async function compareList(
       );
 
       if (!match.matched) {
+        // Suggestions are priced the same way a confident Substitute is —
+        // by the shopper's own quantity's worth of base units, recovered
+        // from the original's own Unit Price — so picking one client-side
+        // is a pure re-sum, no second round trip.
+        let suggestions: ComparisonSuggestion[] = [];
+        if (match.original && match.suggestions.length > 0) {
+          const originalPackQuantity = item.regularPrice / match.original.unitPrice;
+          const neededBaseUnits = item.quantity * originalPackQuantity;
+          suggestions = match.suggestions.map((substitute) => ({
+            substitute,
+            cost: neededBaseUnits * substitute.unitPrice,
+          }));
+        }
+
         return {
           listItemId: item.id,
           productId: item.productId,
@@ -35,6 +49,7 @@ export async function compareList(
           quantity: item.quantity,
           matched: false,
           reason: match.reason,
+          suggestions,
         };
       }
 

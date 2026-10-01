@@ -37,6 +37,11 @@ function ListPage() {
   const [compareError, setCompareError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [excludedItems, setExcludedItems] = useState<Set<string>>(new Set());
+  // For an unmatched item that came with suggestions (nothing scored
+  // confidently enough to auto-apply): which one, if any, the shopper has
+  // picked as the actual Substitute. Picking one counts it in the total
+  // right away, same as a confident match already does.
+  const [selectedSuggestion, setSelectedSuggestion] = useState<Map<string, number>>(new Map());
   const { isEnabled } = useLoyaltySettings();
   const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
@@ -100,6 +105,7 @@ function ListPage() {
       const result = await api.lists.compare(listId, targetStore);
       setComparison(result);
       setExcludedItems(new Set());
+      setSelectedSuggestion(new Map());
     } catch (e) {
       setCompareError(e instanceof ApiError ? e.message : "Something went wrong");
     } finally {
@@ -118,15 +124,30 @@ function ListPage() {
     });
   };
 
+  // Tapping the already-picked suggestion again un-picks it — back to
+  // "not found", excluded from the total, not stuck once tapped.
+  const selectSuggestion = (listItemId: string, index: number) => {
+    setSelectedSuggestion((prev) => {
+      const next = new Map(prev);
+      if (next.get(listItemId) === index) next.delete(listItemId);
+      else next.set(listItemId, index);
+      return next;
+    });
+  };
+
   const storeName = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? slug;
 
-  // Recomputed on the client so unchecking a Substitute is instant — the
-  // backend already priced every item, this is just which ones still count.
+  // Recomputed on the client so unchecking a Substitute, or picking a
+  // suggestion for an item that wasn't confidently matched, is instant —
+  // the backend already priced every option, this is just which ones count.
   const liveTotal = comparison
-    ? comparison.items.reduce(
-        (sum, item) => (item.matched && !excludedItems.has(item.listItemId) ? sum + item.cost : sum),
-        0
-      )
+    ? comparison.items.reduce((sum, item) => {
+        if (item.matched) return excludedItems.has(item.listItemId) ? sum : sum + item.cost;
+        const chosen = selectedSuggestion.get(item.listItemId);
+        if (chosen === undefined) return sum;
+        const suggestion = item.suggestions[chosen];
+        return suggestion ? sum + suggestion.cost : sum;
+      }, 0)
     : 0;
 
   const addItem = async (product: Product) => {
@@ -444,6 +465,20 @@ function ListPage() {
                       <span className="compare-item-unmatched-note">
                         Not found at {storeName(comparison.storeSlug)}
                       </span>
+                      {item.suggestions.length > 0 && (
+                        <ul className="compare-candidate-list">
+                          {item.suggestions.map((suggestion, index) => (
+                            <li
+                              key={suggestion.substitute.productId}
+                              className={`compare-candidate${selectedSuggestion.get(item.listItemId) === index ? " compare-candidate--chosen" : ""}`}
+                              onClick={() => selectSuggestion(item.listItemId, index)}
+                            >
+                              <span className="item-name">{suggestion.substitute.name}</span>
+                              <span className="item-price">R {suggestion.cost.toFixed(2)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </li>

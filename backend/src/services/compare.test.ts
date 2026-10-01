@@ -75,4 +75,29 @@ describe("compareList", () => {
     // Only the matched item (~R25) contributes; the total is not R115.
     expect(result.total).toBeLessThan(30);
   });
+
+  // An unmatched item can still carry priced suggestions (nothing scored
+  // confidently enough to auto-apply) — proves compareList prices those the
+  // same way it prices a confident Substitute, not just matchItem alone.
+  it("prices an unmatched item's suggestions by the shopper's own quantity too", async () => {
+    // Shares nothing with "Milk 2 L" by name, but is liquid like it — so it
+    // clears the pack-size check and is a suggestion, not excluded outright.
+    mockSearch.mockResolvedValue([product({ productId: "s1", name: "Dishwashing Liquid 1 L", regularPrice: 20 })]);
+
+    const result = await compareList(
+      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 2 }],
+      "checkers" as StoreSlug
+    );
+
+    expect(result.items).toHaveLength(1);
+    const [item] = result.items;
+    expect(item.matched).toBe(false);
+    if (item.matched) throw new Error("expected no match");
+    expect(item.suggestions).toHaveLength(1);
+    expect(item.suggestions[0].substitute.productId).toBe("s1");
+    // 2 packs of 2L at R30 = 4L need, priced at the suggestion's R20/L.
+    expect(item.suggestions[0].cost).toBeCloseTo(4000 * (20 / 1000));
+    // Unpicked suggestions don't count toward the server-computed total.
+    expect(result.total).toBe(0);
+  });
 });
