@@ -125,7 +125,7 @@ describe("Substitute decisions (#91)", () => {
     const item = await shopper.compare(listId);
     expect(item.matched).toBe(true);
     expect(item.substitute.productId).toBe("sr-low");
-    expect(item.chosenByShopper).toBe(true);
+    expect(item.source).toBe("shopper");
   });
 
   it("leaves out a removed Substitute, and brings it back on undo", async () => {
@@ -157,7 +157,7 @@ describe("Substitute decisions (#91)", () => {
 
     const item = await shopper.compare(listId);
     expect(item.substitute.productId).toBe("sr-full");
-    expect(item.chosenByShopper).toBe(false);
+    expect(item.source).toBe("accucery");
   });
 
   it("replaces an older pick for the same item with a newer one", async () => {
@@ -169,7 +169,7 @@ describe("Substitute decisions (#91)", () => {
 
     const item = await shopper.compare(listId);
     expect(item.substitute.productId).toBe("sr-full");
-    expect(item.chosenByShopper).toBe(true);
+    expect(item.source).toBe("shopper");
   });
 
   it("follows the product onto the Shopper's other lists", async () => {
@@ -194,7 +194,7 @@ describe("Substitute decisions (#91)", () => {
     expect((await picker.compare(pickerList)).substitute.productId).toBe("sr-low");
     const removerItem = await remover.compare(removerList);
     expect(removerItem.substitute.productId).toBe("sr-full");
-    expect(removerItem.chosenByShopper).toBe(false);
+    expect(removerItem.source).toBe("accucery");
   });
 
   it("goes with the Account when the Account is deleted", async () => {

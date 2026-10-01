@@ -126,6 +126,6 @@ describe("compareList", () => {
     expect(untouched.matched).toBe(true);
     if (!untouched.matched) throw new Error("expected a match");
     expect(untouched.substitute.productId).toBe("m1");
-    expect(untouched.chosenByShopper).toBe(false);
+    expect(untouched.source).toBe("accucery");
   });
 });

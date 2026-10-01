@@ -224,7 +224,7 @@ describe("matchItem with a Shopper's decisions", () => {
 
     expect(result.matched).toBe(true);
     if (!result.matched) throw new Error("expected a match");
-    expect(result.chosenByShopper).toBe(true);
+    expect(result.source).toBe("shopper");
     expect(result.substitute.substitute.productId).toBe("picked");
     expect(result.substitute.substitute.unitPrice).toBeCloseTo(19.99 / 750);
     // One search, for the pick itself — not an extra one for the list item.
@@ -243,7 +243,7 @@ describe("matchItem with a Shopper's decisions", () => {
 
     expect(result.matched).toBe(true);
     if (!result.matched) throw new Error("expected a match");
-    expect(result.chosenByShopper).toBe(false);
+    expect(result.source).toBe("accucery");
     expect(result.substitute.substitute.productId).toBe("match-1");
     expect(queries).toEqual(["Gone Milk 2 L", original.productName]);
   });
@@ -260,7 +260,7 @@ describe("matchItem with a Shopper's decisions", () => {
 
     expect(result.matched).toBe(true);
     if (!result.matched) throw new Error("expected a match");
-    expect(result.chosenByShopper).toBe(false);
+    expect(result.source).toBe("accucery");
     expect(result.substitute.substitute.productId).toBe("match-1");
   });
 
@@ -318,5 +318,71 @@ describe("matchItem with a Shopper's decisions", () => {
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).not.toContain("removed");
     expect(result.removed).toEqual([]);
+  });
+});
+
+// #103: a Popular Substitute is what enough other Shoppers chose. It
+// outranks Accucery's own guess, but never the Shopper's own decision.
+describe("matchItem with a Popular Substitute", () => {
+  const soap = product({ productId: "popular", name: "Dishwashing Liquid 750 ml", regularPrice: 19.99 });
+  const liquidMilk = product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 });
+
+  it("applies it, marked popular, even where Accucery's own match would win", async () => {
+    const { search } = catalogueByQuery({
+      [soap.name]: [soap],
+      [original.productName]: [liquidMilk],
+    });
+
+    const result = await matchItem(original, "checkers", search, { popular: { productId: "popular", name: soap.name } });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.source).toBe("popular");
+    expect(result.substitute.substitute.productId).toBe("popular");
+  });
+
+  it("is outranked by the Shopper's own pick", async () => {
+    const { search } = catalogueByQuery({
+      [soap.name]: [soap],
+      [liquidMilk.name]: [liquidMilk],
+    });
+
+    const result = await matchItem(original, "checkers", search, {
+      chosen: { productId: "match-1", name: liquidMilk.name },
+      popular: { productId: "popular", name: soap.name },
+    });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.source).toBe("shopper");
+    expect(result.substitute.substitute.productId).toBe("match-1");
+  });
+
+  it("is never applied for a Shopper who removed it", async () => {
+    const { search, queries } = catalogueByQuery({
+      [soap.name]: [soap],
+      [original.productName]: [liquidMilk, soap],
+    });
+
+    const result = await matchItem(original, "checkers", search, {
+      removed: new Set(["popular"]),
+      popular: { productId: "popular", name: soap.name },
+    });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.source).toBe("accucery");
+    expect(result.substitute.substitute.productId).toBe("match-1");
+    expect(queries).not.toContain(soap.name);
+  });
+
+  it("falls back to ordinary matching when the popular product is no longer sold", async () => {
+    const { search } = catalogueByQuery({ [original.productName]: [liquidMilk] });
+
+    const result = await matchItem(original, "checkers", search, { popular: { productId: "popular", name: soap.name } });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.source).toBe("accucery");
   });
 });

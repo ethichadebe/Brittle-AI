@@ -770,6 +770,13 @@ body {
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
   margin-left: 0.4rem;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.substitute-badge--popular {
+  color: #047857;
+  background: #d1fae5;
 }
 
 .compare-candidate-list {

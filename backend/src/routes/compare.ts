@@ -4,7 +4,7 @@ import { STORE_CONFIGS } from "@accucery/types";
 import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import { compareList } from "../services/compare.js";
-import { loadDecisions } from "../services/substituteDecisions.js";
+import { loadDecisions, loadPopular } from "../services/substituteDecisions.js";
 
 export async function compareRoutes(app: FastifyInstance) {
   // POST /lists/:id/compare
@@ -42,12 +42,17 @@ export async function compareRoutes(app: FastifyInstance) {
     });
 
     const targetStore = targetConfig.slug as StoreSlug;
-    const decisions = await loadDecisions(
-      req.accountId,
-      list.storeSlug as StoreSlug,
-      targetStore,
-      items.map((i) => i.productId)
-    );
+    const fromStore = list.storeSlug as StoreSlug;
+    const productIds = items.map((i) => i.productId);
+    const [decisions, popular] = await Promise.all([
+      loadDecisions(req.accountId, fromStore, targetStore, productIds),
+      loadPopular(fromStore, targetStore, productIds),
+    ]);
+    // A Popular Substitute rides alongside the Shopper's own decisions;
+    // matchItem is what makes their own outrank it (#103).
+    for (const [productId, pick] of popular) {
+      decisions.set(productId, { ...decisions.get(productId), popular: pick });
+    }
 
     const comparison = await compareList(
       items.map((i) => ({
