@@ -81,6 +81,7 @@ function rankCandidates(itemName: string, candidates: Product[]): { product: Pro
 export interface RemovedProduct {
   productId: string;
   name: string;
+  imageUrl: string;
 }
 
 export type MatchResult =
@@ -121,6 +122,7 @@ function priced(product: Product, size: { quantity: number; unit: MatchedProduct
     name: product.name,
     unitPrice: product.regularPrice / size.quantity,
     unit: size.unit,
+    imageUrl: product.imageUrl,
   };
 }
 
@@ -131,7 +133,7 @@ function priced(product: Product, size: { quantity: number; unit: MatchedProduct
  * built.
  */
 export async function matchItem(
-  item: { productId: string; productName: string; regularPrice: number },
+  item: { productId: string; productName: string; regularPrice: number; imageUrl: string },
   targetStore: StoreSlug,
   search: (store: StoreSlug, query: string) => Promise<Product[]>,
   decisions: ShopperDecisions = {}
@@ -143,6 +145,7 @@ export async function matchItem(
         name: item.productName,
         unitPrice: item.regularPrice / originalSize.quantity,
         unit: originalSize.unit,
+        imageUrl: item.imageUrl,
       }
     : undefined;
 
@@ -164,7 +167,7 @@ export async function matchItem(
   const removedIds = decisions.removed ?? new Set<string>();
   const removed = results
     .filter((p) => removedIds.has(p.productId))
-    .map((p) => ({ productId: p.productId, name: p.name }));
+    .map((p) => ({ productId: p.productId, name: p.name, imageUrl: p.imageUrl }));
   const candidates = results.filter((p) => !removedIds.has(p.productId));
 
   if (candidates.length === 0) {

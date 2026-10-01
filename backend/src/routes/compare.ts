@@ -56,6 +56,7 @@ export async function compareRoutes(app: FastifyInstance) {
         productName: i.productName,
         regularPrice: i.regularPrice.toNumber(),
         quantity: i.quantity,
+        imageUrl: i.imageUrl,
       })),
       targetStore,
       decisions

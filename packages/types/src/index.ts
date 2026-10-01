@@ -89,6 +89,9 @@ export interface ComparisonMatch {
   // other regardless of what one pack costs — see ADR 0002.
   unitPrice: number;
   unit: PackUnit;
+  // The store's own product photo, so a shopper can see a stand-in next to
+  // what it replaces rather than judging by name alone.
+  imageUrl: string;
 }
 
 export interface ComparisonMatchedItem {
@@ -114,6 +117,7 @@ export interface ComparisonMatchedItem {
 export interface ComparisonRemoved {
   productId: string;
   name: string;
+  imageUrl: string;
 }
 
 export interface ComparisonSuggestion {

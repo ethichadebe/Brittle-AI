@@ -12,6 +12,7 @@ const original = {
   productId: "orig-1",
   productName: "Clover Full Cream Milk 2 L",
   regularPrice: 29.99,
+  imageUrl: "https://example.com/clover.jpg",
 };
 
 function product(overrides: Partial<Product>): Product {
@@ -30,7 +31,7 @@ describe("matchItem", () => {
   it("matches to the best-named candidate and computes both Unit Prices", async () => {
     const search = catalogue([
       product({ productId: "unrelated", name: "White Bread 700 g", regularPrice: 19.99 }),
-      product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 }),
+      product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99, imageUrl: "https://example.com/match.jpg" }),
     ]);
 
     const result = await matchItem(original, "checkers", search);
@@ -38,6 +39,8 @@ describe("matchItem", () => {
     expect(result.matched).toBe(true);
     if (!result.matched) throw new Error("expected a match");
     expect(result.substitute.substitute.productId).toBe("match-1");
+    expect(result.substitute.substitute.imageUrl).toBe("https://example.com/match.jpg");
+    expect(result.substitute.original.imageUrl).toBe("https://example.com/clover.jpg");
     expect(result.substitute.original.unitPrice).toBeCloseTo(29.99 / 2000);
     expect(result.substitute.substitute.unitPrice).toBeCloseTo(27.99 / 2000);
     expect(result.substitute.original.unit).toBe("ml");
@@ -53,7 +56,7 @@ describe("matchItem", () => {
   });
 
   it("is unmatched when the list item's own name has no readable pack size", async () => {
-    const noSizeItem = { productId: "orig-2", productName: "Fresh Chicken Breast Fillets", regularPrice: 89.99 };
+    const noSizeItem = { productId: "orig-2", productName: "Fresh Chicken Breast Fillets", regularPrice: 89.99, imageUrl: "" };
     const search = catalogue([product({ productId: "c1", name: "Chicken Breast Fillets 1kg", regularPrice: 79.99 })]);
 
     const result = await matchItem(noSizeItem, "checkers", search);
@@ -110,6 +113,7 @@ describe("matchItem", () => {
       productId: "chips-1",
       productName: "Simba Mrs H.S. Ball's Chutney Flavoured Potato Chips 120g",
       regularPrice: 24.99,
+      imageUrl: "",
     };
     const search = catalogue([
       product({ productId: "jar-original", name: "Mrs H.S.Ball's Original Chutney 1.1 kg", regularPrice: 84.99 }),
@@ -203,6 +207,7 @@ const chips = {
   productId: "chips-1",
   productName: "Simba Mrs H.S. Ball's Chutney Flavoured Potato Chips 120g",
   regularPrice: 24.99,
+  imageUrl: "",
 };
 
 describe("matchItem with a Shopper's decisions", () => {
@@ -287,7 +292,7 @@ describe("matchItem with a Shopper's decisions", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.suggestions.map((s) => s.productId)).toEqual(["juice"]);
-    expect(result.removed).toEqual([{ productId: "soap", name: "Dishwashing Liquid 750 ml" }]);
+    expect(result.removed).toEqual([{ productId: "soap", name: "Dishwashing Liquid 750 ml", imageUrl: "" }]);
   });
 
   it("shows the item as not found, naming what was removed, when the removal left nothing", async () => {
@@ -301,7 +306,7 @@ describe("matchItem with a Shopper's decisions", () => {
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("removed by the shopper");
     expect(result.suggestions).toEqual([]);
-    expect(result.removed).toEqual([{ productId: "match-1", name: "Full Cream Milk 2 L" }]);
+    expect(result.removed).toEqual([{ productId: "match-1", name: "Full Cream Milk 2 L", imageUrl: "" }]);
   });
 
   it("does not claim a removal when the store simply has nothing", async () => {
