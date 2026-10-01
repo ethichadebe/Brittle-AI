@@ -60,10 +60,14 @@ Pricing a shopper's list against a store other than the one it was built for.
 _Avoid_: compare, price check, versus
 
 **Substitute**:
-A product at another store standing in for one on the shopper's list, chosen by
-Accucery rather than by the shopper, because that store does not sell what they
-picked.
+A product at another store standing in for one on the shopper's list in a
+**Comparison** total, because that store does not sell what they picked.
 _Avoid_: alternative, match, equivalent, similar product
+
+**Suggestion**:
+A candidate **Substitute** that Accucery was not confident enough to apply on
+its own, so offers instead; it becomes a **Substitute** when the shopper picks it.
+_Avoid_: option, candidate, alternative
 
 **Pack Size**:
 How much product one unit contains, as the store names it — 500 g, 2 L,
@@ -118,6 +122,9 @@ _Avoid_: region, area, branch pricing
   because a store that stocks less would otherwise appear cheaper
 - A total containing a **Substitute** is a total for a basket the shopper did
   not choose, so every **Substitute** is visible as such and can be removed
+- Accucery applies a **Substitute** itself only when it is confident; otherwise
+  it offers up to three **Suggestions** and the item stays out of the total
+  until the shopper picks one
 - A **Substitute** is judged against what it replaces by **Unit Price**, not by
   what one pack costs, because a smaller **Pack Size** is cheaper per pack and
   need not be cheaper per litre
@@ -168,6 +175,12 @@ _Avoid_: region, area, branch pricing
 > It applies again every time you complete another pair."
 
 ## Flagged ambiguities
+
+- **A Substitute was defined as "chosen by Accucery rather than by the
+  shopper"**, which stopped being true once a shopper could pick one of several
+  low-confidence candidates. Resolved: a picked **Suggestion** is a
+  **Substitute**. What makes something a **Substitute** is that it stands in
+  for an item in the total, not who chose it.
 
 - **"loyaltyPrice" is populated inconsistently across scrapers.** Pick n Pay
   reads `promotionDisplayType === "SMART_SHOPPER"`, which is genuinely a
