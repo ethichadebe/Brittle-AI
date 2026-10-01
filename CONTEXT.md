@@ -125,6 +125,12 @@ _Avoid_: region, area, branch pricing
 - Accucery applies a **Substitute** itself only when it is confident; otherwise
   it offers up to three **Suggestions** and the item stays out of the total
   until the shopper picks one
+- A **Shopper** with an **Account** who picks a **Suggestion** has chosen that
+  **Substitute** for that product at that **Store**; their later **Comparisons**
+  against the same **Store** apply it without asking, for as long as the store
+  still sells it
+- Leaving a **Substitute** Accucery applied in the total is not choosing it;
+  only a deliberate pick or removal is remembered
 - A **Substitute** is judged against what it replaces by **Unit Price**, not by
   what one pack costs, because a smaller **Pack Size** is cheaper per pack and
   need not be cheaper per litre
