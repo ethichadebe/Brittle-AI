@@ -99,9 +99,11 @@ function HomePage() {
                   <span className="store-stat-value">{totalItems(store.slug)}</span>
                 </div>
                 <div className="store-stat">
-                  <span className="store-stat-label">💳 Total price</span>
-                  <span className="store-stat-value">
-                    R {totalPrice(store.slug).toFixed(2)}
+                  <span className="store-stat-label">💳 Est. total</span>
+                  {/* An estimate from the latest prices seen, not Basket
+                      Prices — only an opened list stands behind its total (#77). */}
+                  <span className="store-stat-value" title="Estimated from the latest prices seen. Open a list for current prices.">
+                    ≈ R {totalPrice(store.slug).toFixed(2)}
                   </span>
                 </div>
               </div>

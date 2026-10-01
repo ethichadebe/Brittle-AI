@@ -8,8 +8,7 @@ import type { FastifyInstance, InjectOptions } from "fastify";
 vi.mock("../services/priceCache.js", () => ({
   getCachedPrices: vi.fn().mockResolvedValue([]),
   isFresh: vi.fn().mockReturnValue(true),
-  refreshInBackground: vi.fn(),
-  upsertCache: vi.fn().mockResolvedValue(undefined),
+  refreshItems: vi.fn().mockResolvedValue(undefined),
 }));
 
 let app: FastifyInstance;

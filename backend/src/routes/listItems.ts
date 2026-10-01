@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import type { ListItem, StoreSlug } from "@accucery/types";
-import { getCachedPrices, isFresh, refreshInBackground, upsertCache } from "../services/priceCache.js";
+import { basketPrices } from "../services/basketPrices.js";
+
+type ListItemRow = Parameters<typeof toListItem>[0];
 
 function toListItem(row: {
   id: string;
@@ -15,7 +17,7 @@ function toListItem(row: {
   quantity: number;
   isChecked: boolean;
   createdAt: Date;
-}): ListItem {
+}): Omit<ListItem, "priceObservedAt" | "priceStatus"> {
   return {
     id: row.id,
     listId: row.listId,
@@ -30,6 +32,31 @@ function toListItem(row: {
   };
 }
 
+// Every list item leaves the server priced at its Basket Price (#77): the
+// latest observed price, with how old it is and whether it's being
+// refreshed — never the price the shopper's phone sent when adding it.
+async function priced(storeSlug: StoreSlug, rows: ListItemRow[]): Promise<ListItem[]> {
+  const prices = await basketPrices(
+    storeSlug,
+    rows.map((r) => ({
+      productId: r.productId,
+      productName: r.productName,
+      regularPrice: r.regularPrice.toNumber(),
+      loyaltyPrice: r.loyaltyPrice?.toNumber() ?? null,
+    }))
+  );
+  return rows.map((row) => {
+    const price = prices.get(row.productId)!;
+    return {
+      ...toListItem(row),
+      regularPrice: price.regularPrice,
+      loyaltyPrice: price.loyaltyPrice,
+      priceObservedAt: price.observedAt?.toISOString() ?? null,
+      priceStatus: price.status,
+    };
+  });
+}
+
 export async function listItemsRoutes(app: FastifyInstance) {
   // GET /lists/:id/items
   app.get<{ Params: { id: string }; Reply: { items: ListItem[] } }>(
@@ -41,33 +68,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
       });
       if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
-      const productIds = list.items.map((i) => i.productId);
-      const cached = await getCachedPrices(list.storeSlug, productIds);
-      const cacheMap = new Map(cached.map((c) => [c.productId, c]));
-
-      // Trigger background refresh for stale or missing cache entries
-      const needsRefresh = list.items.filter((item) => {
-        const c = cacheMap.get(item.productId);
-        return !c || !isFresh(c.scrapedAt);
-      });
-      if (needsRefresh.length > 0) {
-        refreshInBackground(
-          list.storeSlug as StoreSlug,
-          needsRefresh.map((i) => ({ productId: i.productId, productName: i.productName }))
-        );
-      }
-
-      // Overlay cached prices onto items
-      const items = list.items.map((item) => {
-        const c = cacheMap.get(item.productId);
-        const base = toListItem(item);
-        if (!c) return base;
-        return {
-          ...base,
-          regularPrice: c.regularPrice.toNumber(),
-          loyaltyPrice: c.loyaltyPrice?.toNumber() ?? null,
-        };
-      });
+      const items = await priced(list.storeSlug as StoreSlug, list.items);
 
       return { items };
     }
@@ -76,18 +77,13 @@ export async function listItemsRoutes(app: FastifyInstance) {
   // POST /lists/:id/items
   app.post<{
     Params: { id: string };
-    Body: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice" | "quantity"> & {
-      // Not part of ListItem — the price a shopper adds is a snapshot, but the
-      // Price Zone it was scraped in is only meaningful for price_cache's key,
-      // relayed from the /search result the item came from. See #75.
-      zone: string;
-    };
+    Body: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice" | "quantity">;
     Reply: ListItem;
   }>("/lists/:id/items", async (req, reply) => {
     const list = await findOwnedList(req.params.id, ownerKey(req));
     if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
-    const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity, zone } = req.body;
+    const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity } = req.body;
     const addedQuantity = quantity ?? 1;
 
     // The same product added twice is the same item, not two rows — see #83.
@@ -119,18 +115,14 @@ export async function listItemsRoutes(app: FastifyInstance) {
           },
         });
 
-    // Populate cache immediately — prices are fresh from the scraper
-    await upsertCache({
-      storeSlug: list.storeSlug,
-      productId,
-      productName,
-      imageUrl,
-      zone,
-      regularPrice: Number(regularPrice),
-      loyaltyPrice: loyaltyPrice != null ? Number(loyaltyPrice) : null,
-    });
-
-    return reply.status(existing ? 200 : 201).send(toListItem(row));
+    // Deliberately not written to price_cache (#77). The search that showed
+    // this product already put its price there, stamped with when it was
+    // actually observed — up to a day ago for a cached search. Restamping
+    // it here as "just now" would let a day-old price skip the refresh a
+    // list total depends on, and would let any client set the shared price
+    // every other shopper sees.
+    const [item] = await priced(list.storeSlug as StoreSlug, [row]);
+    return reply.status(existing ? 200 : 201).send(item);
   });
 
   // PATCH /lists/:id/items/:itemId
@@ -154,7 +146,8 @@ export async function listItemsRoutes(app: FastifyInstance) {
         ...(isChecked !== undefined && { isChecked }),
       },
     });
-    return toListItem(row);
+    const [item] = await priced(list.storeSlug as StoreSlug, [row]);
+    return item;
   });
 
   // DELETE /lists/:id/items/:itemId

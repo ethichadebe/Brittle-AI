@@ -92,9 +92,7 @@ export const api = {
 
     add: (
       listId: string,
-      item: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice"> & {
-        zone: string;
-      }
+      item: Pick<ListItem, "productId" | "productName" | "imageUrl" | "regularPrice" | "loyaltyPrice">
     ) =>
       request<ListItem>(`/lists/${listId}/items`, {
         method: "POST",
