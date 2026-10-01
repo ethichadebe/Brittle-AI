@@ -684,7 +684,7 @@ body {
 
 .compare-item-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.65rem 0;
   border-bottom: 1px solid #f3f4f6;
@@ -694,12 +694,47 @@ body {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+  margin: 13px 0 0;
   accent-color: #2563eb;
 }
 
+/* Holds a not-found row's photo in the same column as a matched row's,
+   which has a checkbox before it. */
+.compare-item-checkbox-spacer {
+  width: 18px;
+  flex-shrink: 0;
+}
+
 .compare-item-was {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.75rem;
   color: #9ca3af;
+}
+
+/* Product photos in the compare sheet. Packshots, so contained rather than
+   cropped — a cropped jar and a cropped bag of chips look alike. */
+.compare-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: #f3f4f6;
+}
+
+.compare-thumb--small {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.compare-removed-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.35rem;
 }
 
 .compare-item-info--unmatched { opacity: 0.6; }
@@ -754,6 +789,16 @@ body {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.compare-candidate .compare-thumb {
+  width: 36px;
+  height: 36px;
+}
+
+.compare-candidate .item-name {
+  flex: 1;
+  min-width: 0;
 }
 
 .compare-candidate--chosen {

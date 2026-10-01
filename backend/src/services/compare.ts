@@ -8,6 +8,7 @@ interface CompareListItem {
   productName: string;
   regularPrice: number;
   quantity: number;
+  imageUrl: string;
 }
 
 export type Comparison = Omit<ComparisonResult, "storeSlug">;
@@ -25,7 +26,12 @@ export async function compareList(
   const results = await Promise.all(
     items.map(async (item): Promise<ComparisonItem> => {
       const match = await matchItem(
-        { productId: item.productId, productName: item.productName, regularPrice: item.regularPrice },
+        {
+          productId: item.productId,
+          productName: item.productName,
+          regularPrice: item.regularPrice,
+          imageUrl: item.imageUrl,
+        },
         targetStore,
         search,
         decisions.get(item.productId)

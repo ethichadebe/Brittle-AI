@@ -186,6 +186,10 @@ function ListPage() {
     await runCompare(targetStore);
   };
 
+  // The photo of the shopper's own list item, shown beside its stand-in.
+  // Already loaded with the list, so the comparison doesn't carry it.
+  const ownImage = (listItemId: string) => items.find((i) => i.id === listItemId)?.imageUrl ?? "";
+
   const storeName = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? slug;
 
   // Recomputed on the client so unchecking a Substitute, or picking a
@@ -501,42 +505,63 @@ function ListPage() {
                         checked={!excludedItems.has(item.listItemId)}
                         onChange={() => toggleExcluded(item)}
                       />
+                      <img className="compare-thumb" src={imgSrc(item.substitute.imageUrl)} alt="" />
                       <div className="item-info">
                         <span className="item-name">
                           {item.substitute.name}
                           <span className="substitute-badge">{item.chosenByShopper ? "Your pick" : "Substitute"}</span>
                         </span>
-                        <span className="compare-item-was">was: {item.productName}</span>
+                        <span className="compare-item-was">
+                          <img className="compare-thumb compare-thumb--small" src={imgSrc(ownImage(item.listItemId))} alt="" />
+                          was: {item.productName}
+                        </span>
                         <span className="item-price">R {item.cost.toFixed(2)}</span>
                       </div>
                     </>
                   ) : (
-                    <div className="item-info compare-item-info--unmatched">
-                      <span className="item-name">{item.productName}</span>
-                      <span className="compare-item-unmatched-note">
-                        Not found at {storeName(comparison.storeSlug)}
-                      </span>
-                      {item.removed.length > 0 && (
-                        <span className="compare-item-removed-note">
-                          You removed {item.removed.map((r) => r.name).join(", ")}
-                          <button className="compare-undo" onClick={() => undoRemovals(item)}>Undo</button>
-                        </span>
-                      )}
-                      {item.suggestions.length > 0 && (
-                        <ul className="compare-candidate-list">
-                          {item.suggestions.map((suggestion, index) => (
-                            <li
-                              key={suggestion.substitute.productId}
-                              className={`compare-candidate${selectedSuggestion.get(item.listItemId) === index ? " compare-candidate--chosen" : ""}`}
-                              onClick={() => selectSuggestion(item, index)}
-                            >
-                              <span className="item-name">{suggestion.substitute.name}</span>
-                              <span className="item-price">R {suggestion.cost.toFixed(2)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    <>
+                      <span className="compare-item-checkbox-spacer" />
+                      <img
+                        className="compare-thumb compare-item-info--unmatched"
+                        src={imgSrc(ownImage(item.listItemId))}
+                        alt=""
+                      />
+                      <div className="item-info">
+                        <div className="compare-item-info--unmatched">
+                          <span className="item-name">{item.productName}</span>
+                          <span className="compare-item-unmatched-note">
+                            Not found at {storeName(comparison.storeSlug)}
+                          </span>
+                        </div>
+                        {item.removed.length > 0 && (
+                          <span className="compare-item-removed-note">
+                            You removed
+                            {item.removed.map((r) => (
+                              <span key={r.productId} className="compare-removed-product">
+                                <img className="compare-thumb compare-thumb--small" src={imgSrc(r.imageUrl)} alt="" />
+                                {r.name}
+                              </span>
+                            ))}
+                            <button className="compare-undo" onClick={() => undoRemovals(item)}>Undo</button>
+                          </span>
+                        )}
+                        {item.suggestions.length > 0 && (
+                          <ul className="compare-candidate-list">
+                            {item.suggestions.map((suggestion, index) => (
+                              <li
+                                key={suggestion.substitute.productId}
+                                className={`compare-candidate${selectedSuggestion.get(item.listItemId) === index ? " compare-candidate--chosen" : ""}`}
+                                onClick={() => selectSuggestion(item, index)}
+                              >
+                                <img className="compare-thumb" src={imgSrc(suggestion.substitute.imageUrl)} alt="" />
+                                <span className="item-name">{suggestion.substitute.name}</span>
+                                <span className="item-price">R {suggestion.cost.toFixed(2)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </>
                   )}
                 </li>
               ))}

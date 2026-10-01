@@ -27,7 +27,7 @@ describe("compareList", () => {
     mockSearch.mockResolvedValue([product({ productId: "m1", name: "Milk 1 L", regularPrice: 8 })]);
 
     const result = await compareList(
-      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 2 }],
+      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 2, imageUrl: "" }],
       "checkers" as StoreSlug
     );
 
@@ -45,7 +45,7 @@ describe("compareList", () => {
     mockSearch.mockResolvedValue([]); // target store has nothing matching
 
     const result = await compareList(
-      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 1 }],
+      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 1, imageUrl: "" }],
       "checkers" as StoreSlug
     );
 
@@ -63,8 +63,8 @@ describe("compareList", () => {
 
     const result = await compareList(
       [
-        { id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 1 },
-        { id: "li2", productId: "orig-2", productName: "Fresh Chicken Fillets", regularPrice: 90, quantity: 1 },
+        { id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 1, imageUrl: "" },
+        { id: "li2", productId: "orig-2", productName: "Fresh Chicken Fillets", regularPrice: 90, quantity: 1, imageUrl: "" },
       ],
       "checkers" as StoreSlug
     );
@@ -85,7 +85,7 @@ describe("compareList", () => {
     mockSearch.mockResolvedValue([product({ productId: "s1", name: "Dishwashing Liquid 1 L", regularPrice: 20 })]);
 
     const result = await compareList(
-      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 2 }],
+      [{ id: "li1", productId: "orig-1", productName: "Milk 2 L", regularPrice: 30, quantity: 2, imageUrl: "" }],
       "checkers" as StoreSlug
     );
 
@@ -111,8 +111,8 @@ describe("compareList", () => {
 
     const result = await compareList(
       [
-        { id: "li1", productId: "orig-1", productName: "Full Cream Milk 2 L", regularPrice: 30, quantity: 1 },
-        { id: "li2", productId: "orig-2", productName: "Full Cream Milk 2 L", regularPrice: 30, quantity: 1 },
+        { id: "li1", productId: "orig-1", productName: "Full Cream Milk 2 L", regularPrice: 30, quantity: 1, imageUrl: "" },
+        { id: "li2", productId: "orig-2", productName: "Full Cream Milk 2 L", regularPrice: 30, quantity: 1, imageUrl: "" },
       ],
       "checkers" as StoreSlug,
       new Map([["orig-1", { removed: new Set(["m1"]) }]])
@@ -121,7 +121,7 @@ describe("compareList", () => {
     const [removedFor, untouched] = result.items;
     expect(removedFor.matched).toBe(false);
     if (removedFor.matched) throw new Error("expected no match");
-    expect(removedFor.removed).toEqual([{ productId: "m1", name: "Full Cream Milk 2 L" }]);
+    expect(removedFor.removed).toEqual([{ productId: "m1", name: "Full Cream Milk 2 L", imageUrl: "" }]);
 
     expect(untouched.matched).toBe(true);
     if (!untouched.matched) throw new Error("expected a match");
