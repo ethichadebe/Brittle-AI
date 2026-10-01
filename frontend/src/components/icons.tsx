@@ -96,3 +96,11 @@ export function MinusIcon() {
     </svg>
   );
 }
+
+export function CloseIcon() {
+  return (
+    <svg {...iconProps} strokeWidth={2.5}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}

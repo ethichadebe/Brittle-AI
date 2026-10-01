@@ -7,7 +7,6 @@ import type {
   ComparisonUnmatchedItem,
   GroceryList,
   ListItem,
-  Product,
   StoreSlug,
   SubstituteChoice,
   SubstituteSource,
@@ -34,9 +33,7 @@ import {
   SwapIcon,
   TrashIcon,
 } from "../components/icons";
-
-// Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
-const SEARCH_DEBOUNCE_MS = 350;
+import { AddItems } from "../components/AddItems";
 
 // Who put a Substitute in a comparison total, as the shopper reads it.
 const SOURCE_BADGE: Record<SubstituteSource, string> = {
@@ -62,11 +59,9 @@ function ListPage() {
   const [loaded, setLoaded] = useState(false);
   const [listName, setListName] = useState("");
   const [storeSlug, setStoreSlug] = useState<StoreSlug | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
-  const [addingItem, setAddingItem] = useState(false);
+  const [adding, setAdding] = useState(false);
+  // "5 items added", shown briefly after the add screen closes.
+  const [addedNote, setAddedNote] = useState<string | null>(null);
   const { account } = useAccountSession();
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [showStorePicker, setShowStorePicker] = useState(false);
@@ -82,7 +77,6 @@ function ListPage() {
   const { isEnabled } = useLoyaltySettings();
   const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
-  const searchRef = useRef<HTMLInputElement>(null);
   const [trolleyFolded, setTrolleyFolded] = useStoredFlag("accucery:trolleyFolded", false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -124,34 +118,6 @@ function ListPage() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reloadItems is rebuilt each render; listId is what it depends on
   }, [items, updatingPrices, listId]);
-
-  useEffect(() => {
-    if (showSearch) requestAnimationFrame(() => searchRef.current?.focus());
-  }, [showSearch]);
-
-  // Wait for a pause in typing before searching. The backend runs one scrape at
-  // a time per store, so a request per keystroke queues up behind itself:
-  // typing "banana" measured 18.6s against 2.9s for a single search. That reads
-  // as a broken Checkers search, while Pick n Pay — six times faster per
-  // request — still looks fine.
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      if (!query.trim() || !storeSlug) {
-        setSearchResults([]);
-        setSearching(false);
-        return;
-      }
-      setSearching(true);
-      api.search(storeSlug, query.trim(), controller.signal)
-        .then((products) => { if (!controller.signal.aborted) setSearchResults(products); })
-        .catch(() => { if (!controller.signal.aborted) setSearchResults([]); })
-        .finally(() => { if (!controller.signal.aborted) setSearching(false); });
-    }, SEARCH_DEBOUNCE_MS);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [query, storeSlug]);
-
-  const closeSearch = () => { setShowSearch(false); setQuery(""); setSearchResults([]); };
 
   // Per ADR 0004, comparing is the one thing an anonymous Shopper cannot do
   // — prompted to sign in, never silently blocked or silently allowed.
@@ -259,33 +225,6 @@ function ListPage() {
       }, 0)
     : 0;
 
-  const addItem = async (product: Product) => {
-    // A second tap on another result, before the first add has round-tripped,
-    // must not also go through — otherwise a burst of taps adds every item
-    // the shopper touched, not just the one they meant to.
-    if (addingItem) return;
-    setAddingItem(true);
-    try {
-      const existing = items.find((i) => i.productId === product.productId);
-      if (existing) {
-        const updated = await api.items.patch(listId, existing.id, { quantity: existing.quantity + 1 });
-        setItems((prev) => prev.map((i) => (i.id === existing.id ? updated : i)));
-      } else {
-        const item = await api.items.add(listId, {
-          productId: product.productId,
-          productName: product.name,
-          imageUrl: product.imageUrl,
-          regularPrice: product.regularPrice,
-          loyaltyPrice: product.loyaltyPrice,
-        });
-        setItems((prev) => [...prev, item]);
-      }
-      closeSearch();
-    } finally {
-      setAddingItem(false);
-    }
-  };
-
   // Ticking is optimistic: in a shop aisle a tick has to land at once, not
   // after a round trip. If the server refuses, the list is reloaded as it is.
   const patchItem = (item: ListItem, patch: Partial<Pick<ListItem, "quantity" | "isChecked">>) => {
@@ -365,6 +304,22 @@ function ListPage() {
   };
 
   const store = STORE_CONFIGS.find((s) => s.slug === storeSlug);
+
+  // From the add screen (#114): an item it added or merged into, or one it
+  // took back off.
+  const savedItem = (item: ListItem) =>
+    setItems((prev) => (prev.some((i) => i.id === item.id) ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item]));
+  const removedItem = (itemId: string) => setItems((prev) => prev.filter((i) => i.id !== itemId));
+
+  const finishAdding = (count: number) => {
+    setAdding(false);
+    if (count > 0) setAddedNote(`${count} item${count === 1 ? "" : "s"} added`);
+  };
+  useEffect(() => {
+    if (!addedNote) return;
+    const timer = setTimeout(() => setAddedNote(null), 3000);
+    return () => clearTimeout(timer);
+  }, [addedNote]);
   const toGet = items.filter((i) => !i.isChecked);
   const inTrolley = items.filter((i) => i.isChecked);
   const progress = summary.itemCount > 0 ? summary.checkedCount / summary.itemCount : 0;
@@ -410,9 +365,9 @@ function ListPage() {
                 <PencilIcon />
                 Rename list
               </button>
-              <button role="menuitem" onClick={() => navigate({ to: "/settings" })}>
+              <button role="menuitem" onClick={() => navigate({ to: "/profile" })}>
                 <SettingsIcon />
-                Loyalty cards &amp; settings
+                Loyalty cards &amp; profile
               </button>
             </div>
           </>
@@ -454,9 +409,14 @@ function ListPage() {
             <button className="snackbar-action" onClick={deletion.undo}>UNDO</button>
           </div>
         )}
+        {addedNote && !deletion.undoable && (
+          <div className="snackbar snackbar--docked" role="status">
+            <span className="snackbar-text">{addedNote}</span>
+          </div>
+        )}
         <button
-          className={`add-pill${deletion.undoable ? " add-pill--raised" : ""}`}
-          onClick={() => setShowSearch(true)}
+          className={`add-pill${deletion.undoable || addedNote ? " add-pill--raised" : ""}`}
+          onClick={() => setAdding(true)}
         >
           <PlusIcon />
           Add
@@ -480,6 +440,19 @@ function ListPage() {
           Compare prices
         </button>
       </div>
+
+      {adding && storeSlug && (
+        <AddItems
+          listId={listId}
+          storeSlug={storeSlug}
+          storeName={store?.name ?? storeSlug}
+          useLoyalty={useLoyalty}
+          items={items}
+          onSaved={savedItem}
+          onRemoved={removedItem}
+          onDone={finishAdding}
+        />
+      )}
 
       {detailSheet.rendered && detailItem && (
         <ItemSheet
@@ -521,51 +494,6 @@ function ListPage() {
         </div>
       )}
 
-      {/* Search bottom sheet — always rendered so the input is in the DOM for instant focus on mobile */}
-      <div
-        className={`search-overlay${showSearch ? " search-overlay--open" : ""}`}
-        onClick={closeSearch}
-      >
-        <div className="search-sheet" onClick={(e) => e.stopPropagation()}>
-          <input
-            ref={searchRef}
-            className="modal-input"
-            placeholder="Search products…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <ul className={`search-results${addingItem ? " search-results--busy" : ""}`}>
-            {searching && (
-              <li className="item-empty">Searching…</li>
-            )}
-            {!searching && query.trim() && searchResults.length === 0 && (
-              <li className="item-empty">No products found</li>
-            )}
-            {!searching && !query.trim() && (
-              <li className="item-empty">Type to search products</li>
-            )}
-            {searchResults.map((product) => (
-              <li
-                key={product.productId}
-                className="search-result-row"
-                onClick={() => addItem(product)}
-              >
-                <img className="item-img" src={imgSrc(product.imageUrl)} alt={product.name} />
-                <div className="item-info">
-                  <span className="item-name">{product.name}</span>
-                  <span className="item-price">
-                    R {product.regularPrice.toFixed(2)}
-                    {product.loyaltyPrice !== null && (
-                      <span className="item-loyalty-price"> · R {product.loyaltyPrice.toFixed(2)}</span>
-                    )}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
       {/* Sign-in prompt — per ADR 0004, compare is the one thing an
           anonymous Shopper cannot do */}
       {showSignInPrompt && (
@@ -577,7 +505,7 @@ function ListPage() {
             </p>
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={() => setShowSignInPrompt(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => navigate({ to: "/account" })}>Sign in</button>
+              <button className="btn btn-primary" onClick={() => navigate({ to: "/sign-in", search: { then: `/lists/${listId}` } })}>Sign in</button>
             </div>
           </div>
         </div>

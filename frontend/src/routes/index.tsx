@@ -102,8 +102,8 @@ function HomePage() {
         <h1>Lists</h1>
         <button
           className="avatar"
-          aria-label={account ? `Account and settings (${account.email})` : "Settings and sign in"}
-          onClick={() => navigate({ to: "/settings" })}
+          aria-label={account ? `Profile (${account.email})` : "Profile and sign in"}
+          onClick={() => navigate({ to: "/profile" })}
         >
           {avatar || <PersonIcon />}
         </button>

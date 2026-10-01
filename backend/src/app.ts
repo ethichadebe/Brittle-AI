@@ -9,6 +9,7 @@ import { imageProxyRoutes } from "./routes/imageProxy.js";
 import { accountsRoutes } from "./routes/accounts.js";
 import { compareRoutes } from "./routes/compare.js";
 import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
+import { recentProductsRoutes } from "./routes/recentProducts.js";
 import type { HealthResponse } from "@accucery/types";
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
@@ -36,6 +37,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   await app.register(accountsRoutes);
   await app.register(compareRoutes);
   await app.register(substituteDecisionsRoutes);
+  await app.register(recentProductsRoutes);
 
   return app;
 }
