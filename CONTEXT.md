@@ -135,6 +135,9 @@ _Avoid_: region, area, branch pricing
   item at that **Store**, not everywhere; the item shows as unmatched, naming
   what was removed, rather than vanishing, until the **Shopper** undoes it
 - A **Shopper** holds one decision per pairing, and the most recent one wins
+- A decision belongs to the **Shopper** and the product, not to a **List**, so it
+  applies on every list that product is on; the same product bought at a
+  different **Store** is a different product, so the decision does not follow it
 - A **Substitute** is judged against what it replaces by **Unit Price**, not by
   what one pack costs, because a smaller **Pack Size** is cheaper per pack and
   need not be cheaper per litre
