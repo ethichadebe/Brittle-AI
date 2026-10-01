@@ -40,6 +40,9 @@ export interface GroceryList {
   name: string;
   createdAt: string;
   itemCount: number;
+  // How many of those items are ticked off — the progress shown on the
+  // list's card.
+  checkedCount: number;
   // An estimate from the latest prices Accucery has observed, not Basket
   // Prices — only an opened list's total stands on those (#77).
   totalPrice: number;

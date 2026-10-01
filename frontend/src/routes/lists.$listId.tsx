@@ -402,7 +402,7 @@ function ListPage() {
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Remove item?</h3>
-            <p style={{ margin: "0.5rem 0 1.25rem", color: "#6b7280", fontSize: "0.9rem" }}>
+            <p style={{ margin: "0.5rem 0 1.25rem", color: "var(--muted)", fontSize: "0.9rem" }}>
               {pendingItem?.productName}
             </p>
             <div className="modal-actions">
@@ -469,7 +469,7 @@ function ListPage() {
         <div className="modal-backdrop" onClick={() => setShowSignInPrompt(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Sign in to compare</h3>
-            <p style={{ margin: "0.5rem 0 1.25rem", color: "#6b7280", fontSize: "0.9rem" }}>
+            <p style={{ margin: "0.5rem 0 1.25rem", color: "var(--muted)", fontSize: "0.9rem" }}>
               Comparing a list against another store needs an account, so it can't be spent without limit.
             </p>
             <div className="modal-actions">
@@ -505,7 +505,7 @@ function ListPage() {
         <div className="modal-backdrop">
           <div className="modal" style={{ textAlign: "center" }}>
             <h3>Comparing prices…</h3>
-            <p style={{ color: "#6b7280", fontSize: "0.9rem" }}>This can take a moment for a longer list.</p>
+            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>This can take a moment for a longer list.</p>
           </div>
         </div>
       )}
@@ -515,7 +515,7 @@ function ListPage() {
         <div className="modal-backdrop" onClick={() => setCompareError(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Couldn't compare</h3>
-            <p style={{ margin: "0.5rem 0 1.25rem", color: "#6b7280", fontSize: "0.9rem" }}>{compareError}</p>
+            <p style={{ margin: "0.5rem 0 1.25rem", color: "var(--muted)", fontSize: "0.9rem" }}>{compareError}</p>
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={() => setCompareError(null)}>Close</button>
             </div>
