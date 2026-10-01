@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ListsNewRouteImport } from './routes/lists.new'
 import { Route as ListsListIdRouteImport } from './routes/lists.$listId'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ListsNewRoute = ListsNewRouteImport.update({
+  id: '/lists/new',
+  path: '/lists/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ListsListIdRoute = ListsListIdRouteImport.update({
   id: '/lists/$listId',
   path: '/lists/$listId',
@@ -40,12 +46,14 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/settings': typeof SettingsRoute
   '/lists/$listId': typeof ListsListIdRoute
+  '/lists/new': typeof ListsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/settings': typeof SettingsRoute
   '/lists/$listId': typeof ListsListIdRoute
+  '/lists/new': typeof ListsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,20 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/settings': typeof SettingsRoute
   '/lists/$listId': typeof ListsListIdRoute
+  '/lists/new': typeof ListsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/account' | '/settings' | '/lists/$listId'
+  fullPaths: '/' | '/account' | '/settings' | '/lists/$listId' | '/lists/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/account' | '/settings' | '/lists/$listId'
-  id: '__root__' | '/' | '/account' | '/settings' | '/lists/$listId'
+  to: '/' | '/account' | '/settings' | '/lists/$listId' | '/lists/new'
+  id:
+    | '__root__'
+    | '/'
+    | '/account'
+    | '/settings'
+    | '/lists/$listId'
+    | '/lists/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +82,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   SettingsRoute: typeof SettingsRoute
   ListsListIdRoute: typeof ListsListIdRoute
+  ListsNewRoute: typeof ListsNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,6 +108,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lists/new': {
+      id: '/lists/new'
+      path: '/lists/new'
+      fullPath: '/lists/new'
+      preLoaderRoute: typeof ListsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lists/$listId': {
       id: '/lists/$listId'
       path: '/lists/$listId'
@@ -107,6 +130,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   SettingsRoute: SettingsRoute,
   ListsListIdRoute: ListsListIdRoute,
+  ListsNewRoute: ListsNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

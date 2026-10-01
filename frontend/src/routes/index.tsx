@@ -17,7 +17,6 @@ const UNDO_MS = 5000;
 // Width of the Rename + Delete buttons a card slides over to reveal.
 const ACTIONS_WIDTH = 168;
 
-const ACTIVE_STORES = STORE_CONFIGS.filter((s) => s.active);
 const storeOf = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug);
 
 interface PendingDelete {
@@ -130,37 +129,7 @@ function HomePage() {
     }
   };
 
-  // New list. Until #111 replaces it, this is the old flow with a store
-  // picker in front, since the store cards it hung off are gone.
-  const [showCreate, setShowCreate] = useState(false);
-  const createSheet = useAnimatedMount(showCreate);
-  const [newStore, setNewStore] = useState<StoreSlug>(ACTIVE_STORES[0].slug);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const openCreate = () => {
-    // The store last shopped at is the likeliest next one.
-    setNewStore(lists?.[0]?.storeSlug ?? ACTIVE_STORES[0].slug);
-    setNewName("");
-    setCreateError(null);
-    setShowCreate(true);
-  };
-
-  const handleCreate = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    setCreating(true);
-    try {
-      const list = await api.lists.create(newStore, name);
-      setShowCreate(false);
-      void navigate({ to: "/lists/$listId", params: { listId: list.id } });
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setCreating(false);
-    }
-  };
+  const openCreate = () => navigate({ to: "/lists/new" });
 
   const avatar = account ? initials(account.email) : "";
 
@@ -256,48 +225,6 @@ function HomePage() {
         </div>
       )}
 
-      {createSheet.rendered && (
-        <div
-          className={`modal-backdrop${createSheet.closing ? " modal-backdrop--closing" : ""}`}
-          onClick={() => setShowCreate(false)}
-        >
-          <div className="modal" role="dialog" aria-label="New list" onClick={(e) => e.stopPropagation()}>
-            <h3>New list</h3>
-            <div className="store-picker" role="radiogroup" aria-label="Store">
-              {ACTIVE_STORES.map((s) => (
-                <button
-                  key={s.slug}
-                  role="radio"
-                  aria-checked={newStore === s.slug}
-                  className={`store-chip${newStore === s.slug ? " store-chip--on" : ""}`}
-                  onClick={() => setNewStore(s.slug)}
-                >
-                  <span className="store-dot" style={{ background: s.color }} />
-                  {s.name}
-                </button>
-              ))}
-            </div>
-            <input
-              className="modal-input"
-              aria-label="List name"
-              placeholder='e.g. "Weekly shop"'
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            />
-            {createError && <p className="form-error">{createError}</p>}
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" disabled={!newName.trim() || creating} onClick={handleCreate}>
-                {creating ? "Creating…" : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
