@@ -148,6 +148,8 @@ _Avoid_: region, area, branch pricing
   removals count against it: a pairing is popular while enough **Shoppers**
   have chosen it and clearly more chose it than removed it, and stops being
   popular by itself when that is no longer true
+- Only an established **Account** counts towards popularity, so that creating
+  accounts is not a way to make a pairing popular
 - A decision belongs to the **Shopper** and the product, not to a **List**, so it
   applies on every list that product is on; the same product bought at a
   different **Store** is a different product, so the decision does not follow it
