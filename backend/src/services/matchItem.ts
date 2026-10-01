@@ -78,8 +78,18 @@ function rankCandidates(itemName: string, candidates: Product[]): { product: Pro
     .sort((a, b) => b.score - a.score);
 }
 
+export interface RemovedProduct {
+  productId: string;
+  name: string;
+}
+
 export type MatchResult =
-  | { matched: true; substitute: Substitute }
+  | {
+      matched: true;
+      substitute: Substitute;
+      // The Shopper's own earlier pick (#91), not one Accucery chose.
+      chosenByShopper: boolean;
+    }
   | {
       matched: false;
       reason: string;
@@ -90,7 +100,29 @@ export type MatchResult =
       // enough to auto-apply, best first. Empty when nothing at the
       // target store even had a comparable, readable pack size at all.
       suggestions: MatchedProduct[];
+      // Products the search returned that the Shopper had removed for
+      // this item (#91), and so were left out.
+      removed: RemovedProduct[];
     };
+
+// What a Shopper has already decided about this item's Substitutes (#91).
+export interface ShopperDecisions {
+  // Products removed as a Substitute for this item — never applied or
+  // suggested again.
+  removed?: ReadonlySet<string>;
+  // A Substitute picked for this item earlier, applied without asking
+  // while the store still sells it.
+  chosen?: { productId: string; name: string };
+}
+
+function priced(product: Product, size: { quantity: number; unit: MatchedProduct["unit"] }): MatchedProduct {
+  return {
+    productId: product.productId,
+    name: product.name,
+    unitPrice: product.regularPrice / size.quantity,
+    unit: size.unit,
+  };
+}
 
 /**
  * Matches a list item to its equivalent at another store, per #89 / ADR
@@ -101,28 +133,56 @@ export type MatchResult =
 export async function matchItem(
   item: { productId: string; productName: string; regularPrice: number },
   targetStore: StoreSlug,
-  search: (store: StoreSlug, query: string) => Promise<Product[]>
+  search: (store: StoreSlug, query: string) => Promise<Product[]>,
+  decisions: ShopperDecisions = {}
 ): Promise<MatchResult> {
-  const candidates = await search(targetStore, item.productName);
+  const originalSize = parsePackSize(item.productName);
+  const original: MatchedProduct | undefined = originalSize
+    ? {
+        productId: item.productId,
+        name: item.productName,
+        unitPrice: item.regularPrice / originalSize.quantity,
+        unit: originalSize.unit,
+      }
+    : undefined;
+
+  // A remembered pick is looked for by its own name: no store can be asked
+  // for a product by id, and searching for it instead of for the list
+  // item keeps this to one search when it's still there. Gone — or no
+  // longer comparable — falls through to ordinary matching, and the
+  // decision itself is kept for when it comes back.
+  if (decisions.chosen && originalSize && original) {
+    const { productId, name } = decisions.chosen;
+    const found = (await search(targetStore, name)).find((p) => p.productId === productId);
+    const foundSize = found && parsePackSize(found.name);
+    if (found && foundSize && foundSize.unit === originalSize.unit) {
+      return { matched: true, chosenByShopper: true, substitute: { original, substitute: priced(found, foundSize) } };
+    }
+  }
+
+  const results = await search(targetStore, item.productName);
+  const removedIds = decisions.removed ?? new Set<string>();
+  const removed = results
+    .filter((p) => removedIds.has(p.productId))
+    .map((p) => ({ productId: p.productId, name: p.name }));
+  const candidates = results.filter((p) => !removedIds.has(p.productId));
+
   if (candidates.length === 0) {
+    const reason =
+      removed.length > 0
+        ? `everything ${targetStore} has matching "${item.productName}" was removed by the shopper`
+        : `${targetStore} has no products matching "${item.productName}"`;
+    return { matched: false, reason, suggestions: [], removed };
+  }
+
+  if (!originalSize || !original) {
     return {
       matched: false,
-      reason: `${targetStore} has no products matching "${item.productName}"`,
+      reason: `pack size could not be read from "${item.productName}"`,
       suggestions: [],
+      removed,
     };
   }
-
-  const originalSize = parsePackSize(item.productName);
-  if (!originalSize) {
-    return { matched: false, reason: `pack size could not be read from "${item.productName}"`, suggestions: [] };
-  }
-
-  const original: MatchedProduct = {
-    productId: item.productId,
-    name: item.productName,
-    unitPrice: item.regularPrice / originalSize.quantity,
-    unit: originalSize.unit,
-  };
 
   // Mass and volume are not the same dimension, and a candidate with no
   // readable Pack Size at all can't be priced by Unit Price either — both
@@ -133,15 +193,7 @@ export async function matchItem(
   for (const { product, score } of rankCandidates(item.productName, candidates)) {
     const candidateSize = parsePackSize(product.name);
     if (!candidateSize || candidateSize.unit !== originalSize.unit) continue;
-    viable.push({
-      candidate: {
-        productId: product.productId,
-        name: product.name,
-        unitPrice: product.regularPrice / candidateSize.quantity,
-        unit: candidateSize.unit,
-      },
-      score,
-    });
+    viable.push({ candidate: priced(product, candidateSize), score });
   }
 
   if (viable.length === 0) {
@@ -149,11 +201,12 @@ export async function matchItem(
       matched: false,
       reason: `${targetStore} has no candidate for "${item.productName}" with a comparable, readable pack size`,
       suggestions: [],
+      removed,
     };
   }
 
   if (viable[0].score >= MIN_MATCH_SCORE) {
-    return { matched: true, substitute: { original, substitute: viable[0].candidate } };
+    return { matched: true, chosenByShopper: false, substitute: { original, substitute: viable[0].candidate } };
   }
 
   return {
@@ -161,5 +214,6 @@ export async function matchItem(
     reason: `${targetStore}'s closest candidate for "${item.productName}" was "${viable[0].candidate.name}", too dissimilar to trust as a Substitute`,
     original,
     suggestions: viable.slice(0, MAX_SUGGESTIONS).map((v) => v.candidate),
+    removed,
   };
 }

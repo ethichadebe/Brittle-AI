@@ -1,7 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
-import type { ComparisonResult, GroceryList, ListItem, Product, StoreSlug } from "@accucery/types";
+import type {
+  ComparisonMatchedItem,
+  ComparisonResult,
+  ComparisonUnmatchedItem,
+  GroceryList,
+  ListItem,
+  Product,
+  StoreSlug,
+  SubstituteChoice,
+} from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
@@ -115,24 +124,66 @@ function ListPage() {
 
   const closeComparison = () => { setComparison(null); setCompareError(null); };
 
-  const toggleExcluded = (listItemId: string) => {
+  // #91: a deliberate pick or removal is remembered against the Shopper's
+  // Account so the next Comparison doesn't ask again; `null` forgets one.
+  // The sheet updates instantly either way — a failed save only costs the
+  // memory, never this comparison.
+  const rememberDecision = (
+    fromProductId: string,
+    to: { productId: string; name: string },
+    choice: SubstituteChoice | null
+  ) => {
+    if (!comparison || !storeSlug) return;
+    const pairing = { fromStore: storeSlug, fromProductId, toStore: comparison.storeSlug, toProductId: to.productId };
+    const saved = choice
+      ? api.substitutes.decide({ ...pairing, toProductName: to.name, choice })
+      : api.substitutes.forget(pairing);
+    saved.catch((e) => console.error("Failed to remember Substitute decision:", e));
+  };
+
+  // Unticking a Substitute removes it; ticking it again forgets the removal.
+  const toggleExcluded = (item: ComparisonMatchedItem) => {
+    const removing = !excludedItems.has(item.listItemId);
     setExcludedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(listItemId)) next.delete(listItemId);
-      else next.add(listItemId);
+      if (removing) next.add(item.listItemId);
+      else next.delete(item.listItemId);
       return next;
     });
+    rememberDecision(item.productId, item.substitute, removing ? "removed" : null);
   };
 
   // Tapping the already-picked suggestion again un-picks it — back to
-  // "not found", excluded from the total, not stuck once tapped.
-  const selectSuggestion = (listItemId: string, index: number) => {
+  // "not found", excluded from the total, not stuck once tapped. Un-picking
+  // forgets the pick rather than recording a removal: changing your mind
+  // about a tap isn't a judgement on the product.
+  const selectSuggestion = (item: ComparisonUnmatchedItem, index: number) => {
+    const unpicking = selectedSuggestion.get(item.listItemId) === index;
     setSelectedSuggestion((prev) => {
       const next = new Map(prev);
-      if (next.get(listItemId) === index) next.delete(listItemId);
-      else next.set(listItemId, index);
+      if (unpicking) next.delete(item.listItemId);
+      else next.set(item.listItemId, index);
       return next;
     });
+    rememberDecision(item.productId, item.suggestions[index].substitute, unpicking ? null : "chosen");
+  };
+
+  // Forgets every removal that left this item unmatched, then compares
+  // again so the options it had come back.
+  const undoRemovals = async (item: ComparisonUnmatchedItem) => {
+    if (!comparison || !storeSlug) return;
+    const targetStore = comparison.storeSlug;
+    try {
+      await Promise.all(
+        item.removed.map((r) =>
+          api.substitutes.forget({ fromStore: storeSlug, fromProductId: item.productId, toStore: targetStore, toProductId: r.productId })
+        )
+      );
+    } catch (e) {
+      setCompareError(e instanceof ApiError ? e.message : "Couldn't undo that removal");
+      return;
+    }
+    await runCompare(targetStore);
   };
 
   const storeName = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? slug;
@@ -448,12 +499,12 @@ function ListPage() {
                         type="checkbox"
                         className="compare-item-checkbox"
                         checked={!excludedItems.has(item.listItemId)}
-                        onChange={() => toggleExcluded(item.listItemId)}
+                        onChange={() => toggleExcluded(item)}
                       />
                       <div className="item-info">
                         <span className="item-name">
                           {item.substitute.name}
-                          <span className="substitute-badge">Substitute</span>
+                          <span className="substitute-badge">{item.chosenByShopper ? "Your pick" : "Substitute"}</span>
                         </span>
                         <span className="compare-item-was">was: {item.productName}</span>
                         <span className="item-price">R {item.cost.toFixed(2)}</span>
@@ -465,13 +516,19 @@ function ListPage() {
                       <span className="compare-item-unmatched-note">
                         Not found at {storeName(comparison.storeSlug)}
                       </span>
+                      {item.removed.length > 0 && (
+                        <span className="compare-item-removed-note">
+                          You removed {item.removed.map((r) => r.name).join(", ")}
+                          <button className="compare-undo" onClick={() => undoRemovals(item)}>Undo</button>
+                        </span>
+                      )}
                       {item.suggestions.length > 0 && (
                         <ul className="compare-candidate-list">
                           {item.suggestions.map((suggestion, index) => (
                             <li
                               key={suggestion.substitute.productId}
                               className={`compare-candidate${selectedSuggestion.get(item.listItemId) === index ? " compare-candidate--chosen" : ""}`}
-                              onClick={() => selectSuggestion(item.listItemId, index)}
+                              onClick={() => selectSuggestion(item, index)}
                             >
                               <span className="item-name">{suggestion.substitute.name}</span>
                               <span className="item-price">R {suggestion.cost.toFixed(2)}</span>

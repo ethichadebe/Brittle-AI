@@ -186,3 +186,132 @@ describe("nameSimilarity", () => {
     );
   });
 });
+
+// #91: a Shopper's remembered decisions. The catalogue answers per query so
+// a test can tell a search for the remembered pick's own name from a
+// search for the list item.
+function catalogueByQuery(byQuery: Record<string, Product[]>) {
+  const queries: string[] = [];
+  const search = async (_store: string, query: string): Promise<Product[]> => {
+    queries.push(query);
+    return byQuery[query] ?? [];
+  };
+  return { search, queries };
+}
+
+const chips = {
+  productId: "chips-1",
+  productName: "Simba Mrs H.S. Ball's Chutney Flavoured Potato Chips 120g",
+  regularPrice: 24.99,
+};
+
+describe("matchItem with a Shopper's decisions", () => {
+  it("applies a remembered pick by searching for it by name, even one that would not clear the cutoff", async () => {
+    // "Dishwashing Liquid" shares nothing with milk by name — it would never
+    // be auto-applied — but the Shopper picked it, so it is.
+    const { search, queries } = catalogueByQuery({
+      "Dishwashing Liquid 750 ml": [product({ productId: "picked", name: "Dishwashing Liquid 750 ml", regularPrice: 19.99 })],
+    });
+
+    const result = await matchItem(original, "checkers", search, {
+      chosen: { productId: "picked", name: "Dishwashing Liquid 750 ml" },
+    });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.chosenByShopper).toBe(true);
+    expect(result.substitute.substitute.productId).toBe("picked");
+    expect(result.substitute.substitute.unitPrice).toBeCloseTo(19.99 / 750);
+    // One search, for the pick itself — not an extra one for the list item.
+    expect(queries).toEqual(["Dishwashing Liquid 750 ml"]);
+  });
+
+  it("falls back to ordinary matching when the remembered pick is no longer sold", async () => {
+    const { search, queries } = catalogueByQuery({
+      "Gone Milk 2 L": [product({ productId: "something-else", name: "Gone Milk 2 L", regularPrice: 20 })],
+      [original.productName]: [product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 })],
+    });
+
+    const result = await matchItem(original, "checkers", search, {
+      chosen: { productId: "gone", name: "Gone Milk 2 L" },
+    });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.chosenByShopper).toBe(false);
+    expect(result.substitute.substitute.productId).toBe("match-1");
+    expect(queries).toEqual(["Gone Milk 2 L", original.productName]);
+  });
+
+  it("falls back when the remembered pick is no longer comparable by pack size", async () => {
+    const { search } = catalogueByQuery({
+      "Milk Powder": [product({ productId: "picked", name: "Full Cream Milk Powder 500 g", regularPrice: 89.99 })],
+      [original.productName]: [product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 })],
+    });
+
+    const result = await matchItem(original, "checkers", search, {
+      chosen: { productId: "picked", name: "Milk Powder" },
+    });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.chosenByShopper).toBe(false);
+    expect(result.substitute.substitute.productId).toBe("match-1");
+  });
+
+  it("never applies a removed product, even the one that would have won", async () => {
+    const { search } = catalogueByQuery({
+      [chips.productName]: [
+        product({ productId: "chips-willards", name: "Willards Chutney Flavoured Potato Chips 125 g", regularPrice: 22.99 }),
+        product({ productId: "chips-lays", name: "Lays Chutney Flavoured Potato Chips 120 g", regularPrice: 21.99 }),
+      ],
+    });
+
+    const result = await matchItem(chips, "woolworths", search, { removed: new Set(["chips-willards"]) });
+
+    expect(result.matched).toBe(true);
+    if (!result.matched) throw new Error("expected a match");
+    expect(result.substitute.substitute.productId).toBe("chips-lays");
+  });
+
+  it("never suggests a removed product either", async () => {
+    const { search } = catalogueByQuery({
+      [original.productName]: [
+        product({ productId: "soap", name: "Dishwashing Liquid 750 ml", regularPrice: 19.99 }),
+        product({ productId: "juice", name: "Orange Juice 2 L", regularPrice: 29.99 }),
+      ],
+    });
+
+    const result = await matchItem(original, "checkers", search, { removed: new Set(["soap"]) });
+
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.suggestions.map((s) => s.productId)).toEqual(["juice"]);
+    expect(result.removed).toEqual([{ productId: "soap", name: "Dishwashing Liquid 750 ml" }]);
+  });
+
+  it("shows the item as not found, naming what was removed, when the removal left nothing", async () => {
+    const { search } = catalogueByQuery({
+      [original.productName]: [product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 })],
+    });
+
+    const result = await matchItem(original, "checkers", search, { removed: new Set(["match-1"]) });
+
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.reason).toContain("removed by the shopper");
+    expect(result.suggestions).toEqual([]);
+    expect(result.removed).toEqual([{ productId: "match-1", name: "Full Cream Milk 2 L" }]);
+  });
+
+  it("does not claim a removal when the store simply has nothing", async () => {
+    const { search } = catalogueByQuery({});
+
+    const result = await matchItem(original, "checkers", search, { removed: new Set(["match-1"]) });
+
+    expect(result.matched).toBe(false);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.reason).not.toContain("removed");
+    expect(result.removed).toEqual([]);
+  });
+});

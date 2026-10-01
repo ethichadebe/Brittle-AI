@@ -4,6 +4,7 @@ import { STORE_CONFIGS } from "@accucery/types";
 import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import { compareList } from "../services/compare.js";
+import { loadDecisions } from "../services/substituteDecisions.js";
 
 export async function compareRoutes(app: FastifyInstance) {
   // POST /lists/:id/compare
@@ -40,6 +41,14 @@ export async function compareRoutes(app: FastifyInstance) {
       orderBy: { createdAt: "asc" },
     });
 
+    const targetStore = targetConfig.slug as StoreSlug;
+    const decisions = await loadDecisions(
+      req.accountId,
+      list.storeSlug as StoreSlug,
+      targetStore,
+      items.map((i) => i.productId)
+    );
+
     const comparison = await compareList(
       items.map((i) => ({
         id: i.id,
@@ -48,7 +57,8 @@ export async function compareRoutes(app: FastifyInstance) {
         regularPrice: i.regularPrice.toNumber(),
         quantity: i.quantity,
       })),
-      targetConfig.slug as StoreSlug
+      targetStore,
+      decisions
     );
 
     return reply.send({ storeSlug: targetConfig.slug, ...comparison });

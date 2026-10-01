@@ -104,6 +104,16 @@ export interface ComparisonMatchedItem {
   substitute: ComparisonMatch;
   // What buying the same quantity of the Substitute would cost.
   cost: number;
+  // True when this is a Substitute the Shopper picked in an earlier
+  // Comparison (#91), applied without asking; false when Accucery chose it.
+  chosenByShopper: boolean;
+}
+
+// A product the Shopper removed as a Substitute for this item (#91), and so
+// left out of matching — named so the Shopper can see why and undo it.
+export interface ComparisonRemoved {
+  productId: string;
+  name: string;
 }
 
 export interface ComparisonSuggestion {
@@ -129,6 +139,25 @@ export interface ComparisonUnmatchedItem {
   // Empty when nothing at the target store even had a comparable, readable
   // pack size to suggest.
   suggestions: ComparisonSuggestion[];
+  // Products this search returned that the Shopper had removed as a
+  // Substitute for this item, and so were left out. Non-empty means the
+  // item may be unmatched because of the Shopper's own removal.
+  removed: ComparisonRemoved[];
+}
+
+// A Shopper's remembered decision about one Substitute pairing (#91).
+export type SubstituteChoice = "chosen" | "removed";
+
+export interface SubstitutePairing {
+  fromStore: StoreSlug;
+  fromProductId: string;
+  toStore: StoreSlug;
+  toProductId: string;
+}
+
+export interface SubstituteDecisionRequest extends SubstitutePairing {
+  toProductName: string;
+  choice: SubstituteChoice;
 }
 
 export type ComparisonItem = ComparisonMatchedItem | ComparisonUnmatchedItem;

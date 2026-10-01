@@ -28,8 +28,32 @@ model Account {
   passwordHash String
   createdAt    DateTime  @default(now())
   sessions     Session[]
+  substituteDecisions SubstituteDecision[]
 
   @@map("accounts")
+}
+
+// #91: a Shopper's deliberate pick or removal of one Substitute pairing —
+// a product at the list's store, and a product at another store standing
+// in for it. Keyed per pairing, so a Shopper holds one decision for it and
+// the most recent wins. Not keyed by list: a decision follows the product
+// onto every list it is on. Goes with the Account (#88).
+model SubstituteDecision {
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  fromStore     String
+  fromProductId String
+  toStore       String
+  toProductId   String
+  // Kept because no store can be asked for a product by its id — a chosen
+  // Substitute is found again by searching for its name.
+  toProductName String
+  // "chosen" | "removed"
+  choice        String
+  decidedAt     DateTime @default(now())
+
+  @@id([accountId, fromStore, fromProductId, toStore, toProductId])
+  @@map("substitute_decisions")
 }
 
 // An opaque, expiring token for one signed-in browser. The session id is

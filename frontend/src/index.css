@@ -709,6 +709,22 @@ body {
   color: #b91c1c;
 }
 
+.compare-item-removed-note {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.compare-undo {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: inherit;
+  margin-left: 0.4rem;
+  padding: 0;
+  cursor: pointer;
+}
+
 .substitute-badge {
   font-size: 0.6rem;
   font-weight: 700;

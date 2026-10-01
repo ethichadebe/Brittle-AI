@@ -1,4 +1,13 @@
-import type { ComparisonResult, GroceryList, ListItem, Product, SearchResponse, StoreSlug } from "@accucery/types";
+import type {
+  ComparisonResult,
+  GroceryList,
+  ListItem,
+  Product,
+  SearchResponse,
+  StoreSlug,
+  SubstituteDecisionRequest,
+  SubstitutePairing,
+} from "@accucery/types";
 
 const BASE = "/api";
 
@@ -100,6 +109,15 @@ export const api = {
 
     delete: (listId: string, itemId: string) =>
       request<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" }),
+  },
+
+  // #91: a Shopper's remembered picks and removals of Substitutes.
+  substitutes: {
+    decide: (decision: SubstituteDecisionRequest) =>
+      request<void>("/substitute-decisions", { method: "PUT", body: JSON.stringify(decision) }),
+
+    forget: (pairing: SubstitutePairing) =>
+      request<void>("/substitute-decisions", { method: "DELETE", body: JSON.stringify(pairing) }),
   },
 
   search: (store: StoreSlug, q: string, signal?: AbortSignal): Promise<Product[]> =>
