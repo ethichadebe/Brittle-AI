@@ -15,10 +15,25 @@ import type {
 import { api, ApiError, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { priceAge } from "../lib/priceAge";
+import { formatRand } from "../lib/format";
+import { restoreList, withoutList } from "../lib/listOrder";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
 import { useAccountSession } from "../hooks/useAccountSession";
+import { useDeferredDelete } from "../hooks/useDeferredDelete";
+import { useStoredFlag } from "../hooks/useStoredFlag";
+import {
+  CheckIcon,
+  ChevronIcon,
+  MinusIcon,
+  MoreIcon,
+  PencilIcon,
+  PlusIcon,
+  SettingsIcon,
+  SwapIcon,
+  TrashIcon,
+} from "../components/icons";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
 const SEARCH_DEBOUNCE_MS = 350;
@@ -44,15 +59,13 @@ function ListPage() {
   const { listId } = Route.useParams();
   const navigate = useNavigate();
   const [items, setItems] = useState<ListItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [listName, setListName] = useState("");
   const [storeSlug, setStoreSlug] = useState<StoreSlug | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [query, setQuery] = useState("");
-  const [swipingId, setSwipingId] = useState<string | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const { account } = useAccountSession();
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
@@ -70,15 +83,25 @@ function ListPage() {
   const useLoyalty = storeSlug ? isEnabled(storeSlug) : false;
   const summary = computeSummary(items, useLoyalty);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [trolleyFolded, setTrolleyFolded] = useStoredFlag("accucery:trolleyFolded", false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const animUnchecked = useAnimatedNumber(summary.unchecked);
-  const animPriceToPay = useAnimatedNumber(summary.priceToPay);
   const animTotal = useAnimatedNumber(summary.total);
 
-  const confirm = useAnimatedMount(showConfirm);
+  // Items deleted but still inside their undo window: a reload (the #77
+  // price polling, say) mustn't bring them back on screen meanwhile.
+  const deleting = useRef(new Set<string>());
+  const showItems = (all: ListItem[]) => setItems(all.filter((i) => !deleting.current.has(i.id)));
+  const reloadItems = () => api.items.list(listId).then(showItems).catch(console.error);
 
   useEffect(() => {
-    api.items.list(listId).then(setItems).catch(console.error);
+    api.items
+      .list(listId)
+      .then((all) => {
+        showItems(all);
+        setLoaded(true);
+      })
+      .catch(console.error);
     api.lists.list().then((lists) => {
       const found = lists.find((l) => l.id === listId) as GroceryList | undefined;
       if (found) { setListName(found.name); setStoreSlug(found.storeSlug); }
@@ -97,10 +120,9 @@ function ListPage() {
     }
     pollingSince.current ??= Date.now();
     if (Date.now() - pollingSince.current > PRICE_POLL_LIMIT_MS) return;
-    const timer = setTimeout(() => {
-      api.items.list(listId).then(setItems).catch(console.error);
-    }, PRICE_POLL_MS);
+    const timer = setTimeout(reloadItems, PRICE_POLL_MS);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reloadItems is rebuilt each render; listId is what it depends on
   }, [items, updatingPrices, listId]);
 
   useEffect(() => {
@@ -130,7 +152,6 @@ function ListPage() {
   }, [query, storeSlug]);
 
   const closeSearch = () => { setShowSearch(false); setQuery(""); setSearchResults([]); };
-  const closeConfirm = () => { setShowConfirm(false); };
 
   // Per ADR 0004, comparing is the one thing an anonymous Shopper cannot do
   // — prompted to sign in, never silently blocked or silently allowed.
@@ -265,153 +286,235 @@ function ListPage() {
     }
   };
 
-  const changeQty = async (item: ListItem, delta: number) => {
-    const next = item.quantity + delta;
-    if (next < 1) {
-      setPendingDeleteId(item.id);
-      setShowConfirm(true);
-      return;
-    }
-    const updated = await api.items.patch(listId, item.id, { quantity: next });
-    setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
-  };
-
-  const toggleCheck = async (item: ListItem) => {
-    const updated = await api.items.patch(listId, item.id, { isChecked: !item.isChecked });
-    setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
-  };
-
-  const deleteItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    closeConfirm();
-    setSwipingId(null);
-    setPendingDeleteId(null);
-    api.items.delete(listId, id).catch((e) => {
-      console.error("Failed to delete item:", e);
-      api.items.list(listId).then(setItems).catch(console.error);
+  // Ticking is optimistic: in a shop aisle a tick has to land at once, not
+  // after a round trip. If the server refuses, the list is reloaded as it is.
+  const patchItem = (item: ListItem, patch: Partial<Pick<ListItem, "quantity" | "isChecked">>) => {
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, ...patch } : i)));
+    api.items.patch(listId, item.id, patch).catch((e) => {
+      console.error("Failed to update item:", e);
+      void reloadItems();
     });
   };
 
-  const price = (item: ListItem) =>
-    useLoyalty && item.loyaltyPrice !== null ? item.loyaltyPrice : item.regularPrice;
+  const toggleCheck = (item: ListItem) => patchItem(item, { isChecked: !item.isChecked });
 
-  const pendingItem = items.find((i) => i.id === pendingDeleteId);
+  // #113: never below 1 — taking an item off the list is Delete, not 0.
+  const setQuantity = (item: ListItem, quantity: number) => {
+    if (quantity < 1 || quantity === item.quantity) return;
+    patchItem(item, { quantity });
+  };
+
+  const deletion = useDeferredDelete<ListItem>(
+    (item) => api.items.delete(listId, item.id).finally(() => deleting.current.delete(item.id)),
+    (item, index) => {
+      deleting.current.delete(item.id);
+      setItems((prev) => restoreList(prev, item, index));
+    }
+  );
+
+  const removeItem = (item: ListItem) => {
+    const { lists: rest, index } = withoutList(items, item.id);
+    if (index === -1) return;
+    deleting.current.add(item.id);
+    setItems(rest);
+    deletion.remove(item, index);
+  };
+
+  // #113: the item detail sheet. The id it was last opened for is kept while
+  // it animates closed, so its content doesn't blank mid-exit.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [lastDetailId, setLastDetailId] = useState<string | null>(null);
+  const detailSheet = useAnimatedMount(detailId !== null);
+  const detailItem = items.find((i) => i.id === (detailId ?? lastDetailId));
+  const openDetail = (item: ListItem) => {
+    setDetailId(item.id);
+    setLastDetailId(item.id);
+  };
+  // An item deleted from elsewhere (or by its own Delete) closes its sheet.
+  if (detailId !== null && loaded && !items.some((i) => i.id === detailId)) setDetailId(null);
+
+  // Rename, from the header's ⋮
+  const [renaming, setRenaming] = useState(false);
+  const renameSheet = useAnimatedMount(renaming);
+  const [renameTo, setRenameTo] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
+  const startRename = () => {
+    setMenuOpen(false);
+    setRenameTo(listName);
+    setRenameError(null);
+    setRenaming(true);
+  };
+  const saveRename = async () => {
+    const name = renameTo.trim();
+    if (!name) return;
+    if (name === listName) {
+      setRenaming(false);
+      return;
+    }
+    setRenameSaving(true);
+    try {
+      await api.lists.rename(listId, name);
+      setListName(name);
+      setRenaming(false);
+    } catch (e) {
+      setRenameError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setRenameSaving(false);
+    }
+  };
+
+  const store = STORE_CONFIGS.find((s) => s.slug === storeSlug);
+  const toGet = items.filter((i) => !i.isChecked);
+  const inTrolley = items.filter((i) => i.isChecked);
+  const progress = summary.itemCount > 0 ? summary.checkedCount / summary.itemCount : 0;
+
+  const row = (item: ListItem) => (
+    <ItemRow
+      key={item.id}
+      item={item}
+      useLoyalty={useLoyalty}
+      onToggle={() => toggleCheck(item)}
+      onOpen={() => openDetail(item)}
+      onDelete={() => removeItem(item)}
+    />
+  );
 
   return (
     <>
-    <div className="page-slide-in">
-      {/* Header */}
-      <header className="list-header">
-        <button className="btn-back" onClick={() => navigate({ to: "/" })}>‹</button>
-        <h2 className="list-title">{listName || "List"}</h2>
-        <div className="list-header-actions">
-          <button className="btn-icon btn-icon--dark" title="Compare at another store" onClick={openCompare}>⇄</button>
-          <button className="btn-icon btn-icon--dark" onClick={() => navigate({ to: "/settings" })}>⚙</button>
+    <div className="page-slide-in list-page">
+      <header className="list-top">
+        <button className="btn-back" aria-label="Back" onClick={() => navigate({ to: "/" })}>‹</button>
+        <div className="list-top-title">
+          <h1>{listName || "List"}</h1>
+          {store && (
+            <span className="store-label">
+              <span className="store-dot" style={{ background: store.color }} />
+              {store.name}
+            </span>
+          )}
+        </div>
+        <button
+          className="list-card-more"
+          aria-label="List options"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          <MoreIcon />
+        </button>
+        {menuOpen && (
+          <>
+            <div className="menu-dismiss" onClick={() => setMenuOpen(false)} />
+            <div className="card-menu list-top-menu" role="menu">
+              <button role="menuitem" onClick={startRename}>
+                <PencilIcon />
+                Rename list
+              </button>
+              <button role="menuitem" onClick={() => navigate({ to: "/settings" })}>
+                <SettingsIcon />
+                Loyalty cards &amp; settings
+              </button>
+            </div>
+          </>
+        )}
+        <div className="list-progress" aria-hidden="true">
+          <i style={{ width: `${progress * 100}%` }} />
         </div>
       </header>
 
-      {/* Summary bar */}
-      <div className="summary-bar">
-        <div className="summary-cell">
-          <span className="summary-label">Unchecked</span>
-          <span className="summary-value">R {animUnchecked.toFixed(2)}</span>
+      {loaded && items.length === 0 && (
+        <div className="list-empty">
+          <p className="list-empty-title">Nothing on this list yet</p>
+          <p>Tap <strong>Add</strong> to find products at {store?.name ?? "this store"}.</p>
         </div>
-        <div className="summary-cell summary-cell--highlight">
-          <span className="summary-label">Price to pay</span>
-          <span className="summary-value">R {animPriceToPay.toFixed(2)}</span>
-        </div>
-        <div className="summary-cell">
-          <span className="summary-label">Total</span>
-          <span className="summary-value">R {animTotal.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* #77: a total isn't one to rely on until every price in it is current */}
-      {(updatingPrices || outdatedPrices) && (
-        <p className="summary-provisional">
-          {updatingPrices
-            ? "Updating prices… totals may change"
-            : "Some prices couldn't be updated — totals may be out of date"}
-        </p>
       )}
 
-      {/* Item list */}
-      <ul className="item-list">
-        {items.length === 0 && (
-          <li className="item-empty">No items yet — tap + to search</li>
-        )}
-        {[...items].sort((a, b) => Number(a.isChecked) - Number(b.isChecked)).map((item) => (
-          <li
-            key={item.id}
-            className={`item-row${item.isChecked ? " item-row--checked" : ""}${swipingId === item.id ? " item-row--swiping" : ""}`}
+      <ul className="items">{toGet.map(row)}</ul>
+
+      {inTrolley.length > 0 && (
+        <section className="trolley">
+          <button
+            className="trolley-head"
+            aria-expanded={!trolleyFolded}
+            onClick={() => setTrolleyFolded(!trolleyFolded)}
           >
-            {swipingId === item.id && (
-              <button
-                className="item-delete-reveal"
-                onClick={() => { setPendingDeleteId(item.id); setShowConfirm(true); }}
-              >
-                🗑
-              </button>
-            )}
-
-            <img className="item-img" src={imgSrc(item.imageUrl)} alt={item.productName} />
-
-            <div className="item-info" onClick={() => toggleCheck(item)}>
-              <span className="item-name">{item.productName}</span>
-              <span className="item-price">
-                R {price(item).toFixed(2)}
-                {item.loyaltyPrice !== null && item.loyaltyPrice !== item.regularPrice && (
-                  <span className="item-loyalty-price"> · R {item.loyaltyPrice.toFixed(2)}</span>
-                )}
-                {" "}× {item.quantity} = R {(price(item) * item.quantity).toFixed(2)}
-              </span>
-              {item.priceStatus === "updating" && <span className="item-price-status">updating…</span>}
-              {item.priceStatus === "outdated" && (
-                <span className="item-price-status item-price-status--outdated">
-                  {item.priceObservedAt
-                    ? `price from ${priceAge(item.priceObservedAt)}, couldn't update`
-                    : "couldn't update this price"}
-                </span>
-              )}
-            </div>
-
-            <div className="item-qty">
-              <button className="qty-btn" onClick={() => changeQty(item, -1)}>−</button>
-              <span className="qty-value">{item.quantity}</span>
-              <button className="qty-btn" onClick={() => changeQty(item, 1)}>+</button>
-              <button
-                className="btn-icon item-swipe-btn"
-                onClick={() => setSwipingId(swipingId === item.id ? null : item.id)}
-              >
-                ⋮
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {/* FAB */}
-      <button className="fab" onClick={() => setShowSearch(true)}>+</button>
+            <span>In trolley · {inTrolley.length}</span>
+            <ChevronIcon up={!trolleyFolded} />
+          </button>
+          {!trolleyFolded && <ul className="items">{inTrolley.map(row)}</ul>}
+        </section>
+      )}
     </div>
 
-      {/* Delete confirmation modal — outside page-slide-in so position:fixed is viewport-relative */}
-      {confirm.rendered && (
-        <div
-          className={`modal-backdrop${confirm.closing ? " modal-backdrop--closing" : ""}`}
-          onClick={closeConfirm}
+      {/* Bottom bar, outside page-slide-in so position:fixed is viewport-relative */}
+      <div className="list-bar">
+        {deletion.undoable && (
+          <div className="snackbar snackbar--docked" role="status">
+            <span className="snackbar-text">Item deleted</span>
+            <button className="snackbar-action" onClick={deletion.undo}>UNDO</button>
+          </div>
+        )}
+        <button
+          className={`add-pill${deletion.undoable ? " add-pill--raised" : ""}`}
+          onClick={() => setShowSearch(true)}
         >
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Remove item?</h3>
-            <p style={{ margin: "0.5rem 0 1.25rem", color: "var(--muted)", fontSize: "0.9rem" }}>
-              {pendingItem?.productName}
-            </p>
+          <PlusIcon />
+          Add
+        </button>
+        <div className="list-bar-total">
+          <span className="list-bar-amount">{formatRand(animTotal)}</span>
+          <span className="list-bar-sub">
+            {formatRand(summary.priceToPay)} in trolley · {summary.checkedCount} of {summary.itemCount}
+          </span>
+          {/* #77: a total isn't one to rely on until every price in it is current */}
+          {(updatingPrices || outdatedPrices) && (
+            <span className={`list-bar-note${updatingPrices ? "" : " list-bar-note--outdated"}`}>
+              {updatingPrices
+                ? "Updating prices… total may change"
+                : "Some prices couldn't be updated"}
+            </span>
+          )}
+        </div>
+        <button className="compare-btn" disabled={items.length === 0} onClick={openCompare}>
+          <SwapIcon />
+          Compare prices
+        </button>
+      </div>
+
+      {detailSheet.rendered && detailItem && (
+        <ItemSheet
+          item={detailItem}
+          useLoyalty={useLoyalty}
+          closing={detailSheet.closing}
+          onClose={() => setDetailId(null)}
+          onQuantity={(q) => setQuantity(detailItem, q)}
+          onDelete={() => {
+            setDetailId(null);
+            removeItem(detailItem);
+          }}
+        />
+      )}
+
+      {renameSheet.rendered && (
+        <div
+          className={`modal-backdrop${renameSheet.closing ? " modal-backdrop--closing" : ""}`}
+          onClick={() => setRenaming(false)}
+        >
+          <div className="modal" role="dialog" aria-label="Rename list" onClick={(e) => e.stopPropagation()}>
+            <h3>Rename list</h3>
+            <input
+              className="modal-input"
+              aria-label="List name"
+              autoFocus
+              value={renameTo}
+              onChange={(e) => setRenameTo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveRename()}
+            />
+            {renameError && <p className="form-error">{renameError}</p>}
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeConfirm}>Cancel</button>
-              <button
-                className="btn btn-danger"
-                onClick={() => pendingDeleteId && deleteItem(pendingDeleteId)}
-              >
-                Remove
+              <button className="btn btn-ghost" onClick={() => setRenaming(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={!renameTo.trim() || renameSaving} onClick={saveRename}>
+                {renameSaving ? "Saving…" : "Save"}
               </button>
             </div>
           </div>
@@ -619,5 +722,202 @@ function ListPage() {
         </div>
       )}
     </>
+  );
+}
+
+const linePrice = (item: ListItem, useLoyalty: boolean) =>
+  useLoyalty && item.loyaltyPrice !== null ? item.loyaltyPrice : item.regularPrice;
+
+// The loyalty price only matters where it's actually lower.
+const hasCardPrice = (item: ListItem) => item.loyaltyPrice !== null && item.loyaltyPrice < item.regularPrice;
+
+function PriceStatus({ item }: { item: ListItem }) {
+  if (item.priceStatus === "updating") return <span className="item-price-status">updating…</span>;
+  if (item.priceStatus === "outdated") {
+    return (
+      <span className="item-price-status item-price-status--outdated">
+        {item.priceObservedAt
+          ? `price from ${priceAge(item.priceObservedAt)}, couldn't update`
+          : "couldn't update this price"}
+      </span>
+    );
+  }
+  return null;
+}
+
+// How far left a row must be dragged, as a share of its width, to delete it.
+const SWIPE_DELETE_SHARE = 0.35;
+
+interface ItemRowProps {
+  item: ListItem;
+  useLoyalty: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  onDelete: () => void;
+}
+
+// One item (#112): tick circle, photo, name, "qty × price", line total.
+// Tapping the circle ticks it; tapping anywhere else opens its details
+// (#113); swiping it left far enough deletes it, with UNDO.
+function ItemRow({ item, useLoyalty, onToggle, onOpen, onDelete }: ItemRowProps) {
+  const [drag, setDrag] = useState<number | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const gesture = useRef<{ x: number; y: number; width: number; horizontal: boolean | null } | null>(null);
+  const dragged = useRef(false);
+  const price = linePrice(item, useLoyalty);
+  const cardPrice = hasCardPrice(item);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    gesture.current = { x: e.clientX, y: e.clientY, width: e.currentTarget.offsetWidth, horizontal: null };
+    dragged.current = false;
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const g = gesture.current;
+    if (!g) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (g.horizontal === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      dragged.current = true;
+      g.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (!g.horizontal) {
+        gesture.current = null;
+        return;
+      }
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+    setDrag(Math.min(0, dx));
+  };
+
+  const onPointerEnd = () => {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g?.horizontal || drag === null) return;
+    if (-drag > g.width * SWIPE_DELETE_SHARE) {
+      // Slide the rest of the way out, then go.
+      setLeaving(true);
+      setTimeout(onDelete, 160);
+    }
+    setDrag(null);
+  };
+
+  const unlessDragged = (action: () => void) => () => {
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
+    action();
+  };
+
+  const offset = leaving ? "-100%" : `${drag ?? 0}px`;
+
+  return (
+    <li className="item-swipe">
+      <div className="item-swipe-bg" aria-hidden="true">
+        <TrashIcon />
+      </div>
+      <div
+        className={`item${item.isChecked ? " item--checked" : ""}${drag !== null ? " item--dragging" : ""}`}
+        style={{ transform: `translateX(${offset})` }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onClick={unlessDragged(onOpen)}
+      >
+        <button
+          className={`tick${item.isChecked ? " tick--on" : ""}`}
+          role="checkbox"
+          aria-checked={item.isChecked}
+          aria-label={item.isChecked ? `Take ${item.productName} out of the trolley` : `Put ${item.productName} in the trolley`}
+          onClick={(e) => {
+            e.stopPropagation();
+            unlessDragged(onToggle)();
+          }}
+        >
+          {item.isChecked && <CheckIcon size={15} />}
+        </button>
+        <img className="item-thumb" src={imgSrc(item.imageUrl)} alt="" />
+        <div className="item-meta">
+          <span className="item-title">{item.productName}</span>
+          <span className="item-sub">
+            {item.quantity} × {formatRand(price)}
+            {cardPrice && useLoyalty && <span className="item-card"> · card price</span>}
+            {cardPrice && !useLoyalty && (
+              <span className="item-card"> · {formatRand(item.loyaltyPrice!)} with card</span>
+            )}
+          </span>
+          <PriceStatus item={item} />
+        </div>
+        <span className="item-line-total">{formatRand(price * item.quantity)}</span>
+      </div>
+    </li>
+  );
+}
+
+interface ItemSheetProps {
+  item: ListItem;
+  useLoyalty: boolean;
+  closing: boolean;
+  onClose: () => void;
+  onQuantity: (quantity: number) => void;
+  onDelete: () => void;
+}
+
+// An item's details (#113). Every change saves as it's made, so closing the
+// sheet, however it's closed, keeps them.
+function ItemSheet({ item, useLoyalty, closing, onClose, onQuantity, onDelete }: ItemSheetProps) {
+  const price = linePrice(item, useLoyalty);
+  return (
+    <div className={`modal-backdrop${closing ? " modal-backdrop--closing" : ""}`} onClick={onClose}>
+      <div className="modal item-sheet" role="dialog" aria-label={item.productName} onClick={(e) => e.stopPropagation()}>
+        <div className="item-sheet-head">
+          <img className="item-sheet-photo" src={imgSrc(item.imageUrl)} alt="" />
+          <h3>{item.productName}</h3>
+        </div>
+
+        <dl className="item-sheet-prices">
+          <div>
+            <dt>Shelf price</dt>
+            <dd className={useLoyalty && hasCardPrice(item) ? "item-sheet-struck" : undefined}>{formatRand(item.regularPrice)}</dd>
+          </div>
+          {item.loyaltyPrice !== null && (
+            <div>
+              <dt>Card price{useLoyalty ? "" : " (card off)"}</dt>
+              <dd className="item-sheet-card">{formatRand(item.loyaltyPrice)}</dd>
+            </div>
+          )}
+        </dl>
+        <PriceStatus item={item} />
+
+        <div className="item-sheet-qty">
+          <span className="item-sheet-label">Quantity</span>
+          <div className="stepper">
+            <button aria-label="One fewer" disabled={item.quantity <= 1} onClick={() => onQuantity(item.quantity - 1)}>
+              <MinusIcon />
+            </button>
+            <span className="stepper-value" aria-live="polite">{item.quantity}</span>
+            <button aria-label="One more" onClick={() => onQuantity(item.quantity + 1)}>
+              <PlusIcon />
+            </button>
+          </div>
+        </div>
+
+        <div className="item-sheet-total">
+          <span className="item-sheet-label">Line total</span>
+          <span className="item-sheet-amount">{formatRand(price * item.quantity)}</span>
+        </div>
+
+        <div className="item-sheet-actions">
+          <button className="btn btn-danger-ghost" onClick={onDelete}>
+            <TrashIcon />
+            Delete
+          </button>
+          <button className="btn btn-primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
   );
 }

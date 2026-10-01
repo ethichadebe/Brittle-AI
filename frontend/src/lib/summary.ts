@@ -4,6 +4,9 @@ export interface Summary {
   total: number;
   priceToPay: number;
   unchecked: number;
+  // Items, not units: "1 of 4" ticked off, however many of each.
+  checkedCount: number;
+  itemCount: number;
 }
 
 export function computeSummary(items: ListItem[], useLoyalty: boolean): Summary {
@@ -16,5 +19,7 @@ export function computeSummary(items: ListItem[], useLoyalty: boolean): Summary 
     total: items.reduce((s, i) => s + lineTotal(i), 0),
     priceToPay: items.filter((i) => i.isChecked).reduce((s, i) => s + lineTotal(i), 0),
     unchecked: items.filter((i) => !i.isChecked).reduce((s, i) => s + lineTotal(i), 0),
+    checkedCount: items.filter((i) => i.isChecked).length,
+    itemCount: items.length,
   };
 }

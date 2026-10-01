@@ -7,23 +7,17 @@ import { formatRand, initials } from "../lib/format";
 import { restoreList, withoutList } from "../lib/listOrder";
 import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAccountSession } from "../hooks/useAccountSession";
+import { useDeferredDelete } from "../hooks/useDeferredDelete";
+import { MoreIcon, PencilIcon, PersonIcon, PlusIcon, TrashIcon } from "../components/icons";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
-// How long "List removed · UNDO" stays up before the list is really deleted.
-const UNDO_MS = 5000;
 // Width of the Rename + Delete buttons a card slides over to reveal.
 const ACTIONS_WIDTH = 168;
 
 const storeOf = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug);
-
-interface PendingDelete {
-  list: GroceryList;
-  index: number;
-  timer: ReturnType<typeof setTimeout>;
-}
 
 function HomePage() {
   const navigate = useNavigate();
@@ -33,8 +27,6 @@ function HomePage() {
   const [loadError, setLoadError] = useState(false);
   const [openSwipe, setOpenSwipe] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [undoing, setUndoing] = useState<GroceryList | null>(null);
-  const pending = useRef<PendingDelete | null>(null);
   const compact = useCompactOnScroll();
 
   useEffect(() => {
@@ -47,48 +39,19 @@ function HomePage() {
       });
   }, []);
 
-  // Deleting for real once the undo window passes. If the server refuses,
-  // the list comes back rather than silently vanishing from this screen only.
-  const commitDelete = (p: PendingDelete) => {
-    clearTimeout(p.timer);
-    if (pending.current === p) {
-      pending.current = null;
-      setUndoing(null);
-    }
-    api.lists.delete(p.list.id).catch((e) => {
-      console.error(e);
-      setLists((prev) => (prev ? restoreList(prev, p.list, p.index) : prev));
-    });
-  };
-
-  // Leaving the screen ends the undo window: the delete happens now.
-  useEffect(
-    () => () => {
-      if (pending.current) commitDelete(pending.current);
-    },
-    []
+  const deletion = useDeferredDelete<GroceryList>(
+    (list) => api.lists.delete(list.id),
+    (list, index) => setLists((prev) => (prev ? restoreList(prev, list, index) : prev))
   );
+  const undoing = deletion.undoable;
 
   const removeList = (list: GroceryList) => {
     if (!lists) return;
-    // One undo at a time: a second delete settles the first.
-    if (pending.current) commitDelete(pending.current);
     const { lists: rest, index } = withoutList(lists, list.id);
     setLists(rest);
     setOpenSwipe(null);
     setMenuFor(null);
-    const p: PendingDelete = { list, index, timer: setTimeout(() => commitDelete(p), UNDO_MS) };
-    pending.current = p;
-    setUndoing(list);
-  };
-
-  const undo = () => {
-    const p = pending.current;
-    if (!p) return;
-    clearTimeout(p.timer);
-    pending.current = null;
-    setUndoing(null);
-    setLists((prev) => (prev ? restoreList(prev, p.list, p.index) : prev));
+    deletion.remove(list, index);
   };
 
   // Rename sheet
@@ -191,7 +154,7 @@ function HomePage() {
       {undoing && (
         <div className="snackbar" role="status">
           <span className="snackbar-text">List removed</span>
-          <button className="snackbar-action" onClick={undo}>
+          <button className="snackbar-action" onClick={deletion.undo}>
             UNDO
           </button>
         </div>
@@ -399,64 +362,6 @@ function useCompactOnScroll() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   return compact;
-}
-
-// Icons are drawn inline, in the text colour, rather than emoji, so they
-// match the theme in light and dark.
-const iconProps = {
-  width: 20,
-  height: 20,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
-
-function PlusIcon() {
-  return (
-    <svg {...iconProps} strokeWidth={2.5}>
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M4 20h4L19 9l-4-4L4 16v4z" />
-      <path d="M13.5 6.5l4 4" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
-    </svg>
-  );
-}
-
-function MoreIcon() {
-  return (
-    <svg {...iconProps} fill="currentColor" stroke="none">
-      <circle cx="12" cy="5" r="1.8" />
-      <circle cx="12" cy="12" r="1.8" />
-      <circle cx="12" cy="19" r="1.8" />
-    </svg>
-  );
-}
-
-function PersonIcon() {
-  return (
-    <svg {...iconProps}>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-    </svg>
-  );
 }
 
 // A basket with a ticked list: Accucery's own, in the theme's teal.
