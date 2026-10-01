@@ -144,6 +144,10 @@ _Avoid_: region, area, branch pricing
 - A **Popular Substitute** is applied without asking, shown as popular rather
   than as Accucery's own choice, and can be removed like any other; a
   **Shopper**'s own decision about a pairing always outranks its popularity
+- Only each **Shopper**'s current decision counts towards popularity, and
+  removals count against it: a pairing is popular while enough **Shoppers**
+  have chosen it and clearly more chose it than removed it, and stops being
+  popular by itself when that is no longer true
 - A decision belongs to the **Shopper** and the product, not to a **List**, so it
   applies on every list that product is on; the same product bought at a
   different **Store** is a different product, so the decision does not follow it
