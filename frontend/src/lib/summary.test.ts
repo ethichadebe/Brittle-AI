@@ -67,4 +67,15 @@ describe("computeSummary", () => {
     const { total } = computeSummary(items, true);
     expect(total).toBe(15);
   });
+
+  // #112: "R 69.99 in trolley · 1 of 4" counts items, not units
+  it("counts ticked items, not units", () => {
+    const items = [
+      item({ id: "1", quantity: 3, isChecked: true }),
+      item({ id: "2", quantity: 2 }),
+      item({ id: "3", quantity: 1 }),
+    ];
+    const { checkedCount, itemCount } = computeSummary(items, false);
+    expect([checkedCount, itemCount]).toEqual([1, 3]);
+  });
 });

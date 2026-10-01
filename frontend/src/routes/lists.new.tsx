@@ -4,6 +4,7 @@ import { STORE_CONFIGS } from "@accucery/types";
 import type { GroceryList, StoreSlug } from "@accucery/types";
 import { api } from "../lib/api";
 import { datedListName, nameSuggestions } from "../lib/listNames";
+import { CheckIcon } from "../components/icons";
 
 export const Route = createFileRoute("/lists/new")({
   component: NewListPage,
@@ -105,7 +106,7 @@ function NewListPage() {
             >
               <span className="store-tile-swatch" style={{ background: s.color }} />
               <span className="store-tile-name">{s.name}</span>
-              {store === s.slug && <CheckIcon />}
+              {store === s.slug && <CheckIcon className="store-tile-check" />}
             </button>
           ))}
         </div>
@@ -120,13 +121,5 @@ function NewListPage() {
         </div>
       </form>
     </div>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg className="store-tile-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
-    </svg>
   );
 }
