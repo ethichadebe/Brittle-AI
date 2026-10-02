@@ -110,6 +110,9 @@ function ProfilePage() {
           </button>
         </div>
       )}
+
+      {/* Which deploy this is (#118), for checking an update has landed. */}
+      <p className="profile-version">Version {__BUILD_ID__.slice(0, 16).replace("T", " ")}</p>
     </div>
   );
 }

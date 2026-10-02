@@ -63,6 +63,15 @@ export default tseslint.config(
     },
   },
 
+  // The service worker runs in its own global scope (self, caches, clients),
+  // declared rather than silenced, the same as scripts/ above.
+  {
+    files: ["frontend/sw.js"],
+    languageOptions: {
+      globals: { ...globals.serviceworker },
+    },
+  },
+
   // Tests may lean on loose typing for fixtures.
   {
     files: ["**/*.test.ts", "**/test/**/*.ts"],
