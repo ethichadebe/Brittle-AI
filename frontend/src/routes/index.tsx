@@ -10,6 +10,7 @@ import { useAccountSession } from "../hooks/useAccountSession";
 import { useDeferredDelete } from "../hooks/useDeferredDelete";
 import { MoreIcon, PencilIcon, PersonIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { Intro } from "../components/Intro";
+import { Wordmark } from "../components/Wordmark";
 import { markIntroSeen, shouldShowIntro } from "../lib/onboarding";
 
 export const Route = createFileRoute("/")({
@@ -135,7 +136,7 @@ function HomePage() {
   return (
     <div className="page-fade-in home">
       <header className="home-header">
-        <h1>Lists</h1>
+        <Wordmark />
         <button
           className="avatar"
           aria-label={account ? `Profile (${account.email})` : "Profile and sign in"}
