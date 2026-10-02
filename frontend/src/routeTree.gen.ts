@@ -9,15 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ListsNewRouteImport } from './routes/lists.new'
 import { Route as ListsListIdRouteImport } from './routes/lists.$listId'
 
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -44,14 +56,18 @@ const ListsListIdRoute = ListsListIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/sign-in': typeof SignInRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/sign-in': typeof SignInRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
 }
@@ -59,20 +75,38 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/sign-in': typeof SignInRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/account' | '/settings' | '/lists/$listId' | '/lists/new'
+  fullPaths:
+    | '/'
+    | '/account'
+    | '/profile'
+    | '/settings'
+    | '/sign-in'
+    | '/lists/$listId'
+    | '/lists/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/account' | '/settings' | '/lists/$listId' | '/lists/new'
+  to:
+    | '/'
+    | '/account'
+    | '/profile'
+    | '/settings'
+    | '/sign-in'
+    | '/lists/$listId'
+    | '/lists/new'
   id:
     | '__root__'
     | '/'
     | '/account'
+    | '/profile'
     | '/settings'
+    | '/sign-in'
     | '/lists/$listId'
     | '/lists/new'
   fileRoutesById: FileRoutesById
@@ -80,18 +114,34 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
+  SignInRoute: typeof SignInRoute
   ListsListIdRoute: typeof ListsListIdRoute
   ListsNewRoute: typeof ListsNewRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -128,7 +178,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
+  SignInRoute: SignInRoute,
   ListsListIdRoute: ListsListIdRoute,
   ListsNewRoute: ListsNewRoute,
 }

@@ -3,6 +3,7 @@ import type {
   GroceryList,
   ListItem,
   Product,
+  RecentProductsResponse,
   SearchResponse,
   StoreSlug,
   SubstituteDecisionRequest,
@@ -125,6 +126,10 @@ export const api = {
     request<SearchResponse>(`/search?store=${store}&q=${encodeURIComponent(q)}`, {
       signal,
     }).then((r) => r.products),
+
+  // #114: products this Shopper has had on their lists at a store.
+  recentProducts: (store: StoreSlug) =>
+    request<RecentProductsResponse>(`/recent-products?store=${store}`).then((r) => r.products),
 
   account: {
     // Who, if anyone, this browser is signed in as. Never throws for

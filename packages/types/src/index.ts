@@ -87,6 +87,23 @@ export interface ListsResponse {
   lists: GroceryList[];
 }
 
+// A product the Shopper has had on a list at a store before (#114), offered
+// for quick re-adding. Priced at the latest price Accucery has observed, an
+// estimate like a home-screen total, not a Basket Price.
+export interface RecentProduct {
+  productId: string;
+  name: string;
+  imageUrl: string;
+  regularPrice: number;
+  loyaltyPrice: number | null;
+  // When it was last put on one of the Shopper's lists.
+  lastAddedAt: string;
+}
+
+export interface RecentProductsResponse {
+  products: RecentProduct[];
+}
+
 export interface ListItemsResponse {
   items: ListItem[];
 }
