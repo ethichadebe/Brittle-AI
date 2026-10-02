@@ -41,7 +41,7 @@
         font: 800 32px/1 "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         letter-spacing: -0.01em;
         opacity: 0;
-        filter: blur(2.5px);
+        filter: blur(3px);
         animation: splash-word-in 260ms ease-out 720ms forwards, splash-focus 760ms ease-in-out 1100ms forwards;
       }
       /* The three letters that differ, stacked: "rac" gives way to "cer". */
@@ -53,7 +53,7 @@
       @keyframes splash-draw { to { stroke-dashoffset: 0; } }
       @keyframes splash-word-in { to { opacity: 1; } }
       @keyframes splash-focus {
-        0% { filter: blur(2.5px); }
+        0% { filter: blur(3px); }
         45% { filter: blur(5px); }
         100% { filter: blur(0); }
       }
