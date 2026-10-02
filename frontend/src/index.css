@@ -1023,6 +1023,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .profile-email { font-size: 1rem; font-weight: 600; word-break: break-all; }
 .profile-sign-out { justify-content: center; margin-top: 0.5rem; }
+.profile-version { margin-top: 2rem; text-align: center; color: var(--faint); font-size: 0.75rem; }
 
 /* ── Sign in (#115) ── */
 .auth-form {
