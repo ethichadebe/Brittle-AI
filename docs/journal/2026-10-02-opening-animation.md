@@ -33,3 +33,22 @@
 
   - **Mutation-checked:** without the once-per-session check, it replays on
     reload, and the test fails.
+
+## Follow-up, same day: the name becomes the home screen's title
+
+- **Asked for:** replace "Lists" on the home screen with a teal "Accucery"
+  whose "A" is the logo, and have the name move there from the opening
+  animation.
+- **What it does now:** the drawn A shrinks into the name as its first
+  letter, "ccuracy" sharpens into "ccucery", and the whole wordmark glides
+  up and turns teal as the background falls away, landing exactly on the
+  home screen's new title (`components/Wordmark.tsx`). Opened straight onto
+  some other screen, there's no title to land on, so it just fades.
+- **Why it's now a script, not CSS alone:** where the title sits is only
+  known once the page has rendered, so the moves are measured and played
+  with the Web Animations API, in the same inline script.
+- **The two marks must stay identical:** the splash's letter and the title
+  share the `.wordmark-a` sizing and the same paths, or the landing jumps.
+  Comments in both say so.
+- **Mutation-checked:** if the title isn't un-hidden after the landing,
+  the home screen would have no title, and the test fails.

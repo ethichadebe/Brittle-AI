@@ -29,6 +29,7 @@
   --primary: #0d7a70;
   --on-primary: #ffffff;
   --primary-soft: #dcf3f0;
+  --logo-tick: #22a896;
   --danger: #dc2626;
   --on-danger: #ffffff;
   --danger-soft: #fdecec;
@@ -58,6 +59,7 @@
     --primary: #3ccfbc;
     --on-primary: #06231f;
     --primary-soft: #173431;
+    --logo-tick: #7fe3d6;
     --danger: #f87171;
     --on-danger: #1f0606;
     --danger-soft: #3a1d1d;
@@ -87,6 +89,7 @@
   --primary: #3ccfbc;
   --on-primary: #06231f;
   --primary-soft: #173431;
+  --logo-tick: #7fe3d6;
   --danger: #f87171;
   --on-danger: #1f0606;
   --danger-soft: #3a1d1d;
@@ -128,11 +131,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: 1.25rem 1rem 0.9rem;
 }
 
-.home-header h1 {
+.home-wordmark {
   font-size: 1.85rem;
   font-weight: 800;
+  line-height: 1;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: var(--primary);
 }
+
+.home-wordmark .wordmark-tick { stroke: var(--logo-tick); }
 
 .avatar {
   width: 38px;

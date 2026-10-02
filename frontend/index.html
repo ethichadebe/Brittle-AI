@@ -15,59 +15,54 @@
     <meta name="apple-mobile-web-app-title" content="Accucery" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <style>
-      /* Opening animation: the A draws itself, the tick checks in, and the name
-         comes into focus, reading "Accuracy" until it's sharp enough to see it
-         says "Accucery". Here rather than in React so it's on screen from the
-         first frame, while the app loads underneath it. */
+      /* Opening animation. The A draws itself and the tick checks in, then
+         it drops into the name as its first letter. The rest comes into
+         focus, reading "ccuracy" until it's sharp enough to see it says
+         "ccucery", and the whole wordmark glides up to become the home
+         screen's title. Here rather than in React so it's on screen from
+         the first frame, while the app loads underneath it. */
       #splash {
         position: fixed;
         inset: 0;
         z-index: 1000;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 18px;
+        display: grid;
+        place-items: center;
         background: #0d7a70;
-        transition: opacity 300ms ease-in;
+        color: #fff;
       }
       #splash[hidden] { display: none; }
-      #splash.splash--done { opacity: 0; pointer-events: none; }
-      #splash svg { width: 132px; height: 132px; overflow: visible; }
-      #splash .splash-a { stroke-dasharray: 700; stroke-dashoffset: 700; animation: splash-draw 520ms cubic-bezier(.65,0,.35,1) 120ms forwards; }
-      #splash .splash-tick { stroke-dasharray: 260; stroke-dashoffset: 260; animation: splash-draw 300ms cubic-bezier(.3,1.4,.6,1) 600ms forwards; }
+      #splash > * { grid-area: 1 / 1; }
+      #splash .splash-mark { width: auto; height: 132px; overflow: visible; transform-origin: 0 0; }
+      #splash .splash-a { stroke-dasharray: 700; stroke-dashoffset: 700; }
+      #splash .splash-tick { stroke-dasharray: 260; stroke-dashoffset: 260; }
       #splash .splash-word {
-        color: #fff;
         font: 800 32px/1 "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        letter-spacing: -0.01em;
-        opacity: 0;
-        filter: blur(3px);
-        animation: splash-word-in 260ms ease-out 720ms forwards, splash-focus 760ms ease-in-out 1100ms forwards;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+        transform-origin: 0 0;
       }
-      /* The three letters that differ, stacked: "rac" gives way to "cer". */
+      #splash .splash-word .wordmark-a { opacity: 0; }
+      #splash .splash-rest { display: inline-block; opacity: 0; }
+      /* The letters that differ, stacked: "rac" gives way to "cer". */
       #splash .splash-swap { display: inline-grid; }
       #splash .splash-swap > span { grid-area: 1 / 1; text-align: center; }
-      #splash .splash-to { opacity: 0; animation: splash-show 260ms ease-in-out 1360ms forwards; }
-      #splash .splash-from { animation: splash-hide 260ms ease-in-out 1360ms forwards; }
+      #splash .splash-to { opacity: 0; }
 
-      @keyframes splash-draw { to { stroke-dashoffset: 0; } }
-      @keyframes splash-word-in { to { opacity: 1; } }
-      @keyframes splash-focus {
-        0% { filter: blur(3px); }
-        45% { filter: blur(5px); }
-        100% { filter: blur(0); }
-      }
-      @keyframes splash-show { to { opacity: 1; } }
-      @keyframes splash-hide { to { opacity: 0; } }
+      /* The logo standing in for the "A" of Accucery; the home screen's title
+         uses the same sizes (index.css), so one can land exactly on the other. */
+      .wordmark-a { display: inline-block; height: 0.74em; width: auto; margin-right: 0.02em; vertical-align: -0.005em; overflow: visible; }
     </style>
   </head>
   <body>
     <div id="splash" aria-hidden="true" hidden>
-      <svg viewBox="0 0 512 512">
-        <path class="splash-a" d="M150 400L256 112l106 288" stroke="#fff" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path class="splash-tick" d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div class="splash-word">Accu<span class="splash-swap"><span class="splash-from">rac</span><span class="splash-to">cer</span></span>y</div>
+      <div class="splash-word"><svg class="wordmark-a" viewBox="124 86 264 340">
+          <path class="wordmark-a-stroke" d="M150 400L256 112l106 288" stroke="currentColor" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="wordmark-tick" d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg><span class="splash-rest">ccu<span class="splash-swap"><span class="splash-from">rac</span><span class="splash-to">cer</span></span>y</span></div>
+      <svg class="splash-mark" viewBox="124 86 264 340">
+          <path class="splash-a wordmark-a-stroke" d="M150 400L256 112l106 288" stroke="currentColor" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="splash-tick wordmark-tick" d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
     </div>
     <script>
       // Plays when the installed app is opened fresh: once per app session,
@@ -81,24 +76,83 @@
           var asked = /[?&]splash(=|&|$)/.test(location.search);
           var calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
           var seen = sessionStorage.getItem("accucery:splashShown");
-          if (!calm && (asked || (installed && !seen))) {
+          if (!calm && (asked || (installed && !seen)) && splash.animate) {
             sessionStorage.setItem("accucery:splashShown", "1");
-            splash.hidden = false;
-            var finish = function () {
-              splash.classList.add("splash--done");
-              setTimeout(function () { splash.remove(); }, 320);
-            };
-            var timer = setTimeout(finish, 2100);
-            splash.addEventListener("click", function () {
-              clearTimeout(timer);
-              finish();
-            });
+            play(splash);
             return;
           }
         } catch (e) {
-          // No storage or media queries: just open the app.
+          // No storage, media queries or animations: just open the app.
         }
         splash.remove();
+
+        function play(splash) {
+          splash.hidden = false;
+          var q = function (sel) { return splash.querySelector(sel); };
+          var mark = q(".splash-mark"), word = q(".splash-word"), letter = q(".splash-word .wordmark-a");
+          var rest = q(".splash-rest"), from = q(".splash-from"), to = q(".splash-to");
+          var timing = function (delay, duration, easing) {
+            return { delay: delay, duration: duration, easing: easing || "ease-in-out", fill: "both" };
+          };
+          var animations = [];
+          var run = function (el, frames, t) { animations.push(el.animate(frames, t)); };
+
+          // 1. The A draws itself, then the tick.
+          run(q(".splash-mark .splash-a"), [{ strokeDashoffset: 700 }, { strokeDashoffset: 0 }], timing(100, 460, "cubic-bezier(.65,0,.35,1)"));
+          run(q(".splash-mark .splash-tick"), [{ strokeDashoffset: 260 }, { strokeDashoffset: 0 }], timing(520, 280, "cubic-bezier(.3,1.4,.6,1)"));
+
+          // 2. It drops into the name as its first letter.
+          var m = mark.getBoundingClientRect(), l = letter.getBoundingClientRect();
+          run(mark, [{ transform: "none" }, { transform: "translate(" + (l.left - m.left) + "px," + (l.top - m.top) + "px) scale(" + l.height / m.height + ")" }], timing(850, 420));
+          run(mark, [{ opacity: 1 }, { opacity: 0 }], timing(1270, 1, "linear"));
+          run(letter, [{ opacity: 0 }, { opacity: 1 }], timing(1270, 1, "linear"));
+
+          // 3. "ccuracy" fades in, blurred, and comes into focus as "ccucery".
+          run(rest, [{ opacity: 0, filter: "blur(3px)" }, { opacity: 1, filter: "blur(3px)" }], timing(1120, 260, "ease-out"));
+          run(rest, [{ filter: "blur(3px)" }, { filter: "blur(5px)", offset: 0.45 }, { filter: "blur(0)" }], { delay: 1400, duration: 720, easing: "ease-in-out", fill: "forwards" });
+          run(from, [{ opacity: 1 }, { opacity: 0 }], timing(1650, 260));
+          run(to, [{ opacity: 0 }, { opacity: 1 }], timing(1650, 260));
+
+          var finished = false;
+          var title = null;
+          var finish = function () {
+            if (finished) return;
+            finished = true;
+            animations.forEach(function (a) { a.cancel(); });
+            splash.remove();
+            if (title) title.style.visibility = "";
+          };
+
+          // 4. The wordmark glides up to become the home screen's title, as
+          //    the teal falls away. Off the home screen, it just fades.
+          var fly = function () {
+            if (finished) return;
+            title = document.querySelector(".home-wordmark");
+            var w = word.getBoundingClientRect();
+            var ease = "cubic-bezier(.65,0,.35,1)";
+            if (title) {
+              var t = title.getBoundingClientRect();
+              var scale = parseFloat(getComputedStyle(title).fontSize) / parseFloat(getComputedStyle(word).fontSize);
+              var tick = title.querySelector(".wordmark-tick");
+              title.style.visibility = "hidden";
+              run(word, [
+                { transform: "none", color: "#fff" },
+                { transform: "translate(" + (t.left - w.left) + "px," + (t.top - w.top) + "px) scale(" + scale + ")", color: getComputedStyle(title).color },
+              ], timing(0, 560, ease));
+              run(letter.querySelector(".wordmark-tick"), [{ stroke: "#7fe3d6" }, { stroke: getComputedStyle(tick).stroke }], timing(0, 560, ease));
+            } else {
+              run(word, [{ opacity: 1 }, { opacity: 0 }], timing(0, 300));
+            }
+            var fade = splash.animate([{ backgroundColor: "rgba(13,122,112,1)" }, { backgroundColor: "rgba(13,122,112,0)" }], timing(0, 560, ease));
+            animations.push(fade);
+            fade.onfinish = finish;
+          };
+          var flight = setTimeout(fly, 2250);
+          splash.addEventListener("click", function () {
+            clearTimeout(flight);
+            finish();
+          });
+        }
       })();
     </script>
     <div id="root"></div>
