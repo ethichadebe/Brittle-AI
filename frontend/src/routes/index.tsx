@@ -9,6 +9,8 @@ import { useAnimatedMount } from "../hooks/useAnimatedMount";
 import { useAccountSession } from "../hooks/useAccountSession";
 import { useDeferredDelete } from "../hooks/useDeferredDelete";
 import { MoreIcon, PencilIcon, PersonIcon, PlusIcon, TrashIcon } from "../components/icons";
+import { Intro } from "../components/Intro";
+import { markIntroSeen, shouldShowIntro } from "../lib/onboarding";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -18,6 +20,7 @@ export const Route = createFileRoute("/")({
 const ACTIONS_WIDTH = 168;
 
 const storeOf = (slug: StoreSlug) => STORE_CONFIGS.find((s) => s.slug === slug);
+const storage = () => window.localStorage;
 
 function HomePage() {
   const navigate = useNavigate();
@@ -38,6 +41,23 @@ function HomePage() {
         setLoadError(true);
       });
   }, []);
+
+  // #117: the intro, decided once both the lists and the session are known,
+  // so a returning Shopper never glimpses it while they load.
+  const [introDismissed, setIntroDismissed] = useState(false);
+  const known = lists !== null && account !== undefined;
+  const alreadyUsing = (lists?.length ?? 0) > 0 || !!account;
+  const showIntro = known && !introDismissed && shouldShowIntro(storage, alreadyUsing);
+  // Someone already using Accucery here never needs it, even if they later
+  // empty their lists or sign out.
+  useEffect(() => {
+    if (known && alreadyUsing) markIntroSeen(storage);
+  }, [known, alreadyUsing]);
+
+  const leaveIntro = () => {
+    markIntroSeen(storage);
+    setIntroDismissed(true);
+  };
 
   const deletion = useDeferredDelete<GroceryList>(
     (list) => api.lists.delete(list.id),
@@ -95,6 +115,22 @@ function HomePage() {
   const openCreate = () => navigate({ to: "/lists/new" });
 
   const avatar = account ? initials(account.email) : "";
+
+  if (showIntro) {
+    return (
+      <Intro
+        onGetStarted={() => {
+          leaveIntro();
+          void navigate({ to: "/lists/new" });
+        }}
+        onSkip={leaveIntro}
+        onSignIn={() => {
+          leaveIntro();
+          void navigate({ to: "/sign-in", search: { then: "/" } });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="page-fade-in home">
