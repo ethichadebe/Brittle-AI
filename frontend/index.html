@@ -14,8 +14,93 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Accucery" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <style>
+      /* Opening animation: the A draws itself, the tick checks in, and the name
+         comes into focus, reading "Accuracy" until it's sharp enough to see it
+         says "Accucery". Here rather than in React so it's on screen from the
+         first frame, while the app loads underneath it. */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #0d7a70;
+        transition: opacity 300ms ease-in;
+      }
+      #splash[hidden] { display: none; }
+      #splash.splash--done { opacity: 0; pointer-events: none; }
+      #splash svg { width: 132px; height: 132px; overflow: visible; }
+      #splash .splash-a { stroke-dasharray: 700; stroke-dashoffset: 700; animation: splash-draw 520ms cubic-bezier(.65,0,.35,1) 120ms forwards; }
+      #splash .splash-tick { stroke-dasharray: 260; stroke-dashoffset: 260; animation: splash-draw 300ms cubic-bezier(.3,1.4,.6,1) 600ms forwards; }
+      #splash .splash-word {
+        color: #fff;
+        font: 800 32px/1 "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        letter-spacing: -0.01em;
+        opacity: 0;
+        filter: blur(2.5px);
+        animation: splash-word-in 260ms ease-out 720ms forwards, splash-focus 760ms ease-in-out 1100ms forwards;
+      }
+      /* The three letters that differ, stacked: "rac" gives way to "cer". */
+      #splash .splash-swap { display: inline-grid; }
+      #splash .splash-swap > span { grid-area: 1 / 1; text-align: center; }
+      #splash .splash-to { opacity: 0; animation: splash-show 260ms ease-in-out 1360ms forwards; }
+      #splash .splash-from { animation: splash-hide 260ms ease-in-out 1360ms forwards; }
+
+      @keyframes splash-draw { to { stroke-dashoffset: 0; } }
+      @keyframes splash-word-in { to { opacity: 1; } }
+      @keyframes splash-focus {
+        0% { filter: blur(2.5px); }
+        45% { filter: blur(5px); }
+        100% { filter: blur(0); }
+      }
+      @keyframes splash-show { to { opacity: 1; } }
+      @keyframes splash-hide { to { opacity: 0; } }
+    </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true" hidden>
+      <svg viewBox="0 0 512 512">
+        <path class="splash-a" d="M150 400L256 112l106 288" stroke="#fff" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="splash-tick" d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="splash-word">Accu<span class="splash-swap"><span class="splash-from">rac</span><span class="splash-to">cer</span></span>y</div>
+    </div>
+    <script>
+      // Plays when the installed app is opened fresh: once per app session,
+      // so switching back to it, or reloading onto a new build, doesn't
+      // replay it. Never for someone who asked their phone for less motion.
+      // A tap skips it. "?splash" in the address plays it anywhere, to see it.
+      (function () {
+        var splash = document.getElementById("splash");
+        try {
+          var installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+          var asked = /[?&]splash(=|&|$)/.test(location.search);
+          var calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+          var seen = sessionStorage.getItem("accucery:splashShown");
+          if (!calm && (asked || (installed && !seen))) {
+            sessionStorage.setItem("accucery:splashShown", "1");
+            splash.hidden = false;
+            var finish = function () {
+              splash.classList.add("splash--done");
+              setTimeout(function () { splash.remove(); }, 320);
+            };
+            var timer = setTimeout(finish, 2100);
+            splash.addEventListener("click", function () {
+              clearTimeout(timer);
+              finish();
+            });
+            return;
+          }
+        } catch (e) {
+          // No storage or media queries: just open the app.
+        }
+        splash.remove();
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
