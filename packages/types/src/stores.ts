@@ -3,7 +3,11 @@ import type { StoreSlug } from "./index.js";
 export interface StoreConfig {
   slug: StoreSlug;
   name: string;
+  // The main colour of the store's own logo: its progress bars and dots.
   color: string;
+  // Where a logo has more than one colour the bar should show, its bands in
+  // order along the bar. Makro: the three arcs of its logo.
+  barStripes?: string[];
   active: boolean;
   loyaltyProgramme: string | null;
 }
@@ -12,21 +16,21 @@ export const STORE_CONFIGS: StoreConfig[] = [
   {
     slug: "checkers",
     name: "Checkers",
-    color: "#00833e",
+    color: "#38a8b0",
     active: true,
     loyaltyProgramme: "Xtra Savings",
   },
   {
     slug: "pick-n-pay",
     name: "Pick n Pay",
-    color: "#003087",
+    color: "#183858",
     active: true,
     loyaltyProgramme: "Smart Shopper",
   },
   {
     slug: "shoprite",
     name: "Shoprite",
-    color: "#da291c",
+    color: "#f43028",
     active: true,
     // Same programme as Checkers: both are Shoprite Holdings brands.
     loyaltyProgramme: "Xtra Savings",
@@ -34,7 +38,7 @@ export const STORE_CONFIGS: StoreConfig[] = [
   {
     slug: "woolworths",
     name: "Woolworths",
-    color: "#1a1a1a",
+    color: "#181818",
     // Switched on before issue #27 was settled, with a note that if #27 landed
     // on a zone other than the p60 default then every price shown until then
     // was wrong by that zone's difference. It did: #27 closed on 2026-09-21
@@ -49,7 +53,8 @@ export const STORE_CONFIGS: StoreConfig[] = [
   {
     slug: "makro",
     name: "Makro",
-    color: "#c8102e",
+    color: "#00b0f0",
+    barStripes: ["#00b0f0", "#00b050", "#f03028"],
     // Verified live before switching on: 20 products in 2s, correct prices,
     // zero ScraperAPI credits. Unlike Woolworths there is no price-zone
     // ambiguity - prices[] says by priceType what each number is.

@@ -36,6 +36,7 @@ import {
 } from "../components/icons";
 import { AddItems } from "../components/AddItems";
 import { CompareFlow } from "../components/CompareFlow";
+import { StoreLogo, storeBarFill } from "../components/StoreBrand";
 
 // While any price on the list is being refreshed, ask again this often —
 // one item takes a few seconds to scrape — and give up after this long, so
@@ -299,8 +300,7 @@ function ListPage() {
           <h1>{listName || "List"}</h1>
           {store && (
             <span className="store-label">
-              <span className="store-dot" style={{ background: store.color }} />
-              {store.name}
+              <StoreLogo store={store} size="md" />
             </span>
           )}
           {storeSlug && LOCATABLE_STORES.includes(storeSlug) && (
@@ -343,7 +343,7 @@ function ListPage() {
           </>
         )}
         <div className="list-progress" aria-hidden="true">
-          <i style={{ width: `${progress * 100}%` }} />
+          <i style={storeBarFill(store, progress)} />
         </div>
       </header>
 

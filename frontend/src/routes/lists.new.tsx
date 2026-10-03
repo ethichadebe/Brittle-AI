@@ -13,6 +13,7 @@ import {
   rememberLocation,
 } from "../lib/location";
 import { CheckIcon, PinIcon } from "../components/icons";
+import { StoreLogo } from "../components/StoreBrand";
 
 export const Route = createFileRoute("/lists/new")({
   component: NewListPage,
@@ -152,8 +153,9 @@ function NewListPage() {
               className={`store-tile${store === s.slug ? " store-tile--on" : ""}`}
               onClick={() => setStore(s.slug)}
             >
-              <span className="store-tile-swatch" style={{ background: s.color }} />
-              <span className="store-tile-name">{s.name}</span>
+              <span className="store-tile-name">
+                <StoreLogo store={s} size="md" />
+              </span>
               {store === s.slug && <CheckIcon className="store-tile-check" />}
             </button>
           ))}
