@@ -29,7 +29,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockZone.mockReturnValue("none");
+  mockZone.mockResolvedValue("none");
 });
 
 function cookieValue(res: { cookies: { name: string; value: string }[] }, name: string) {

@@ -247,12 +247,12 @@ describe("currentZone", () => {
     const fake = new FakeScraper(5, "p10");
     const engine = createSearchEngine({ checkers: fake });
 
-    expect(engine.currentZone("checkers")).toBe("p10");
+    expect(await engine.currentZone("checkers")).toBe("p10");
     expect(fake.calls).toBe(0);
   });
 
-  it("is NO_ZONE for a store with no registered scraper", () => {
+  it("is NO_ZONE for a store with no registered scraper", async () => {
     const engine = createSearchEngine({});
-    expect(engine.currentZone("checkers")).toBe("none");
+    expect(await engine.currentZone("checkers")).toBe("none");
   });
 });

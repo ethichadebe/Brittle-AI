@@ -34,7 +34,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockZone.mockReturnValue("none");
+  mockZone.mockResolvedValue("none");
   mockSearch.mockResolvedValue([]);
 });
 

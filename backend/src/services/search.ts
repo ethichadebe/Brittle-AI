@@ -28,7 +28,7 @@ async function hydrate(storeSlug: string, productIds: string[]): Promise<Product
 // The one place a store gets searched — /search and #89's item matching
 // both go through this, so a repeat lookup for either never re-scrapes.
 export async function search(storeSlug: StoreSlug, query: string): Promise<Product[]> {
-  const zone = currentZone(storeSlug);
+  const zone = await currentZone(storeSlug);
 
   const cachedSearch = await getCachedSearch(storeSlug, zone, query);
   if (cachedSearch) {
