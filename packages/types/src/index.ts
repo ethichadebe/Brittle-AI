@@ -46,6 +46,9 @@ export interface GroceryList {
   // An estimate from the latest prices Accucery has observed, not Basket
   // Prices — only an opened list's total stands on those (#77).
   totalPrice: number;
+  // The branch the list is priced at (#131), e.g. "Checkers FX Sandhurst";
+  // null when it uses the store's default (Joburg) prices.
+  branchName: string | null;
 }
 
 // List item

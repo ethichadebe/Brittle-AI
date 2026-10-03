@@ -56,7 +56,7 @@ describe("refreshItems", () => {
     await refreshItems("checkers", [{ productId: "abc123", productName: "Clover Milk 1L" }]);
 
     expect(mockSearch).toHaveBeenCalledOnce();
-    expect(mockSearch).toHaveBeenCalledWith("checkers", "Clover Milk 1L");
+    expect(mockSearch).toHaveBeenCalledWith("checkers", "Clover Milk 1L", undefined);
     expect(mockUpsert).toHaveBeenCalledOnce();
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({

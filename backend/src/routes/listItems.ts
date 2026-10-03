@@ -3,6 +3,8 @@ import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { basketPrices } from "../services/basketPrices.js";
+import { branchOf } from "../scraper/branch.js";
+import type { Branch } from "../scraper/types.js";
 
 type ListItemRow = Parameters<typeof toListItem>[0];
 
@@ -35,7 +37,7 @@ function toListItem(row: {
 // Every list item leaves the server priced at its Basket Price (#77): the
 // latest observed price, with how old it is and whether it's being
 // refreshed — never the price the shopper's phone sent when adding it.
-async function priced(storeSlug: StoreSlug, rows: ListItemRow[]): Promise<ListItem[]> {
+async function priced(storeSlug: StoreSlug, rows: ListItemRow[], branch?: Branch): Promise<ListItem[]> {
   const prices = await basketPrices(
     storeSlug,
     rows.map((r) => ({
@@ -43,7 +45,8 @@ async function priced(storeSlug: StoreSlug, rows: ListItemRow[]): Promise<ListIt
       productName: r.productName,
       regularPrice: r.regularPrice.toNumber(),
       loyaltyPrice: r.loyaltyPrice?.toNumber() ?? null,
-    }))
+    })),
+    branch
   );
   return rows.map((row) => {
     const price = prices.get(row.productId)!;
@@ -68,7 +71,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
       });
       if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
-      const items = await priced(list.storeSlug as StoreSlug, list.items);
+      const items = await priced(list.storeSlug as StoreSlug, list.items, branchOf(list.branch));
 
       return { items };
     }
@@ -121,7 +124,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
     // it here as "just now" would let a day-old price skip the refresh a
     // list total depends on, and would let any client set the shared price
     // every other shopper sees.
-    const [item] = await priced(list.storeSlug as StoreSlug, [row]);
+    const [item] = await priced(list.storeSlug as StoreSlug, [row], branchOf(list.branch));
     return reply.status(existing ? 200 : 201).send(item);
   });
 
@@ -146,7 +149,7 @@ export async function listItemsRoutes(app: FastifyInstance) {
         ...(isChecked !== undefined && { isChecked }),
       },
     });
-    const [item] = await priced(list.storeSlug as StoreSlug, [row]);
+    const [item] = await priced(list.storeSlug as StoreSlug, [row], branchOf(list.branch));
     return item;
   });
 

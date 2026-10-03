@@ -1792,3 +1792,43 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .item-price-status--outdated {
   color: var(--warn);
 }
+
+/* ── A list's branch (#131) ── */
+.location-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.location-icon { color: var(--primary); display: flex; }
+.location-icon svg { width: 20px; height: 20px; }
+.location-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.location-title { font-weight: 700; font-size: 0.95rem; }
+.location-sub { color: var(--muted); font-size: 0.8rem; }
+.location-note, .branch-note { color: var(--muted); font-size: 0.85rem; margin: 0.5rem 0 0; }
+.branch-note { margin: 0 1rem 0.5rem; }
+
+.branch-line {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.branch-line svg { flex: none; }
+.branch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-use {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

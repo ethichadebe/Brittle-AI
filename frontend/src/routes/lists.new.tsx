@@ -4,7 +4,15 @@ import { STORE_CONFIGS } from "@accucery/types";
 import type { GroceryList, StoreSlug } from "@accucery/types";
 import { api } from "../lib/api";
 import { datedListName, nameSuggestions } from "../lib/listNames";
-import { CheckIcon } from "../components/icons";
+import {
+  currentPosition,
+  LOCATABLE_STORES,
+  locateList,
+  LocationError,
+  locationRemembered,
+  rememberLocation,
+} from "../lib/location";
+import { CheckIcon, PinIcon } from "../components/icons";
 
 export const Route = createFileRoute("/lists/new")({
   component: NewListPage,
@@ -21,6 +29,39 @@ function NewListPage() {
   const [lists, setLists] = useState<GroceryList[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // #131: local prices. On by default once the shopper has said yes before.
+  const [useLocation, setUseLocation] = useState(locationRemembered);
+  const [asking, setAsking] = useState(false);
+  const [locationNote, setLocationNote] = useState<string | null>(null);
+  const locatable = store !== null && LOCATABLE_STORES.includes(store);
+  const storeName = STORE_CONFIGS.find((s) => s.slug === store)?.name ?? "store";
+
+  // The browser's permission prompt only ever follows this tap, so it's
+  // never a surprise. The position read here is thrown away: it only
+  // proves permission. The list asks again, just as it's created.
+  const toggleLocation = async () => {
+    setLocationNote(null);
+    if (useLocation) {
+      setUseLocation(false);
+      rememberLocation(false);
+      return;
+    }
+    setAsking(true);
+    try {
+      await currentPosition();
+      setUseLocation(true);
+      rememberLocation(true);
+    } catch (e) {
+      rememberLocation(false);
+      setLocationNote(
+        e instanceof LocationError && e.problem === "denied"
+          ? "Location is off for this site in your browser, so this list will use Joburg prices."
+          : "Couldn't find your location, so this list will use Joburg prices."
+      );
+    } finally {
+      setAsking(false);
+    }
+  };
 
   useEffect(() => {
     api.lists
@@ -44,6 +85,13 @@ function NewListPage() {
     setError(null);
     try {
       const list = await api.lists.create(store, name.trim());
+      // The branch is found in the background: the list opens straight
+      // away on Joburg prices and moves to the branch when it's found.
+      if (locatable && useLocation) {
+        await currentPosition()
+          .then((where) => void locateList(list.id, where).catch(console.error))
+          .catch(console.error);
+      }
       // Replace this screen, so back from the new list goes home, where it's
       // now at the top, not back to a form for a list that already exists.
       void navigate({ to: "/lists/$listId", params: { listId: list.id }, replace: true });
@@ -110,6 +158,30 @@ function NewListPage() {
             </button>
           ))}
         </div>
+
+        {locatable && (
+          <div className="location-row">
+            <span className="location-icon"><PinIcon /></span>
+            <div className="location-text">
+              <span className="location-title">Prices from your nearest {storeName}</span>
+              <span className="location-sub">
+                {useLocation
+                  ? "Your location is used once to find the branch. Only the branch is saved."
+                  : "Off: this list uses Joburg prices."}
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={useLocation}
+              aria-label={`Prices from your nearest ${storeName}`}
+              className={`toggle${useLocation ? " toggle--on" : ""}`}
+              disabled={asking}
+              onClick={() => void toggleLocation()}
+            />
+          </div>
+        )}
+        {locatable && locationNote && <p className="location-note" role="status">{locationNote}</p>}
 
         {error && <p className="form-error">{error}</p>}
 

@@ -106,6 +106,12 @@ a `storeContexts` cookie; Shoprite names a branch only where it delivers, and
 elsewhere a "digital" store with nothing to sell (#66, 2026-10-03).
 _Avoid_: region, area, branch pricing
 
+**Branch**:
+The particular store a **List** is priced at, found from the **Shopper**'s
+location when they allow it, otherwise the store's default (Joburg). A
+**List** remembers its **Branch**; the location used to find it is never kept.
+_Avoid_: store (that is the retailer), location (that is the shopper's)
+
 ## Relationships
 
 - A **Product** always has a **Shelf Price**
