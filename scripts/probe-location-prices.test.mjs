@@ -36,24 +36,32 @@ const eq = (a, b, name) =>
 // own coordinates, so the latitude alone tells them apart.
 const placeOf = (lat) => ({ "-26.1076": "JHB", "-33.9175": "CPT", "-29.7258": "DBN" })[String(lat)] ?? "??";
 
-function readBody(req) {
+function readRaw(req) {
   return new Promise((resolve) => {
     let s = "";
     req.on("data", (d) => (s += d));
-    req.on("end", () => resolve(s ? JSON.parse(s) : null));
+    req.on("end", () => resolve(s));
   });
 }
+const readBody = async (req) => {
+  const s = await readRaw(req);
+  return s ? JSON.parse(s) : null;
+};
 
-function base(handler) {
+// busy: the page polls forever, as pnp.co.za's does. A probe that waits for
+// the network to go quiet waits out its whole timeout, as the first live run
+// did (2026-10-03).
+function base(handler, { busy = false, pretty = false } = {}) {
   return http.createServer(async (req, res) => {
+    // pretty: Pick n Pay indents every response, errors included.
     const json = (o, status = 200) => {
       res.writeHead(status, { "content-type": "application/json" });
-      res.end(JSON.stringify(o));
+      res.end(pretty ? JSON.stringify(o, null, 2) : JSON.stringify(o));
     };
     const body = req.method === "POST" ? await readBody(req) : null;
     if (req.url === "/") {
       res.writeHead(200, { "content-type": "text/html" });
-      return res.end("<html><body>shop</body></html>");
+      return res.end(`<html><body>shop${busy ? "<script>setInterval(() => fetch('/ping'), 250)</script>" : ""}</body></html>`);
     }
     if (!(await handler(req, body, json))) json({ error: "not found" }, 404);
   });
@@ -134,6 +142,10 @@ function pnpServer({ failSearchAt } = {}) {
       return json({ guid, code: "0001", baseStore: { uid: "WC21", displayName: "PnP Constantia" } }), true;
     }
     if (cartMatch && cartMatch[2] && req.method === "POST") {
+      // What the first live run hit: an address with an empty street is
+      // refused, whatever its coordinates.
+      if (!body?.streetname || !body?.streetnumber)
+        return json({ errors: [{ message: "This field is required.", subject: "streetname", type: "ValidationError" }] }, 400), true;
       carts.set(cartMatch[1], PNP_STORES[placeOf(body?.latitude)] ?? "WC21");
       return json(null), true;
     }
@@ -155,6 +167,20 @@ function pnpServer({ failSearchAt } = {}) {
       return json({ products, pagination: { totalResults: products.length } }), true;
     }
     return false;
+  }, { busy: true, pretty: true });
+}
+
+// Stands in for api.scraperapi.com: takes ?api_key=&url=&keep_headers=true,
+// forwards the request to url, and remembers what it was asked.
+function scraperApiServer(seen) {
+  return http.createServer(async (req, res) => {
+    const u = new URL(req.url, "http://x");
+    const target = u.searchParams.get("url");
+    seen.push({ key: u.searchParams.get("api_key"), keep: u.searchParams.get("keep_headers"), target });
+    const body = req.method === "POST" ? await readRaw(req) : undefined;
+    const r = await fetch(target, { method: req.method, headers: { "content-type": "application/json" }, body });
+    res.writeHead(r.status, { "content-type": "application/json" });
+    res.end(await r.text());
   });
 }
 
@@ -226,22 +252,37 @@ const c = lib.compare([
 eq(c.places, 2, "a place that errored is not compared");
 eq([c.shared, c.same, c.differ.length, c.onlySome], [2, 1, 1, 1], "counts same, differ and only-some");
 eq(c.differ[0].spread, 2, "a repeated product keeps its first price at a place");
+eq(
+  lib.errText(new Error('page.evaluate: Error: HTTP 400 {\n  "errors" : [ {\n    "type" : "ValidationError"\n  } ]\n}')),
+  'HTTP 400 { "errors" : [ { "type" : "ValidationError" } ] }',
+  "an indented error body is kept, on one line"
+);
+eq(lib.PLACES.every((p) => p.street), true, "every place has a street for Pick n Pay");
 
 // ---------------------------------------------------------------------------
 console.log("\nthe live chain, against stand-ins");
+const KEY = "test-key-5f3e9a";
+const seen = [];
 const servers = {
   checkers: shopriteGroupServer({ brand: "Checkers" }),
   shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"] }),
   pnp: pnpServer({ failSearchAt: "KC03" }),
+  scraperApi: scraperApiServer(seen),
 };
 let run;
 try {
+  const checkersOrigin = await listen(servers.checkers);
   run = await runProbe({
-    CHECKERS_ORIGIN: await listen(servers.checkers),
+    CHECKERS_ORIGIN: checkersOrigin,
     SHOPRITE_ORIGIN: await listen(servers.shoprite),
     PNP_ORIGIN: await listen(servers.pnp),
+    SCRAPERAPI_URL: `${await listen(servers.scraperApi)}/`,
+    SCRAPERAPI_KEY: KEY,
+    // Checkers through the stand-in ScraperAPI, Shoprite direct: both paths.
+    PROXY_STORES: "checkers",
     QUERIES: "eggs bread oros milk",
   });
+  seen.checkersOrigin = checkersOrigin;
 } finally {
   await Promise.all(Object.values(servers).map((s) => new Promise((r) => s.close(r))));
 }
@@ -280,11 +321,19 @@ has(pnp, "no address yet: PnP Constantia (WC21)", "reports the default store");
 has(pnp, "PnP GC14 (GC14)", "moves Sandton's cart to its own store");
 has(pnp, "PnP WC09 (WC09)", "and Sea Point's to another");
 hasnt(pnp, "99.99", "never prices from the default store");
-has(pnp, "DBN uMhlanga     ERROR HTTP 503", "one failing place is reported, not fatal");
+has(pnp, "DBN uMhlanga     ERROR search: HTTP 503", "one failing place is reported, with the step, not fatal");
+has(pnp, '"type": "ServerError"', "and the reason, not just the first line of it");
+hasnt(out, "warmup:", "does not wait for a page that never goes quiet");
 has(pnp, "PnP Large Eggs 6  (R17.99-R22.99)", "finds the egg difference");
 has(pnp, "Albany Superior White Bread 700g  (R17.99-R18.99)", "and the bread one");
 
-hasnt(out, "SCRAPERAPI", "prints nothing about the proxy key");
+console.log(" ScraperAPI");
+has(checkers, "== Checkers (via ScraperAPI) ==", "says Checkers went through it");
+has(shoprite, "== Shoprite ==", "and Shoprite didn't");
+eq(seen.length > 0 && seen.every((r) => r.key === KEY && r.keep === "true"), true, "sends the key, keeping the site's headers");
+eq(seen.every((r) => r.target.startsWith(`${seen.checkersOrigin}/api/`)), true, "asks for the store's own API URLs, Checkers only");
+eq(seen.filter((r) => r.target.includes("get-products-filter")).length, 12, "four searches at each of three places");
+hasnt(out, KEY, "never prints the key");
 
 if (fail) console.log(`\n--- probe output ---\n${out}`);
 console.log(`\n${pass} passed, ${fail} failed`);
