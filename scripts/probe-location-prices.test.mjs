@@ -124,7 +124,12 @@ function shopriteGroupServer({ brand, notServed = [], defaultAt = [], digitalAt 
       const place = placeOf(latitude);
       // Nearest first; the nearest is at the place itself.
       const stores = [{ name: `${brand} ${place} Mall`, posSiteCode: "1234", distanceKm: 2.4, coordinates: { latitude, longitude } }];
-      if (deliversVia[place] === "ALX") stores.push({ name: `${brand} Alexandra`, posSiteCode: "5678", distanceKm: 2.9, coordinates: ALX });
+      // "far": three more stores that don't deliver come first, so only a
+      // widened search reaches the one that does.
+      if (deliversVia[place] === "far")
+        for (const km of [3.1, 5.6, 8.2]) stores.push({ name: `${brand} ${km}km`, distanceKm: km, coordinates: { latitude, longitude } });
+      if (deliversVia[place] === "ALX" || deliversVia[place] === "far")
+        stores.push({ name: `${brand} Alexandra`, posSiteCode: "5678", distanceKm: 2.9, coordinates: ALX });
       return json(stores.slice(0, limit)), true;
     }
     if (req.url.startsWith("/api/catalogue/get-products-filter")) {
@@ -387,9 +392,23 @@ try {
 } finally {
   await new Promise((r) => lonely.close(r));
 }
-has(second.out, "none of the nearest 3 delivers", "says so");
+has(second.out, "none of the 1 nearest delivers", "says so, counting the stores it actually tried");
 has(second.out, "GQB Gqeberha       0 items", "an empty search is not an error");
 has(second.out, "EMPTY; stores GQBx01[digital]; reply keys products,totalCount, totalCount 0", "and says what the site named and answered");
+
+console.log("\nthe nearest that delivers is further out");
+const far = shopriteGroupServer({ brand: "Shoprite", digitalAt: ["GQB"], deliversVia: { GQB: "far" } });
+let narrow, wide;
+try {
+  const origin = await listen(far);
+  const env = { SHOPRITE_ORIGIN: origin, STORES: "shoprite", PLACES: "GQB", QUERIES: "bread" };
+  narrow = await runProbe(env);
+  wide = await runProbe({ ...env, NEAREST_TRIES: "5" });
+} finally {
+  await new Promise((r) => far.close(r));
+}
+has(narrow.out, "none of the 3 nearest delivers", "three tries stop short");
+has(wide.out, "delivers from Shoprite Alexandra", "NEAREST_TRIES widens the search to reach it");
 
 if (fail) console.log(`\n--- probe output ---\n${out}\n--- second ---\n${second?.out ?? ""}`);
 console.log(`\n${pass} passed, ${fail} failed`);

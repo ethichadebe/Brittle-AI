@@ -46,6 +46,8 @@
 // run is about 90 requests. Narrow it to spend fewer:
 //   -e STORES=pick-n-pay -e QUERIES=eggs -e PLACES=JHB,CPT,DBN
 //
+// and widen the search for a Shoprite that delivers with -e NEAREST_TRIES=25.
+//
 // Prints no secrets: no cookies, no keys, only store names and prices.
 
 export const PLACES = [
@@ -171,7 +173,10 @@ export const sellsGroceries = (storeContexts) =>
   storeContexts.some((c) => (c.serviceOptionIds ?? []).some((s) => s !== "digital"));
 
 // How many nearby stores to try before giving up. Each try is one request.
-const NEAREST_TRIES = 3;
+// Three found nothing around Sandton or Sea Point (fifth run); the owner then
+// chose a delivering store anywhere in the province, so a run can widen it:
+// -e NEAREST_TRIES=25.
+const NEAREST_TRIES = Number(process.env.NEAREST_TRIES) || 3;
 
 // For a search that came back empty: which stores the site named for the
 // place, how each one serves, and what the reply held. The fourth run found
@@ -349,8 +354,10 @@ async function main() {
             payload: { latitude: place.latitude, longitude: place.longitude, limit: NEAREST_TRIES, brands: [brand] },
           });
           let found = null;
+          let tried = 0;
           for (const store of (Array.isArray(nearby) ? nearby : []).slice(0, NEAREST_TRIES)) {
             if (!store?.coordinates) continue;
+            tried++;
             const alt = await call(
               "POST",
               "/api/store/fetch-store-contexts?update=false",
@@ -365,7 +372,7 @@ async function main() {
             storeContexts = found.storeContexts;
             branch += `; delivers from ${found.store.name} (${found.store.distanceKm ?? "?"}km)`;
           } else {
-            branch += `; none of the nearest ${NEAREST_TRIES} delivers`;
+            branch += `; none of the ${tried} nearest delivers`;
           }
         }
         stage = "search";

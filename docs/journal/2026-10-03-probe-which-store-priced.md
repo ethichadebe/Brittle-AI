@@ -87,3 +87,11 @@
       prices at the first that names a delivering store. The stand-in
       covers a place that finds one and a place that doesn't. Removing the
       fallback, or counting "digital" as groceries, fails the test.
+  - **Three tries were not enough.** On the fifth run, none of the three
+    Shoprites nearest Sandton or Sea Point delivers.
+    - The owner then chose a delivering Shoprite anywhere in the province as
+      that province's default, however far away.
+    - `NEAREST_TRIES` now widens the search, and the probe counts the stores
+      it actually tried.
+    - The stand-in covers a delivering store fourth in line: three tries
+      miss it and five reach it. Ignoring the setting fails the test.
