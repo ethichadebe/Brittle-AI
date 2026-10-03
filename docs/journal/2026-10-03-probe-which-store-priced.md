@@ -55,3 +55,23 @@
     - An empty search now prints the stores the site named, how each one
       delivers, and what the reply held.
     - The next small run says why.
+  - **Why Shoprite was empty:** for both places it named one store whose
+    only service is "digital". It names no store that sells groceries.
+    - The owner's Soweto recording named real delivery stores. So Shoprite
+      quotes a branch only where it delivers groceries.
+    - Elsewhere, only its default store has prices: the one a search gets
+      with no branch at all.
+    - The probe already prints this, so the nine-province run will show
+      where Shoprite delivers.
+
+  - **Where #66 stands after the measuring:**
+    - **Pick n Pay:** prices vary by province. The branch is a store code
+      that an address picks.
+    - **Checkers:** prices vary by branch. The branch goes in the
+      `storeContexts` cookie.
+    - **Shoprite:** branch prices only where it delivers.
+    - **Woolworths:** not probed. It needs Google place ids.
+    - **Makro:** the same everywhere.
+    - **A bug found on the way:** the production Checkers and Shoprite
+      scrapers send the branch in the body only. So the app has shown one
+      default store's prices to everyone.
