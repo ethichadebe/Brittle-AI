@@ -100,7 +100,8 @@ _Avoid_: loyalty card, rewards card, loyalty scheme
 The region whose prices a store quotes, which differs by where the shopper is.
 Each store names its zones in its own way and there is no shared vocabulary
 between them — for Woolworths a zone is a price band, for Checkers and Shoprite
-it is a particular physical branch, and Makro appears to have none.
+it is a particular physical branch, for Pick n Pay it is a store code, and
+Makro appears to have none.
 _Avoid_: region, area, branch pricing
 
 ## Relationships
@@ -162,8 +163,10 @@ _Avoid_: region, area, branch pricing
 - A **Shelf Price** is quoted for one **Price Zone**; a price Accucery has
   observed is a fact about a product **and** the zone it was observed in, and
   the same product in another zone is a different price
-- A **Price Zone** changes what a product **costs**, not which products a store
-  **sells** — verified for Woolworths, asserted for the rest
+- A **Price Zone** changes what a product **costs**, and at some stores which
+  products it **sells** and which are on promotion — Woolworths only varies the
+  price; at Checkers, Sandton and Sea Point stocked different egg brands and ran
+  different promotions (hand-checked for #66, 2026-10-02)
 - Every price Accucery shows is either an **Indicative Price** or a **Basket
   Price**; the two differ in how recently they were observed and in what the
   shopper is entitled to rely on
