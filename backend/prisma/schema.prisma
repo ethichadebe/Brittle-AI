@@ -14,6 +14,11 @@ model List {
   name      String
   createdAt DateTime   @default(now())
   userId    String?
+  // The branch this list is priced at (#131): its name and whatever the
+  // store's own scraper needs to ask for it - opaque to everything else.
+  // Null is the store's default (Joburg). Never coordinates: the shopper's
+  // location is used once to find the branch and then discarded (POPIA).
+  branch    Json?
   items     ListItem[]
 
   @@map("lists")

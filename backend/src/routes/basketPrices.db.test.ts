@@ -94,7 +94,7 @@ describe("Basket Prices on an opened list (#77)", () => {
 
     const [first] = await openList(listId);
     expect(first.priceStatus, "a list total showed an indicative price as if it were current").toBe("updating");
-    expect(mockSearch).toHaveBeenCalledWith("checkers", productName);
+    expect(mockSearch).toHaveBeenCalledWith("checkers", productName, undefined);
 
     await vi.waitFor(async () => {
       const [item] = await openList(listId);

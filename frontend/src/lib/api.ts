@@ -83,6 +83,14 @@ export const api = {
     delete: (id: string) =>
       request<void>(`/lists/${id}`, { method: "DELETE" }),
 
+    // #131: price the list at the branch nearest this point. The point goes
+    // in the body, never the URL, and the server keeps only the branch.
+    locate: (id: string, where: { latitude: number; longitude: number }) =>
+      request<{ branchName: string | null }>(`/lists/${id}/location`, {
+        method: "PUT",
+        body: JSON.stringify(where),
+      }),
+
     compare: (id: string, targetStore: StoreSlug) =>
       request<ComparisonResult>(`/lists/${id}/compare`, {
         method: "POST",
@@ -122,10 +130,12 @@ export const api = {
       request<void>("/substitute-decisions", { method: "DELETE", body: JSON.stringify(pairing) }),
   },
 
-  search: (store: StoreSlug, q: string, signal?: AbortSignal): Promise<Product[]> =>
-    request<SearchResponse>(`/search?store=${store}&q=${encodeURIComponent(q)}`, {
-      signal,
-    }).then((r) => r.products),
+  // With a listId, searched as that list's branch (#131).
+  search: (store: StoreSlug, q: string, signal?: AbortSignal, listId?: string): Promise<Product[]> =>
+    request<SearchResponse>(
+      `/search?store=${store}&q=${encodeURIComponent(q)}${listId ? `&listId=${encodeURIComponent(listId)}` : ""}`,
+      { signal }
+    ).then((r) => r.products),
 
   // #114: products this Shopper has had on their lists at a store.
   recentProducts: (store: StoreSlug) =>

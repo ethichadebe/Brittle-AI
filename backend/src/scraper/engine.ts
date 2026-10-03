@@ -1,5 +1,5 @@
 import type { Product, StoreSlug } from "@accucery/types";
-import type { Scraper } from "./types.js";
+import type { Branch, Place, Scraper } from "./types.js";
 import { CheckersScraper, ShopriteScraper } from "./shopriteGroup.js";
 import { PnpScraper } from "./pnp.js";
 import { WoolworthsScraper } from "./woolworths.js";
@@ -28,13 +28,13 @@ export function createSearchEngine(registry: ScraperRegistry) {
     return tail;
   }
 
-  async function searchProducts(store: StoreSlug, query: string): Promise<Product[]> {
+  async function searchProducts(store: StoreSlug, query: string, branch?: Branch): Promise<Product[]> {
     const scraper = registry[store];
     if (!scraper) return [];
 
     return withStoreQueue(store, async () => {
       try {
-        return await scraper.search(query);
+        return await scraper.search(query, branch);
       } catch (err) {
         console.error(`[scraper:${store}] primary failed, trying Playwright fallback:`, err);
         return playwrightScraper.search(store, query);
@@ -46,11 +46,17 @@ export function createSearchEngine(registry: ScraperRegistry) {
   // checks this against the search cache before deciding whether a live
   // scrape is even needed. An unregistered store has no zone concept of its
   // own; NO_ZONE is as good as any value nothing will ever look up.
-  async function currentZone(store: StoreSlug): Promise<string> {
-    return (await registry[store]?.currentZone()) ?? NO_ZONE;
+  async function currentZone(store: StoreSlug, branch?: Branch): Promise<string> {
+    return (await registry[store]?.currentZone(branch)) ?? NO_ZONE;
   }
 
-  return { searchProducts, currentZone };
+  // #131: the branch nearest a place, for a store that prices by branch.
+  // Null when the store has none to offer there, or doesn't do branches.
+  async function nearestBranch(store: StoreSlug, place: Place): Promise<Branch | null> {
+    return (await registry[store]?.nearestBranch?.(place)) ?? null;
+  }
+
+  return { searchProducts, currentZone, nearestBranch };
 }
 
 // Registered so /api/search can be used to verify it, but STORE_CONFIGS still
@@ -68,4 +74,4 @@ const defaultRegistry: ScraperRegistry = {
 
 // Production wiring — unchanged from before #74, just built through the
 // same factory a test uses.
-export const { searchProducts, currentZone } = createSearchEngine(defaultRegistry);
+export const { searchProducts, currentZone, nearestBranch } = createSearchEngine(defaultRegistry);

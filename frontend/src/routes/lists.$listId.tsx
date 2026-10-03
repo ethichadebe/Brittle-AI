@@ -15,11 +15,20 @@ import { useDeferredDelete } from "../hooks/useDeferredDelete";
 import { useStoredFlag } from "../hooks/useStoredFlag";
 import { markHintSeen, nextHint, type Hint } from "../lib/onboarding";
 import {
+  currentPosition,
+  LOCATABLE_STORES,
+  locateList,
+  LocationError,
+  pendingLocate,
+  rememberLocation,
+} from "../lib/location";
+import {
   CheckIcon,
   ChevronIcon,
   MinusIcon,
   MoreIcon,
   PencilIcon,
+  PinIcon,
   PlusIcon,
   SettingsIcon,
   SwapIcon,
@@ -61,6 +70,11 @@ function ListPage() {
   const [loaded, setLoaded] = useState(false);
   const [listName, setListName] = useState("");
   const [storeSlug, setStoreSlug] = useState<StoreSlug | null>(null);
+  // #131: the branch this list is priced at; null is Joburg (the default).
+  const [branchName, setBranchName] = useState<string | null>(null);
+  // Already true when the New list screen started a lookup for this list.
+  const [locating, setLocating] = useState(() => pendingLocate(listId) !== undefined);
+  const [branchNote, setBranchNote] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   // "5 items added", shown briefly after the add screen closes.
   const [addedNote, setAddedNote] = useState<string | null>(null);
@@ -80,6 +94,44 @@ function ListPage() {
   const showItems = (all: ListItem[]) => setItems(all.filter((i) => !deleting.current.has(i.id)));
   const reloadItems = () => api.items.list(listId).then(showItems).catch(console.error);
 
+  // Moving to a branch changes every price on the list, so they're
+  // reloaded once it's saved. State is only set once the lookup answers.
+  const finishLocate = (lookup: Promise<string | null>) =>
+    lookup
+      .then(
+        (name) => {
+          if (name) {
+            setBranchName(name);
+            void reloadItems();
+          } else {
+            setBranchNote("No branch near you was found, so this list keeps Joburg prices.");
+          }
+        },
+        (e) =>
+          setBranchNote(
+            e instanceof LocationError
+              ? e.problem === "denied"
+                ? "Location is off for this site in your browser."
+                : "Couldn't find your location. Try again in a moment."
+              : "Couldn't reach the store to find your branch. Try again in a moment."
+          )
+      )
+      .finally(() => setLocating(false));
+
+  const settleLocate = (lookup: Promise<string | null>) => {
+    setLocating(true);
+    setBranchNote(null);
+    return finishLocate(lookup);
+  };
+
+  const locateHere = () =>
+    settleLocate(
+      currentPosition().then((where) => {
+        rememberLocation(true);
+        return locateList(listId, where);
+      })
+    );
+
   useEffect(() => {
     api.items
       .list(listId)
@@ -90,9 +142,14 @@ function ListPage() {
       .catch(console.error);
     api.lists.list().then((lists) => {
       const found = lists.find((l) => l.id === listId) as GroceryList | undefined;
-      if (found) { setListName(found.name); setStoreSlug(found.storeSlug); }
+      if (found) { setListName(found.name); setStoreSlug(found.storeSlug); setBranchName(found.branchName); }
     });
+    // A lookup the New list screen started for this list.
+    const lookup = pendingLocate(listId);
+    if (lookup) void finishLocate(lookup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- finishLocate is rebuilt each render; listId is what it depends on
   }, [listId]);
+
 
   // #77: opening a list returns its prices at once and refreshes old ones
   // in the background, so the page keeps asking until none are updating.
@@ -246,6 +303,21 @@ function ListPage() {
               {store.name}
             </span>
           )}
+          {storeSlug && LOCATABLE_STORES.includes(storeSlug) && (
+            <span className="branch-line">
+              <PinIcon />
+              {locating ? (
+                <span>Finding your nearest {store?.name ?? "branch"}…</span>
+              ) : branchName ? (
+                <span className="branch-name">{branchName}</span>
+              ) : (
+                <>
+                  <span>Joburg prices ·</span>
+                  <button className="branch-use" onClick={() => void locateHere()}>Use my location</button>
+                </>
+              )}
+            </span>
+          )}
         </div>
         <button
           className="list-card-more"
@@ -274,6 +346,8 @@ function ListPage() {
           <i style={{ width: `${progress * 100}%` }} />
         </div>
       </header>
+
+      {branchNote && <p className="branch-note" role="status">{branchNote}</p>}
 
       {loaded && items.length === 0 && (
         <div className="list-empty">

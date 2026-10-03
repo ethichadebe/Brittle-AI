@@ -2,7 +2,14 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import type { GroceryList, StoreSlug } from "@accucery/types";
-import { latestPrices } from "../services/basketPrices.js";
+import { latestPrices, readZone } from "../services/basketPrices.js";
+import { nearestBranch } from "../scraper/engine.js";
+import { branchOf, LOCATABLE_STORES } from "../scraper/branch.js";
+
+// South Africa's mainland, with a margin. A point outside it is a typo or a
+// spoof; no store would serve it, so it's refused before any store is asked.
+const SA = { latitude: [-35.5, -21.5], longitude: [15.5, 33.5] } as const;
+const within = (n: unknown, [lo, hi]: readonly [number, number]) => typeof n === "number" && Number.isFinite(n) && n >= lo && n <= hi;
 
 export async function listsRoutes(app: FastifyInstance) {
   // GET /lists — all lists owned by this Shopper, with item count and total price
@@ -17,15 +24,20 @@ export async function listsRoutes(app: FastifyInstance) {
     // at the latest price Accucery has observed, of any age, and nothing is
     // scraped to get it. The price stored when the item was added is only a
     // fallback — it never moves, so on its own it would drift for weeks.
-    const latestByStore = new Map<string, Map<string, number>>();
-    for (const storeSlug of new Set(lists.map((l) => l.storeSlug))) {
-      const productIds = lists.filter((l) => l.storeSlug === storeSlug).flatMap((l) => l.items.map((i) => i.productId));
-      latestByStore.set(storeSlug, await latestPrices(storeSlug, productIds));
+    // Each list's estimate comes from its own branch's prices (#131), so
+    // lists are grouped by store and zone, not store alone.
+    const zones = await Promise.all(lists.map((l) => readZone(l.storeSlug as StoreSlug, branchOf(l.branch))));
+    const groupOf = (i: number) => `${lists[i].storeSlug}\u0000${zones[i] ?? ""}`;
+    const latestByGroup = new Map<string, Map<string, number>>();
+    for (const group of new Set(lists.map((_, i) => groupOf(i)))) {
+      const members = lists.map((l, i) => ({ l, i })).filter(({ i }) => groupOf(i) === group);
+      const productIds = members.flatMap(({ l }) => l.items.map((item) => item.productId));
+      latestByGroup.set(group, await latestPrices(members[0].l.storeSlug, productIds, zones[members[0].i]));
     }
 
     return {
-      lists: lists.map((l) => {
-        const latest = latestByStore.get(l.storeSlug)!;
+      lists: lists.map((l, i) => {
+        const latest = latestByGroup.get(groupOf(i))!;
         return {
           id: l.id,
           storeSlug: l.storeSlug as StoreSlug,
@@ -37,6 +49,7 @@ export async function listsRoutes(app: FastifyInstance) {
             (sum, item) => sum + (latest.get(item.productId) ?? item.regularPrice.toNumber()) * item.quantity,
             0
           ),
+          branchName: branchOf(l.branch)?.name ?? null,
         };
       }),
     };
@@ -65,7 +78,45 @@ export async function listsRoutes(app: FastifyInstance) {
       itemCount: 0,
       checkedCount: 0,
       totalPrice: 0,
+      branchName: null,
     });
+  });
+
+  // PUT /lists/:id/location — price this list at the branch nearest a point
+  // (#131). The point is used to ask the store which branch serves it and
+  // is then discarded: only the branch is saved, never the coordinates
+  // (POPIA). They arrive in the body, so they never reach a URL or a log.
+  // Answers with the branch's name, or null when the store has none there
+  // and the list keeps the default (Joburg) prices.
+  app.put<{
+    Params: { id: string };
+    Body: { latitude?: unknown; longitude?: unknown };
+    Reply: { branchName: string | null };
+  }>("/lists/:id/location", async (req, reply) => {
+    const { latitude, longitude } = req.body ?? {};
+    if (!within(latitude, SA.latitude) || !within(longitude, SA.longitude)) {
+      return reply.status(400).send({ error: "latitude and longitude in South Africa are required" } as never);
+    }
+
+    const list = await findOwnedList(req.params.id, ownerKey(req));
+    if (!list) return reply.status(404).send({ error: "List not found" } as never);
+    if (!LOCATABLE_STORES.includes(list.storeSlug as StoreSlug)) {
+      return reply.status(422).send({ error: "This store's prices don't vary by branch yet" } as never);
+    }
+
+    let branch;
+    try {
+      branch = await nearestBranch(list.storeSlug as StoreSlug, { latitude: latitude as number, longitude: longitude as number });
+    } catch (err) {
+      // Logged without the point: the error is the store's, not the shopper's.
+      req.log.error({ err: String(err) }, "could not find the nearest branch");
+      return reply.status(502).send({ error: "Couldn't reach the store to find your branch" } as never);
+    }
+    // Nothing nearby is a real answer: the list stays on the default.
+    if (!branch) return reply.send({ branchName: null });
+
+    await prisma.list.update({ where: { id: list.id }, data: { branch: branch as object } });
+    return reply.send({ branchName: branch.name });
   });
 
   // PATCH /lists/:id — rename a list owned by this Shopper. Two lists may

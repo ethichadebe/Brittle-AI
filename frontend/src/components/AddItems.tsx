@@ -72,13 +72,13 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
         return;
       }
       setSearching(true);
-      api.search(storeSlug, query.trim(), controller.signal)
+      api.search(storeSlug, query.trim(), controller.signal, listId)
         .then((products) => { if (!controller.signal.aborted) setResults(products); })
         .catch(() => { if (!controller.signal.aborted) setResults([]); })
         .finally(() => { if (!controller.signal.aborted) setSearching(false); });
     }, SEARCH_DEBOUNCE_MS);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [query, storeSlug]);
+  }, [query, storeSlug, listId]);
 
   const withBusy = async (productId: string, work: () => Promise<void>) => {
     if (busy.current.has(productId)) return;

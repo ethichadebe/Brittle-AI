@@ -334,3 +334,59 @@ describe("currentZone", () => {
     expect(declaredZone).toBe(product.zone);
   });
 });
+
+// #131: a list priced at its own branch.
+describe("a list's own branch", () => {
+  const SEA_POINT: StoreContext[] = [{ storeId: "store-sea-point", serviceOptionIds: ["sixty-min-delivery"] }];
+  const branch = { name: "Checkers Sea Point Towers", contexts: SEA_POINT };
+
+  it("is searched as that branch, with no default lookup", async () => {
+    await new CheckersScraper().search("milk", branch);
+
+    expect(calls("/api/store/fetch-store-contexts")).toHaveLength(0);
+    expect(searchCall()[1].headers.Cookie).toBe(branchCookie(SEA_POINT));
+    expect(JSON.parse(searchCall()[1].body).storeContexts).toEqual(SEA_POINT);
+  });
+
+  it("has its own zone, which a search at it is tagged with", async () => {
+    const scraper = new CheckersScraper();
+    const zone = await scraper.currentZone(branch);
+    const [product] = await scraper.search("milk", branch);
+
+    expect(zone).toBe(product.zone);
+    expect(zone).not.toBe(await scraper.currentZone());
+  });
+});
+
+describe("the branch nearest a shopper", () => {
+  const HERE = { latitude: -33.9175, longitude: 18.387 };
+
+  it("is the stores the site names for that point, under the nearest store's name", async () => {
+    standIn({ at: { [String(HERE.latitude)]: JHB }, nearby: [{ name: "Checkers Sea Point Towers" }] });
+
+    const found = await new CheckersScraper().nearestBranch(HERE);
+
+    expect(found).toEqual({ name: "Checkers Sea Point Towers", contexts: JHB });
+    const [, lookup] = calls("/api/store/fetch-store-contexts")[0];
+    expect(JSON.parse(String(lookup.body)).address.coordinates).toEqual(HERE);
+    expect(JSON.parse(String(lookup.body)).address.fullAddress).toBe("South Africa");
+  });
+
+  it("is none when nothing nearby delivers", async () => {
+    standIn({ at: { [String(HERE.latitude)]: DIGITAL }, nearby: [] });
+    expect(await new CheckersScraper().nearestBranch(HERE)).toBeNull();
+  });
+
+  it("is still found when its name can't be: the store's own name stands in", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    standIn({ at: { [String(HERE.latitude)]: JHB } });
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      const path = targetOf(url).pathname;
+      if (path === "/api/browse-by-store/get-stores-by-location") return { ok: false, status: 500, statusText: "Error" } as Response;
+      const body = JSON.parse(String(init.body ?? "null"));
+      return jsonResponse({ storeContexts: body.address.coordinates.latitude === HERE.latitude ? JHB : [] });
+    });
+
+    expect(await new CheckersScraper().nearestBranch(HERE)).toEqual({ name: "Checkers", contexts: JHB });
+  });
+});

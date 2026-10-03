@@ -1,5 +1,5 @@
 import type { Product } from "@accucery/types";
-import type { Scraper } from "./types.js";
+import type { Branch, Place, Scraper } from "./types.js";
 import { opaqueZone } from "./zone.js";
 
 // Checkers and Shoprite are both Shoprite Holdings and run the same commerce
@@ -154,11 +154,13 @@ export function contextsZone(contexts: StoreContext[]): string {
   return opaqueZone(contexts.map((c) => String(c.storeId)).sort().join(","));
 }
 
-function addressBody(place: { city: string; latitude: number; longitude: number }) {
+function addressBody(place: { city?: string; latitude: number; longitude: number }) {
   return {
     address: {
-      fullAddress: `${place.city}, South Africa`,
-      city: place.city,
+      // A shopper's own location comes with no town name; the site places
+      // an address by its coordinates.
+      fullAddress: place.city ? `${place.city}, South Africa` : "South Africa",
+      city: place.city ?? "",
       coordinates: { latitude: place.latitude, longitude: place.longitude },
       id: "",
       type: "",
@@ -207,7 +209,7 @@ async function post(site: ShopriteGroupSite, path: string, body: unknown, contex
  */
 export async function findBranch(
   site: ShopriteGroupSite,
-  place: { city: string; latitude: number; longitude: number }
+  place: { city?: string; latitude: number; longitude: number }
 ): Promise<StoreContext[]> {
   const own = (await post(site, "/api/store/fetch-store-contexts?update=false", addressBody(place)))?.storeContexts ?? [];
   if (sellsGroceries(own)) return own;
@@ -297,17 +299,47 @@ export function forgetBranches(): void {
   refreshing.clear();
 }
 
+/** A list's branch at these sites carries the site's own storeContexts. */
+function contextsOf(branch: Branch | undefined): StoreContext[] | null {
+  return Array.isArray(branch?.contexts) ? (branch.contexts as StoreContext[]) : null;
+}
+
+/**
+ * The branch nearest a shopper (#131): the stores the site names for that
+ * point, or - for Shoprite - the nearest that delivers. Null when nothing
+ * nearby does, so the list keeps the default. The name is a label only: a
+ * failed name lookup still saves the branch, under the store's own name.
+ */
+export async function nearestBranch(site: ShopriteGroupSite, place: Place): Promise<Branch | null> {
+  const contexts = await findBranch(site, place);
+  if (!contexts.length) return null;
+  let name = site.label;
+  try {
+    const near = await post(site, "/api/browse-by-store/get-stores-by-location", {
+      payload: { latitude: place.latitude, longitude: place.longitude, limit: 1, brands: [site.label] },
+    });
+    if (typeof near?.[0]?.name === "string" && near[0].name.trim()) name = near[0].name.trim();
+  } catch (err) {
+    console.error(`[scraper:${site.label}] found a branch but not its name:`, err);
+  }
+  return { name, contexts };
+}
+
 export class ShopriteGroupScraper implements Scraper {
   constructor(private readonly site: ShopriteGroupSite) {}
 
-  // Needs the branch, which may mean one lookup every few hours - far
-  // cheaper than the scrape a cache check exists to avoid.
-  async currentZone(): Promise<string> {
-    return contextsZone(await defaultBranch(this.site));
+  // A list's own branch, or the default - which may mean one lookup every
+  // few hours, far cheaper than the scrape a cache check exists to avoid.
+  async currentZone(branch?: Branch): Promise<string> {
+    return contextsZone(contextsOf(branch) ?? (await defaultBranch(this.site)));
   }
 
-  async search(query: string): Promise<Product[]> {
-    const contexts = await defaultBranch(this.site);
+  nearestBranch(place: Place): Promise<Branch | null> {
+    return nearestBranch(this.site, place);
+  }
+
+  async search(query: string, branch?: Branch): Promise<Product[]> {
+    const contexts = contextsOf(branch) ?? (await defaultBranch(this.site));
     const json = await post(this.site, "/api/catalogue/get-products-filter", JSON.parse(buildBody(query, contexts)), contexts);
     // Attached here, not inside normalise(), which stays a pure function of
     // the response body - the shape its own tests exercise directly.
