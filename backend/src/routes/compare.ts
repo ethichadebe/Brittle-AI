@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import { compareList } from "../services/compare.js";
 import { loadDecisions, loadPopular } from "../services/substituteDecisions.js";
+import { LIMITS, limiter, tooMany } from "../rateLimit.js";
 
 export async function compareRoutes(app: FastifyInstance) {
   // POST /lists/:id/compare
@@ -21,6 +22,10 @@ export async function compareRoutes(app: FastifyInstance) {
     if (!req.accountId) {
       return reply.status(401).send({ error: "Sign in to compare a list against another store" } as never);
     }
+
+    // #152: per Account, which ADR 0004 made the thing that can be limited.
+    const wait = limiter.take(`compare:${req.accountId}`, LIMITS.comparePerAccount);
+    if (wait) return tooMany(reply, wait, "comparisons");
 
     const list = await findOwnedList(req.params.id, ownerKey(req));
     if (!list) return reply.status(404).send({ error: "List not found" } as never);

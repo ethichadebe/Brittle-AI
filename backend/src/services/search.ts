@@ -31,13 +31,24 @@ async function hydrate(storeSlug: string, productIds: string[], zone?: string): 
 // both go through this, so a repeat lookup for either never re-scrapes.
 // A list's branch (#131) is searched as that branch; without one, the
 // store's default.
-export async function search(storeSlug: StoreSlug, query: string, branch?: Branch): Promise<Product[]> {
+//
+// cacheOnly (#152): a device that's searching too fast still gets answers
+// already known, but nothing new is fetched for it: null on a cache miss.
+export async function search(storeSlug: StoreSlug, query: string, branch?: Branch): Promise<Product[]>;
+export async function search(storeSlug: StoreSlug, query: string, branch: Branch | undefined, opts: { cacheOnly: true }): Promise<Product[] | null>;
+export async function search(
+  storeSlug: StoreSlug,
+  query: string,
+  branch?: Branch,
+  opts: { cacheOnly?: boolean } = {}
+): Promise<Product[] | null> {
   const zone = await currentZone(storeSlug, branch);
 
   const cachedSearch = await getCachedSearch(storeSlug, zone, query);
   if (cachedSearch) {
     return hydrate(storeSlug, cachedSearch.productIds, ZONE_SCOPED_STORES.includes(storeSlug) ? zone : undefined);
   }
+  if (opts.cacheOnly) return null;
 
   const products = await searchProducts(storeSlug, query, branch);
   if (products.length > 0) {
