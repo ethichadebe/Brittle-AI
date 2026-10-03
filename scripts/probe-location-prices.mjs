@@ -41,24 +41,23 @@
 //        node --input-type=module < /tmp/probe-location-prices.mjs'
 //
 // COST. Checkers and Shoprite sit behind AWS WAF, which blocks the VPS's own
-// address, so they go through the ScraperAPI residential proxy the scrapers
-// use. Images, fonts and stylesheets are blocked to spend fewer credits, but
-// a full run is still roughly a few hundred. Narrow it to spend fewer:
-//
+// address, so they go through ScraperAPI the way the scrapers do: per store,
+// one place is five requests (branch, branch name, three searches), so a full
+// run is about 90 requests. Narrow it to spend fewer:
 //   -e STORES=pick-n-pay -e QUERIES=eggs -e PLACES=JHB,CPT,DBN
 //
 // Prints no secrets: no cookies, no keys, only store names and prices.
 
 export const PLACES = [
-  { code: "JHB", province: "Gauteng", city: "Sandton", postalCode: "2196", latitude: -26.1076, longitude: 28.0567 },
-  { code: "CPT", province: "Western Cape", city: "Sea Point", postalCode: "8005", latitude: -33.9175, longitude: 18.387 },
-  { code: "DBN", province: "KwaZulu-Natal", city: "uMhlanga", postalCode: "4320", latitude: -29.7258, longitude: 31.0715 },
-  { code: "GQB", province: "Eastern Cape", city: "Gqeberha", postalCode: "6001", latitude: -33.9608, longitude: 25.6022 },
-  { code: "BFN", province: "Free State", city: "Bloemfontein", postalCode: "9301", latitude: -29.0852, longitude: 26.1596 },
-  { code: "PLK", province: "Limpopo", city: "Polokwane", postalCode: "0699", latitude: -23.9045, longitude: 29.4689 },
-  { code: "MBB", province: "Mpumalanga", city: "Mbombela", postalCode: "1200", latitude: -25.4753, longitude: 30.9694 },
-  { code: "RTB", province: "North West", city: "Rustenburg", postalCode: "0299", latitude: -25.6676, longitude: 27.2421 },
-  { code: "KIM", province: "Northern Cape", city: "Kimberley", postalCode: "8301", latitude: -28.7282, longitude: 24.7499 },
+  { code: "JHB", street: "Rivonia Road", province: "Gauteng", city: "Sandton", postalCode: "2196", latitude: -26.1076, longitude: 28.0567 },
+  { code: "CPT", street: "Main Road", province: "Western Cape", city: "Sea Point", postalCode: "8005", latitude: -33.9175, longitude: 18.387 },
+  { code: "DBN", street: "Lighthouse Road", province: "KwaZulu-Natal", city: "uMhlanga", postalCode: "4320", latitude: -29.7258, longitude: 31.0715 },
+  { code: "GQB", street: "Govan Mbeki Avenue", province: "Eastern Cape", city: "Gqeberha", postalCode: "6001", latitude: -33.9608, longitude: 25.6022 },
+  { code: "BFN", street: "Nelson Mandela Drive", province: "Free State", city: "Bloemfontein", postalCode: "9301", latitude: -29.0852, longitude: 26.1596 },
+  { code: "PLK", street: "Thabo Mbeki Street", province: "Limpopo", city: "Polokwane", postalCode: "0699", latitude: -23.9045, longitude: 29.4689 },
+  { code: "MBB", street: "Samora Machel Drive", province: "Mpumalanga", city: "Mbombela", postalCode: "1200", latitude: -25.4753, longitude: 30.9694 },
+  { code: "RTB", street: "Nelson Mandela Drive", province: "North West", city: "Rustenburg", postalCode: "0299", latitude: -25.6676, longitude: 27.2421 },
+  { code: "KIM", street: "Du Toitspan Road", province: "Northern Cape", city: "Kimberley", postalCode: "8301", latitude: -28.7282, longitude: 24.7499 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -98,10 +97,12 @@ export function shopriteGroupAddress(place) {
   };
 }
 
+// A public main road in each town, not anyone's address: Pick n Pay only
+// reads the coordinates to choose a store, but its form needs a street.
 export function pnpDeliveryAddress(place) {
   return {
-    streetnumber: "",
-    streetname: "",
+    streetnumber: "1",
+    streetname: place.street,
     district: place.city,
     town: place.city,
     postalCode: place.postalCode,
@@ -109,7 +110,7 @@ export function pnpDeliveryAddress(place) {
     longitude: place.longitude,
     country: { isocode: "ZA" },
     defaultAddress: false,
-    line2: place.city,
+    line2: `1 ${place.street}`,
   };
 }
 
@@ -205,14 +206,25 @@ export function report(storeName, results, extra = []) {
 // ---------------------------------------------------------------------------
 // The live run.
 
+// Playwright wraps an in-page throw as "page.evaluate: Error: ..."; keep the
+// cause. Error bodies arrive pretty-printed, so flatten them onto one line
+// rather than keeping only the first, which was a lone "{" on 2026-10-03.
+export const errText = (e) =>
+  String(e?.message ?? e)
+    .replace(/^page\.evaluate: (Error: )?/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+
 async function main() {
   const STORES = (process.env.STORES || "checkers shoprite pick-n-pay").split(/[\s,]+/).filter(Boolean);
   const QUERIES = (process.env.QUERIES || "eggs bread milk").split(/[\s,]+/).filter(Boolean);
   const wanted = (process.env.PLACES || "").split(/[\s,]+/).filter(Boolean);
   const places = wanted.length ? PLACES.filter((p) => wanted.includes(p.code)) : PLACES;
-  // The WAF-fronted stores need the residential proxy from the VPS; PnP is tried direct.
+  // The WAF-fronted stores need ScraperAPI from the VPS; PnP is tried direct.
   const PROXY_STORES = (process.env.PROXY_STORES ?? "checkers shoprite").split(/[\s,]+/).filter(Boolean);
   const key = process.env.SCRAPERAPI_KEY;
+  const SCRAPERAPI_URL = process.env.SCRAPERAPI_URL || "http://api.scraperapi.com/";
 
   const ORIGINS = {
     checkers: process.env.CHECKERS_ORIGIN || "https://www.checkers.co.za",
@@ -225,128 +237,152 @@ async function main() {
   console.log(`queries: ${QUERIES.join(" ")}`);
   console.log(`places:  ${places.map((p) => p.code).join(" ")}\n`);
 
-  const { chromium } = await import("playwright-extra");
-  const stealth = (await import("puppeteer-extra-plugin-stealth")).default;
-  chromium.use(stealth());
-  const { newInjectedContext } = await import("fingerprint-injector");
-
-  const browser = await chromium.launch({
-    headless: true,
-    ...(process.env.PROBE_CHROMIUM && { executablePath: process.env.PROBE_CHROMIUM }),
-    args: ["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-dev-shm-usage"],
-  });
-
-  async function openStore(store) {
-    const useProxy = PROXY_STORES.includes(store) && Boolean(key);
-    const context = await newInjectedContext(browser, {
-      newContextOptions: {
-        viewport: { width: 1366, height: 768 },
-        ...(useProxy && {
-          proxy: { server: "http://proxy-server.scraperapi.com:8001", username: "scraperapi", password: key },
-        }),
-      },
-    });
-    // Nothing on screen is read, so pictures and styling are skipped: fewer credits.
-    await context.route("**/*", (route) =>
-      ["image", "media", "font", "stylesheet"].includes(route.request().resourceType()) ? route.abort() : route.continue()
-    );
-    const page = await context.newPage();
+  // Checkers and Shoprite go the way the scrapers already go in production
+  // (backend/src/scraper/shopriteGroup.ts): a plain request, sent through
+  // ScraperAPI's API endpoint. The first run (2026-10-03) drove a browser
+  // through ScraperAPI's proxy port instead, which re-signs HTTPS with its own
+  // certificate, so Chromium refused every page.
+  function shopriteGroupClient(store) {
     const origin = ORIGINS[store];
-    try {
-      await page.goto(`${origin}/`, { waitUntil: "networkidle", timeout: 45000 });
-    } catch (e) {
-      console.log(`  warmup: ${String(e.message).split("\n")[0].slice(0, 80)}`);
-    }
-    const call = (method, path, body, headers = {}) =>
-      page.evaluate(
-        async ({ url, method, body, headers }) => {
-          const res = await fetch(url, {
-            method,
-            headers: { Accept: "application/json, text/plain, */*", ...(body !== undefined && { "Content-Type": "application/json" }), ...headers },
-            ...(body !== undefined && { body: JSON.stringify(body) }),
-          });
-          const text = await res.text();
-          if (!res.ok) throw new Error(`HTTP ${res.status} ${text.slice(0, 60)}`);
-          return text ? JSON.parse(text) : null;
-        },
-        { url: `${origin}${path}`, method, body, headers }
-      );
-    return { context, call, useProxy };
+    const viaProxy = PROXY_STORES.includes(store) && Boolean(key);
+    const headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0",
+      Accept: "*/*",
+      "Accept-Language": "en-GB,en;q=0.9",
+      "Content-Type": "application/json",
+      Origin: origin,
+      Referer: `${origin}/search`,
+    };
+    const call = async (method, path, body) => {
+      const target = `${origin}${path}`;
+      const url = viaProxy
+        ? `${SCRAPERAPI_URL}?api_key=${encodeURIComponent(key)}&url=${encodeURIComponent(target)}&keep_headers=true`
+        : target;
+      // The URL carries the key, so a failure reports the status, never the URL.
+      const res = await fetch(url, {
+        method,
+        headers,
+        ...(body !== undefined && { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(90000),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
+      return text ? JSON.parse(text) : null;
+    };
+    return { call, viaProxy };
   }
-
-  // Playwright wraps an in-page throw as "page.evaluate: Error: ..."; keep the cause.
-  const errText = (e) =>
-    String(e?.message ?? e).split("\n")[0].replace(/^page\.evaluate: (Error: )?/, "").slice(0, 70);
 
   async function shopriteGroup(store, brand) {
-    const { context, call, useProxy } = await openStore(store);
+    const { call, viaProxy } = shopriteGroupClient(store);
     const results = [];
-    try {
-      for (const place of places) {
-        try {
-          const ctx = await call("POST", "/api/store/fetch-store-contexts?update=false", shopriteGroupAddress(place));
-          const storeContexts = ctx?.storeContexts ?? [];
-          if (!storeContexts.length) {
-            const other = ctx?.servicedByOtherBrand;
-            results.push({ place, branch: other ? `not served (${typeof other === "string" ? other : "other brand"})` : "not served", products: [] });
-            continue;
-          }
-          let branch = `store ${String(storeContexts[0].storeId).slice(-6)}`;
-          try {
-            const near = await call("POST", "/api/browse-by-store/get-stores-by-location", {
-              payload: { latitude: place.latitude, longitude: place.longitude, limit: 1, brands: [brand] },
-            });
-            if (near?.[0]?.name) branch = `${near[0].name} (${near[0].distanceKm ?? "?"}km)`;
-          } catch {
-            // The name is a label only; the prices don't depend on it.
-          }
-          const products = [];
-          for (const q of QUERIES) {
-            products.push(...parseShopriteGroupProducts(await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts))));
-          }
-          results.push({ place, branch, products });
-        } catch (e) {
-          results.push({ place, error: errText(e), products: [] });
+    for (const place of places) {
+      let stage = "branch";
+      try {
+        const ctx = await call("POST", "/api/store/fetch-store-contexts?update=false", shopriteGroupAddress(place));
+        const storeContexts = ctx?.storeContexts ?? [];
+        if (!storeContexts.length) {
+          const other = ctx?.servicedByOtherBrand;
+          results.push({ place, branch: other ? `not served (${typeof other === "string" ? other : "other brand"})` : "not served", products: [] });
+          continue;
         }
+        let branch = `store ${String(storeContexts[0].storeId).slice(-6)}`;
+        try {
+          const near = await call("POST", "/api/browse-by-store/get-stores-by-location", {
+            payload: { latitude: place.latitude, longitude: place.longitude, limit: 1, brands: [brand] },
+          });
+          if (near?.[0]?.name) branch = `${near[0].name} (${near[0].distanceKm ?? "?"}km)`;
+        } catch {
+          // The name is a label only; the prices don't depend on it.
+        }
+        stage = "search";
+        const products = [];
+        for (const q of QUERIES) {
+          products.push(...parseShopriteGroupProducts(await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts))));
+        }
+        results.push({ place, branch, products });
+      } catch (e) {
+        results.push({ place, error: `${stage}: ${errText(e)}`, products: [] });
       }
-    } finally {
-      await context.close();
     }
-    return report(`${brand}${useProxy ? " (via proxy)" : ""}`, results);
+    return report(`${brand}${viaProxy ? " (via ScraperAPI)" : ""}`, results);
   }
 
+  // Pick n Pay answered a plain browser from the VPS (its cart was created on
+  // the first run), so it keeps the browser and its in-page fetch.
   async function pnp() {
-    const { context, call } = await openStore("pick-n-pay");
-    const base = "/pnphybris/v2/pnp-spa";
-    const headers = { "x-anonymous-consents": "%5B%5D", "x-pnp-cache-key": "anonymous" };
+    const { chromium } = await import("playwright-extra");
+    const stealth = (await import("puppeteer-extra-plugin-stealth")).default;
+    chromium.use(stealth());
+    const { newInjectedContext } = await import("fingerprint-injector");
+    const browser = await chromium.launch({
+      headless: true,
+      ...(process.env.PROBE_CHROMIUM && { executablePath: process.env.PROBE_CHROMIUM }),
+      args: ["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-dev-shm-usage"],
+    });
+    const origin = ORIGINS["pick-n-pay"];
     const results = [];
     const extra = [];
     try {
+      const context = await newInjectedContext(browser, { newContextOptions: { viewport: { width: 1366, height: 768 } } });
+      // Nothing on screen is read, so pictures and styling are skipped.
+      await context.route("**/*", (route) =>
+        ["image", "media", "font", "stylesheet"].includes(route.request().resourceType()) ? route.abort() : route.continue()
+      );
+      const page = await context.newPage();
+      // The page keeps the network busy for good, so "networkidle" only ever
+      // timed out; the in-page fetches need the origin, not a settled page.
+      try {
+        await page.goto(`${origin}/`, { waitUntil: "domcontentloaded", timeout: 45000 });
+      } catch (e) {
+        console.log(`  warmup: ${errText(e)}`);
+      }
+      const searchClient = crypto.randomUUID();
+      const headers = { "x-anonymous-consents": "%5B%5D", "x-pnp-cache-key": "anonymous" };
+      const call = (method, path, body, more = {}) =>
+        page.evaluate(
+          async ({ url, method, body, headers }) => {
+            const res = await fetch(url, {
+              method,
+              headers: { Accept: "application/json, text/plain, */*", ...(body !== undefined && { "Content-Type": "application/json" }), ...headers },
+              ...(body !== undefined && { body: JSON.stringify(body) }),
+            });
+            const text = await res.text();
+            if (!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
+            return text ? JSON.parse(text) : null;
+          },
+          { url: `${origin}${path}`, method, body, headers: { ...headers, ...more } }
+        );
+      const base = "/pnphybris/v2/pnp-spa";
       for (const place of places) {
+        let stage = "cart";
         try {
-          const cart = await call("POST", `${base}/users/anonymous/carts?fields=DEFAULT&lang=en&curr=ZAR`, {}, headers);
+          const cart = await call("POST", `${base}/users/anonymous/carts?fields=DEFAULT&lang=en&curr=ZAR`, {});
           if (!extra.length && cart?.baseStore) extra.push(`no address yet: ${cart.baseStore.displayName ?? cart.baseStore.uid} (${cart.baseStore.uid})`);
-          await call("POST", `${base}/users/anonymous/carts/${cart.guid}/addresses/delivery?lang=en&curr=ZAR`, pnpDeliveryAddress(place), headers);
-          const assigned = await call("GET", `${base}/users/anonymous/carts/${cart.guid}?fields=DEFAULT&lang=en&curr=ZAR`, undefined, headers);
+          stage = "address";
+          await call("POST", `${base}/users/anonymous/carts/${cart.guid}/addresses/delivery?lang=en&curr=ZAR`, pnpDeliveryAddress(place));
+          stage = "store";
+          const assigned = await call("GET", `${base}/users/anonymous/carts/${cart.guid}?fields=DEFAULT&lang=en&curr=ZAR`);
           const uid = assigned?.baseStore?.uid;
           if (!uid) throw new Error("no store assigned to the cart");
+          stage = "search";
           const products = [];
           for (const q of QUERIES) {
             const json = await call(
               "POST",
               `${base}/products/search?fields=products(code,name,price(FULL),stock(FULL),available)&query=${encodeURIComponent(q)}&pageSize=40&storeCode=${uid}&lang=en&curr=ZAR`,
               {},
-              headers
+              { "x-pnp-search-client-id": searchClient, "x-pnp-search-session-id": "1" }
             );
             products.push(...parsePnpProducts(json));
           }
           results.push({ place, branch: `${assigned.baseStore.displayName ?? uid} (${uid})`, products });
         } catch (e) {
-          results.push({ place, error: errText(e), products: [] });
+          results.push({ place, error: `${stage}: ${errText(e)}`, products: [] });
         }
       }
     } finally {
-      await context.close();
+      await browser.close();
     }
     return report("Pick n Pay", results, extra);
   }
@@ -356,16 +392,12 @@ async function main() {
     shoprite: () => shopriteGroup("shoprite", "Shoprite"),
     "pick-n-pay": pnp,
   };
-  try {
-    for (const store of STORES) {
-      if (!RUNS[store]) {
-        console.log(`== ${store} == not covered by this probe\n`);
-        continue;
-      }
-      console.log(await RUNS[store]());
+  for (const store of STORES) {
+    if (!RUNS[store]) {
+      console.log(`== ${store} == not covered by this probe\n`);
+      continue;
     }
-  } finally {
-    await browser.close();
+    console.log(await RUNS[store]());
   }
 }
 
