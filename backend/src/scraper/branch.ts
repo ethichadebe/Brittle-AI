@@ -13,7 +13,8 @@ export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers", "shoprite"];
 // be another branch's, so reads for these are scoped to the list's own zone.
 // Woolworths is left out on purpose: one search can resolve products to
 // different zones (p10, then p30), which a single-zone read would miss.
-export const ZONE_SCOPED_STORES: readonly StoreSlug[] = ["checkers", "shoprite"];
+// Pick n Pay joined with #132, when it started pricing at a real store.
+export const ZONE_SCOPED_STORES: readonly StoreSlug[] = ["checkers", "shoprite", "pick-n-pay"];
 
 /** A list's saved branch, or undefined for the store's default. */
 export function branchOf(saved: unknown): Branch | undefined {

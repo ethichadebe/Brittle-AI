@@ -1,6 +1,7 @@
 import type { Product } from "@accucery/types";
 import type { Branch, Place, Scraper } from "./types.js";
 import { opaqueZone } from "./zone.js";
+import { remember, type Remembered } from "./remember.js";
 
 // Checkers and Shoprite are both Shoprite Holdings and run the same commerce
 // platform: same `/api/catalogue/get-products-filter` endpoint, same request
@@ -275,63 +276,23 @@ export async function findBranch(
 }
 
 // One remembered default branch per site, shared by the scraper and the
-// Playwright fallback so both price the same store.
-interface Remembered {
-  contexts: Promise<StoreContext[]>;
-  until: number;
-  /** A lookup answered, even if the answer was "nowhere delivers". */
-  answered: boolean;
-}
-const branches = new Map<string, Remembered>();
-const refreshing = new Set<string>();
+// Playwright fallback so both price the same store. Finding a Shoprite that
+// delivers can take a dozen requests through ScraperAPI, so no search waits
+// on a refresh: see remember.ts. A failed first lookup prices at the site's
+// own default (no branch), and the zone says "unconfigured".
+const defaults = new Map<string, Remembered<StoreContext[]>>();
 
-function lookUp(site: ShopriteGroupSite): Promise<StoreContext[] | null> {
-  return findBranch(site, DEFAULT_PLACE).catch((err) => {
-    console.error(`[scraper:${site.label}] could not find the default branch:`, err);
-    return null;
-  });
-}
-
-/**
- * The default branch for a site, looked up at most every few hours.
- *
- * Finding a Shoprite that delivers can take a dozen requests through
- * ScraperAPI, a minute or more, so no search waits on a refresh: once a
- * branch is known it keeps being used while a fresh lookup runs behind it.
- * Only the very first lookup is waited for, and warmBranches() starts that
- * when the server does.
- */
+/** The default branch for a site, looked up at most every few hours. */
 export function defaultBranch(site: ShopriteGroupSite): Promise<StoreContext[]> {
-  const now = Date.now();
-  const known = branches.get(site.label);
-  if (known && known.until > now) return known.contexts;
-
-  if (known?.answered) {
-    if (!refreshing.has(site.label)) {
-      refreshing.add(site.label);
-      void lookUp(site).then((found) => {
-        refreshing.delete(site.label);
-        if (found) branches.set(site.label, { contexts: Promise.resolve(found), until: Date.now() + BRANCH_TTL_MS, answered: true });
-        // A failed refresh keeps the branch it had and tries again soon.
-        else known.until = Date.now() + FAILED_TTL_MS;
-      });
-    }
-    return known.contexts;
+  let remembered = defaults.get(site.label);
+  if (!remembered) {
+    remembered = remember(site.label, () => findBranch(site, DEFAULT_PLACE), [], {
+      ttlMs: BRANCH_TTL_MS,
+      failedTtlMs: FAILED_TTL_MS,
+    });
+    defaults.set(site.label, remembered);
   }
-
-  // Nothing known yet: this caller waits, and so does anyone who asks
-  // meanwhile. A failed lookup degrades rather than fails - an empty branch
-  // prices at the site's default store, and the zone says "unconfigured"
-  // rather than claiming a branch - and is tried again within minutes.
-  const entry: Remembered = { contexts: Promise.resolve([]), until: now + BRANCH_TTL_MS, answered: false };
-  const pending = lookUp(site);
-  entry.contexts = pending.then((found) => found ?? []);
-  void pending.then((found) => {
-    entry.answered = found !== null;
-    entry.until = Date.now() + (found ? BRANCH_TTL_MS : FAILED_TTL_MS);
-  });
-  branches.set(site.label, entry);
-  return entry.contexts;
+  return remembered.get();
 }
 
 /** Started with the server, so the first shopper doesn't wait for a lookup. */
@@ -341,8 +302,8 @@ export function warmBranches(): void {
 
 /** Tests only: start each one with no remembered branch. */
 export function forgetBranches(): void {
-  branches.clear();
-  refreshing.clear();
+  for (const remembered of defaults.values()) remembered.forget();
+  defaults.clear();
 }
 
 /** A list's branch at these sites carries the site's own storeContexts. */

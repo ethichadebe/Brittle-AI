@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
-// A store with no Price Zone ambiguity at all — Makro, verified; Pick n Pay,
-// not yet investigated but showing none of the zone-carrying fields
-// Woolworths has, so treated the same until shown otherwise.
+// A store with no Price Zone ambiguity at all — Makro, verified. Pick n Pay
+// was treated the same until #66 measured its prices varying by store; since
+// #132 its zone is the store it's priced at.
 export const NO_ZONE = "none";
 
 // A store that has Price Zones, but no branch/cookie is configured for this
