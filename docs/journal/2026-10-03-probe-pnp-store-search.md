@@ -29,3 +29,29 @@
   - **The stand-ins** are a Pick n Pay that prices by store code and can
     refuse plain requests the way a firewall would, and a ScraperAPI. Their
     products and prices are made up.
+
+  - **The live run answered (#132):** plain requests straight to
+    pnp.co.za work, so there's no ScraperAPI and no credits for Pick n Pay.
+    - Sandton's cart is given Benmore (GC13). 10 of the 18 milks seen at
+      both Benmore and Constantia (WC21) are priced differently.
+    - The Smart Shopper price arrives as a promotion whose text is a bare
+      price ("R89.99 "), marked `valid: false` even while it runs, so its
+      dates decide instead.
+
+  - **The scraper now uses the site's own search,** at the store the cart
+    gives Sandton, remembered like Checkers' and Shoprite's.
+    - That remembering moved into `remember.ts`, shared by all three. The
+      31 Checkers/Shoprite tests passed unchanged.
+    - Multi-buys ("2 for R50") are not read as a card price, because they
+      are what a basket costs, not one unit (CONTEXT.md).
+    - The larger "product" picture is used, not the 96px thumbnail.
+    - Pick n Pay prices are now read for its own store only.
+
+  - **Product ids carry over.** Before switching, the live database was
+    asked for some saved Pick n Pay ids. They are the same codes the new
+    search returns (`000000000001027180_EA`), so items already on lists
+    keep finding their prices, and no conversion is needed.
+
+  - **Mutation-checked:** dropping the store code, reading any text as a
+    card price, using the thumbnail, and ignoring promotion dates were each
+    caught by the tests.
