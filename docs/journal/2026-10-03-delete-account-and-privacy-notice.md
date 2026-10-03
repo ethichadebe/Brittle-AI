@@ -37,7 +37,8 @@
 - **Laptop needed:** no.
 - **Friction:**
   - The owner's name had to be asked for twice: picking "type my name" in
-    the question didn't carry the name itself.
+    the question didn't carry the name itself. Until it came, the
+    placeholder test kept the branch red, as intended.
   - **Resend isn't named yet**, because nothing sends email yet. #147 adds
     it, and the test above makes that impossible to forget.
   - **The host's logs.** The notice says the server logs IP addresses and
