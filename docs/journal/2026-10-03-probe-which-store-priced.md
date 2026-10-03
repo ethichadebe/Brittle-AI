@@ -110,3 +110,14 @@
       retries an empty search once without the digital store.
     - `PLACES=WIT,UPT` asks from eMalahleni and Upington, the other ends of
       Mpumalanga and the Northern Cape.
+  - **The seventh run settled Shoprite.**
+    - Milnerton (for Sea Point) and Rustenburg each name a delivering
+      store, with capacity, but sell nothing, even without the digital
+      store. Both have brandPriority 10, where every store that sold had
+      between 2 and 8.
+    - eMalahleni and Upington found no delivering Shoprite either.
+    - So the Western Cape, North West, Mpumalanga and the Northern Cape
+      have no Shoprite that prices online. Those provinces fall back to the
+      Joburg default (Shoprite Sophiatown), marked as not delivering there.
+    - Whatever picks a branch in the app must check that the store returns
+      products, not only that it says it delivers.
