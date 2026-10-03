@@ -12,7 +12,7 @@ import {
   type ShopriteGroupSite,
 } from "./shopriteGroup.js";
 import { normalise as parsePnp } from "./pnp.js";
-import { NO_ZONE, UNCONFIGURED_ZONE } from "./zone.js";
+import { UNCONFIGURED_ZONE } from "./zone.js";
 // playwright-extra + stealth give Playwright a real-browser fingerprint to pass AWS WAF Bot Control
 import { chromium as chromiumExtra } from "playwright-extra";
 import { newInjectedContext } from "fingerprint-injector";
@@ -78,11 +78,14 @@ const STRATEGIES: Partial<Record<StoreSlug, Strategy>> = {
   checkers: shopriteGroupStrategy(CHECKERS_SITE),
   shoprite: shopriteGroupStrategy(SHOPRITE_SITE),
 
+  // The site's own results come from its products/search (#132), not
+  // Constructor, which is only its autocomplete. A browser visit prices at
+  // whatever store the site picks for it, so the zone is unknown.
   "pick-n-pay": {
     searchUrl: (q) => `https://www.pnp.co.za/search/${encodeURIComponent(q)}`,
-    interceptsUrl: (url) => url.includes("ac.cnstrc.com/search"),
-    parse: parsePnp,
-    defaultZone: NO_ZONE,
+    interceptsUrl: (url) => url.includes("/pnphybris/v2/pnp-spa/products/search"),
+    parse: (json) => parsePnp(json),
+    defaultZone: UNCONFIGURED_ZONE,
   },
 };
 
