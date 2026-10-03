@@ -103,7 +103,11 @@ SHOPRITE_GROUP_CATALOGUE.DBN = SHOPRITE_GROUP_CATALOGUE.JHB;
 //                 coordinates do get a delivering store.
 SHOPRITE_GROUP_CATALOGUE.DEF = SHOPRITE_GROUP_CATALOGUE.JHB;
 SHOPRITE_GROUP_CATALOGUE.ALX = SHOPRITE_GROUP_CATALOGUE.JHB;
-function shopriteGroupServer({ brand, notServed = [], defaultAt = [], digitalAt = [], deliversVia = {} }) {
+//   mixedAt     - a delivering store plus a digital one, and a catalogue
+//                 that comes back empty while the digital one is in the
+//                 cookie. Invented, to exercise the retry: the live Soweto
+//                 recording had a digital store alongside and sold fine.
+function shopriteGroupServer({ brand, notServed = [], defaultAt = [], digitalAt = [], deliversVia = {}, mixedAt = [] }) {
   return base(async (req, body, json) => {
     if (req.url.startsWith("/api/store/fetch-store-contexts")) {
       const place = placeOf(body?.address?.coordinates?.latitude);
@@ -111,6 +115,13 @@ function shopriteGroupServer({ brand, notServed = [], defaultAt = [], digitalAt 
         return json({ storeContexts: [], servicedByOtherBrand: true, otherBrandStoreContexts: [] }), true;
       if (digitalAt.includes(place))
         return json({ storeContexts: [{ storeId: `5f32a7-${place}x01`, serviceOptionIds: ["digital"] }] }), true;
+      if (mixedAt.includes(place))
+        return json({
+          storeContexts: [
+            { storeId: `5f32a7-${place}x01`, serviceOptionIds: ["d1f0"], hasCapacity: ["d1f0"], brandPriority: 4 },
+            { storeId: "5f32a7-DIGx09", serviceOptionIds: ["digital"], hasCapacity: ["digital"], brandPriority: 0 },
+          ],
+        }), true;
       return json({
         storeContexts: [
           { storeId: `5f32a7-${place}x01`, serviceOptionIds: ["d1f0"] },
@@ -134,7 +145,10 @@ function shopriteGroupServer({ brand, notServed = [], defaultAt = [], digitalAt 
     }
     if (req.url.startsWith("/api/catalogue/get-products-filter")) {
       const cookie = (req.headers.cookie ?? "").match(/(?:^|;\s*)storeContexts=([^;]*)/);
-      const fromCookie = cookie ? JSON.parse(decodeURIComponent(cookie[1]))?.[0]?.storeId : undefined;
+      const named = cookie ? JSON.parse(decodeURIComponent(cookie[1])) : [];
+      const fromCookie = named?.[0]?.storeId;
+      if (mixedAt.includes(fromCookie?.match(/-(\w{3})x0\d$/)?.[1]) && named.some((c) => c.storeId === "5f32a7-DIGx09"))
+        return json({ products: [], totalCount: 0 }), true;
       const asked = fromCookie?.match(/-(\w{3})x0\d$/)?.[1];
       const storeId = fromCookie && !defaultAt.includes(asked) ? fromCookie : "5f32a7-DEFx01";
       const place = storeId.match(/-(\w{3})x0\d$/)?.[1];
@@ -297,6 +311,7 @@ eq(
   "an indented error body is kept, on one line"
 );
 eq(lib.PLACES.every((p) => p.street), true, "every place has a street for Pick n Pay");
+eq(lib.EXTRA_PLACES.every((p) => p.street && !lib.PLACES.some((q) => q.code === p.code)), true, "second towns are extra, with streets");
 
 // ---------------------------------------------------------------------------
 console.log("\nthe live chain, against stand-ins");
@@ -385,7 +400,7 @@ eq(seen.filter((r) => r.target.includes("get-products-filter")).length, 12, "fou
 hasnt(out, KEY, "never prints the key");
 
 console.log("\nnowhere nearby delivers");
-const lonely = shopriteGroupServer({ brand: "Shoprite", digitalAt: ["GQB"] });
+const lonely = shopriteGroupServer({ brand: "Shoprite", digitalAt: ["GQB"], mixedAt: ["DBN"] });
 let second;
 try {
   second = await runProbe({ SHOPRITE_ORIGIN: await listen(lonely), STORES: "shoprite", PLACES: "GQB,DBN", QUERIES: "bread" });
@@ -394,7 +409,11 @@ try {
 }
 has(second.out, "none of the 1 nearest delivers", "says so, counting the stores it actually tried");
 has(second.out, "GQB Gqeberha       0 items", "an empty search is not an error");
-has(second.out, "EMPTY; stores GQBx01[digital]; reply keys products,totalCount, totalCount 0", "and says what the site named and answered");
+has(second.out, "EMPTY; stores GQBx01[digital cap:? p:?]; reply keys products,totalCount, totalCount 0", "and says what the site named and answered");
+hasnt(second.out.slice(second.out.indexOf("GQB Gqeberha")).split("\n")[0], "without digital", "no retry when nothing named delivers");
+has(second.out, "DBN uMhlanga       0 items", "a delivering store that sells nothing with the digital one alongside");
+has(second.out, "DBNx01[d1f0 cap:d1f0 p:4] DIGx09[digital cap:digital p:0]", "prints each store's capacity and priority");
+has(second.out, "without digital: 1 items", "and the retry without the digital store finds bread");
 
 console.log("\nthe nearest that delivers is further out");
 const far = shopriteGroupServer({ brand: "Shoprite", digitalAt: ["GQB"], deliversVia: { GQB: "far" } });

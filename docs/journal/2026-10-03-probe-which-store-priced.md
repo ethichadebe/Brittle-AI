@@ -95,3 +95,18 @@
       it actually tried.
     - The stand-in covers a delivering store fourth in line: three tries
       miss it and five reach it. Ignoring the setting fails the test.
+  - **The province-wide search (sixth run) worked in five provinces.**
+    - Gauteng, KwaZulu-Natal, the Eastern Cape, the Free State and Limpopo
+      each found a delivering Shoprite about 10 km out.
+    - Prices differ by province there too: 33 of the 46 breads seen at two
+      or more places.
+    - **Three provinces found no delivering store.** The store finder
+      returned only 6 Shoprites near Mbombela and 4 near Kimberley, so it
+      seems to search within a fixed radius, and none of them delivers.
+      Rustenburg named no delivering store either.
+    - **Two searches came back empty although a delivering store was
+      named:** Sea Point (via Milnerton) and Rustenburg.
+    - The probe now prints each store's delivery capacity and priority, and
+      retries an empty search once without the digital store.
+    - `PLACES=WIT,UPT` asks from eMalahleni and Upington, the other ends of
+      Mpumalanga and the Northern Cape.

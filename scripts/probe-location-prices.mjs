@@ -62,6 +62,14 @@ export const PLACES = [
   { code: "KIM", street: "Du Toitspan Road", province: "Northern Cape", city: "Kimberley", postalCode: "8301", latitude: -28.7282, longitude: 24.7499 },
 ];
 
+// Second towns, run only when PLACES names them. On the sixth run no Shoprite
+// that delivers was found near Mbombela or Kimberley; these ask from the
+// other end of each province.
+export const EXTRA_PLACES = [
+  { code: "WIT", street: "Mandela Street", province: "Mpumalanga", city: "eMalahleni", postalCode: "1035", latitude: -25.8713, longitude: 29.2332 },
+  { code: "UPT", street: "Schröder Street", province: "Northern Cape", city: "Upington", postalCode: "8800", latitude: -28.4478, longitude: 21.2561 },
+];
+
 // ---------------------------------------------------------------------------
 // Pure parts: tested offline by probe-location-prices.test.mjs.
 
@@ -181,16 +189,26 @@ const NEAREST_TRIES = Number(process.env.NEAREST_TRIES) || 3;
 // For a search that came back empty: which stores the site named for the
 // place, how each one serves, and what the reply held. The fourth run found
 // Shoprite empty at both places once the cookie named a nearby store.
-export function describeEmpty(storeContexts, replies) {
+//
+// The sixth run found Sea Point (via Milnerton) and Rustenburg empty although
+// each named a store that delivers. Each store's capacity and priority are
+// printed too: a browser recording priced at the lowest brandPriority, and a
+// store with no delivery slots left may sell nothing until it has some.
+export function describeEmpty(storeContexts, replies, withoutDigital) {
   const stores = storeContexts
-    .map((c) => `${String(c.storeId).slice(-6)}[${(c.serviceOptionIds ?? []).join(",") || "none"}]`)
+    .map((c) => {
+      const svc = (c.serviceOptionIds ?? []).join(",") || "none";
+      const cap = Array.isArray(c.hasCapacity) ? c.hasCapacity.join(",") || "none" : "?";
+      return `${String(c.storeId).slice(-6)}[${svc} cap:${cap} p:${c.brandPriority ?? "?"}]`;
+    })
     .join(" ");
   const r = replies[0];
   const reply =
     r && typeof r === "object"
       ? `keys ${Object.keys(r).join(",") || "none"}, totalCount ${r.totalCount ?? r.data?.totalCount ?? "?"}`
       : String(r);
-  return `EMPTY; stores ${stores}; reply ${reply}`;
+  const retry = withoutDigital === undefined ? "" : `; without digital: ${withoutDigital} items`;
+  return `EMPTY; stores ${stores}; reply ${reply}${retry}`;
 }
 
 // results: [{ place, branch, products: [{id,name,price,promo}] }] for one store.
@@ -269,7 +287,7 @@ async function main() {
   const STORES = (process.env.STORES || "checkers shoprite pick-n-pay").split(/[\s,]+/).filter(Boolean);
   const QUERIES = (process.env.QUERIES || "eggs bread milk").split(/[\s,]+/).filter(Boolean);
   const wanted = (process.env.PLACES || "").split(/[\s,]+/).filter(Boolean);
-  const places = wanted.length ? PLACES.filter((p) => wanted.includes(p.code)) : PLACES;
+  const places = wanted.length ? [...PLACES, ...EXTRA_PLACES].filter((p) => wanted.includes(p.code)) : PLACES;
   // The WAF-fronted stores need ScraperAPI from the VPS; PnP is tried direct.
   const PROXY_STORES = (process.env.PROXY_STORES ?? "checkers shoprite").split(/[\s,]+/).filter(Boolean);
   const key = process.env.SCRAPERAPI_KEY;
@@ -385,7 +403,18 @@ async function main() {
           replies.push(json);
           products.push(...parseShopriteGroupProducts(json));
         }
-        const detail = products.length ? pricedAt(storeContexts, products) : describeEmpty(storeContexts, replies);
+        // An empty search that named a delivering store is retried once with
+        // the digital store left out, to tell "it sells nothing" from "the
+        // request upset it". The retry only labels the line; it is not compared.
+        let withoutDigital;
+        const grocers = storeContexts.filter((c) => sellsGroceries([c]));
+        if (!products.length && grocers.length && grocers.length < storeContexts.length) {
+          const retry = await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(QUERIES[0], grocers), {
+            Cookie: storeContextsCookie(grocers),
+          });
+          withoutDigital = parseShopriteGroupProducts(retry).length;
+        }
+        const detail = products.length ? pricedAt(storeContexts, products) : describeEmpty(storeContexts, replies, withoutDigital);
         results.push({ place, branch: `${branch}; ${detail}`, products });
       } catch (e) {
         results.push({ place, error: `${stage}: ${errText(e)}`, products: [] });
