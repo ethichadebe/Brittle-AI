@@ -7,8 +7,8 @@ import { api } from "./api";
 // once to find the branch, and never kept: not in storage, not in state
 // beyond the call that uses it. Only the branch is saved, on the list.
 
-/** Stores whose lists can be priced at the nearest branch (mirrors the backend): Checkers (#131), Shoprite (#134). */
-export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers", "shoprite"];
+/** Stores whose lists can be priced at the nearest branch (mirrors the backend): Checkers (#131), Shoprite (#134), Pick n Pay (#135). */
+export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers", "shoprite", "pick-n-pay"];
 
 // Whether the shopper has said yes to local prices before. Later lists then
 // use their location without asking again (the browser remembers its own

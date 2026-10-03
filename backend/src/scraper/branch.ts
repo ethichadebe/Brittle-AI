@@ -5,8 +5,8 @@ import type { Branch } from "./types.js";
 // engine.ts so tests that stand the engine in still see the real lists.
 
 // Stores whose lists can be priced at the shopper's own branch: Checkers
-// (#131) and Shoprite (#134). Pick n Pay (#135) follows.
-export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers", "shoprite"];
+// (#131), Shoprite (#134) and Pick n Pay (#135).
+export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers", "shoprite", "pick-n-pay"];
 
 // Stores whose prices are read for one Price Zone at a time. Once lists can
 // have different branches, the latest price of a product in ANY zone could
