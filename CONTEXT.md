@@ -101,7 +101,9 @@ The region whose prices a store quotes, which differs by where the shopper is.
 Each store names its zones in its own way and there is no shared vocabulary
 between them — for Woolworths a zone is a price band, for Checkers and Shoprite
 it is a particular physical branch, for Pick n Pay it is a store code, and
-Makro appears to have none.
+Makro appears to have none. Checkers and Shoprite only honour a branch sent in
+a `storeContexts` cookie; Shoprite names a branch only where it delivers, and
+elsewhere a "digital" store with nothing to sell (#66, 2026-10-03).
 _Avoid_: region, area, branch pricing
 
 ## Relationships

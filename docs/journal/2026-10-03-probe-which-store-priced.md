@@ -1,0 +1,123 @@
+# 2026-10-03 — Ask the location probe which store it was priced at (#66)
+
+- **Asked for:** nothing new. This follows the second run of the location
+  probe, which is posted on #66.
+- **Worked first time:** yes. The offline test was extended first, and I
+  broke the new line on purpose to check the test catches it.
+- **Laptop needed:** no.
+- **Friction:**
+
+  - **The second run worked, and Pick n Pay clearly varies by place.** 37
+    of 136 products differ in price.
+    - The Western Cape and Eastern Cape pay more for staples. For example,
+      6 eggs cost R22.99 there and R17.99 elsewhere.
+    - Gauteng, Free State, Limpopo, Mpumalanga, North West and Northern
+      Cape mostly match each other. KwaZulu-Natal sits in between.
+    - The range differs too: 137 products are stocked in only some places.
+    - It matches the hand check exactly.
+
+  - **Checkers and Shoprite came back identical in all nine provinces.**
+    That's 120 and 97 products, every price the same, and the same range.
+    - The hand check found a different bread price and a different Oros
+      promotion between Sandton and Sea Point. So "identical" is more likely
+      the site ignoring the place than a fact about the shop.
+    - Every product in the reply names the store it was priced at. The
+      probe now prints that store and whether it is one of the stores the
+      site named for the place.
+    - A small run (two places, one search) tells which it is before anything
+      is built on either answer.
+    - If it says "NOT from", the production scraper is likely pricing
+      Checkers and Shoprite at a default store too.
+
+  - **It said "NOT from".** On a third, small run, Sandton and Sea Point were
+    both priced at one Cape Town Checkers store. Both Shoprite searches were
+    priced at a store near neither place.
+    - The branch went in the search body only. That is also how the
+      production scraper sends it through ScraperAPI, so the app's Checkers
+      and Shoprite prices are probably from a default store as well.
+    - A browser also carries the branch in a `storeContexts` cookie. The
+      probe now sends that cookie too.
+    - The stand-in now reads only the cookie, so a probe without it fails
+      the test. That is checked by removing it.
+    - **Not yet known:** whether ScraperAPI passes the cookie on. The next
+      run shows that.
+
+  - **With the cookie, Checkers is right.** Sandton was priced at one of its
+    own nearby stores and Sea Point at another.
+    - 17 of 23 breads differ in price. The Bakery White Bread is R16.99
+      against R17.99, exactly the hand check.
+    - So the production scraper, which sends the branch in the body only,
+      has been showing everyone one default Cape Town store's Checkers
+      prices.
+  - **Shoprite came back empty** at both places once the cookie named a
+    nearby store, although the default store had sold bread in the run
+    before.
+    - An empty search now prints the stores the site named, how each one
+      delivers, and what the reply held.
+    - The next small run says why.
+  - **Why Shoprite was empty:** for both places it named one store whose
+    only service is "digital". It names no store that sells groceries.
+    - The owner's Soweto recording named real delivery stores. So Shoprite
+      quotes a branch only where it delivers groceries.
+    - Elsewhere, only its default store has prices: the one a search gets
+      with no branch at all.
+    - The probe already prints this, so the nine-province run will show
+      where Shoprite delivers.
+
+  - **Where #66 stands after the measuring:**
+    - **Pick n Pay:** prices vary by province. The branch is a store code
+      that an address picks.
+    - **Checkers:** prices vary by branch. The branch goes in the
+      `storeContexts` cookie.
+    - **Shoprite:** branch prices only where it delivers.
+    - **Woolworths:** not probed. It needs Google place ids.
+    - **Makro:** the same everywhere.
+    - **A bug found on the way:** the production Checkers and Shoprite
+      scrapers send the branch in the body only. So the app has shown one
+      default store's prices to everyone.
+
+  - **Grilled after the measuring:**
+    - **Default store:** without a location, Checkers and the others
+      default to a Johannesburg store rather than the Cape Town one shown
+      today.
+    - **Shoprite where it doesn't deliver:** the owner asked whether it
+      could use the nearest store that does deliver. It probably can.
+      Shoprite's store finder gives each nearby store's coordinates. The
+      probe now asks again from each one, nearest first, up to three, and
+      prices at the first that names a delivering store. The stand-in
+      covers a place that finds one and a place that doesn't. Removing the
+      fallback, or counting "digital" as groceries, fails the test.
+  - **Three tries were not enough.** On the fifth run, none of the three
+    Shoprites nearest Sandton or Sea Point delivers.
+    - The owner then chose a delivering Shoprite anywhere in the province as
+      that province's default, however far away.
+    - `NEAREST_TRIES` now widens the search, and the probe counts the stores
+      it actually tried.
+    - The stand-in covers a delivering store fourth in line: three tries
+      miss it and five reach it. Ignoring the setting fails the test.
+  - **The province-wide search (sixth run) worked in five provinces.**
+    - Gauteng, KwaZulu-Natal, the Eastern Cape, the Free State and Limpopo
+      each found a delivering Shoprite about 10 km out.
+    - Prices differ by province there too: 33 of the 46 breads seen at two
+      or more places.
+    - **Three provinces found no delivering store.** The store finder
+      returned only 6 Shoprites near Mbombela and 4 near Kimberley, so it
+      seems to search within a fixed radius, and none of them delivers.
+      Rustenburg named no delivering store either.
+    - **Two searches came back empty although a delivering store was
+      named:** Sea Point (via Milnerton) and Rustenburg.
+    - The probe now prints each store's delivery capacity and priority, and
+      retries an empty search once without the digital store.
+    - `PLACES=WIT,UPT` asks from eMalahleni and Upington, the other ends of
+      Mpumalanga and the Northern Cape.
+  - **The seventh run settled Shoprite.**
+    - Milnerton (for Sea Point) and Rustenburg each name a delivering
+      store, with capacity, but sell nothing, even without the digital
+      store. Both have brandPriority 10, where every store that sold had
+      between 2 and 8.
+    - eMalahleni and Upington found no delivering Shoprite either.
+    - So the Western Cape, North West, Mpumalanga and the Northern Cape
+      have no Shoprite that prices online. Those provinces fall back to the
+      Joburg default (Shoprite Sophiatown), marked as not delivering there.
+    - Whatever picks a branch in the app must check that the store returns
+      products, not only that it says it delivers.
