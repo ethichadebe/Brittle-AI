@@ -164,6 +164,11 @@ export const api = {
 
     signOut: () => request<void>("/accounts/sign-out", { method: "POST" }),
 
+    // #151: deletes the Account and everything on it, at once. The server
+    // signs this browser out and gives it a fresh anonymous identity.
+    deleteAccount: (password: string) =>
+      request<void>("/accounts/me", { method: "DELETE", body: JSON.stringify({ password }) }),
+
     resolveCollision: (anonymousListId: string, resolution: CollisionResolution) =>
       request<void>(`/accounts/collisions/${anonymousListId}/resolve`, {
         method: "POST",

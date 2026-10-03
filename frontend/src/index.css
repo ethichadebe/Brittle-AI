@@ -1041,6 +1041,33 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .profile-email { font-size: 1rem; font-weight: 600; word-break: break-all; }
 .profile-sign-out { justify-content: center; margin-top: 0.5rem; }
+/* ── Privacy notice (#150) ── */
+.privacy { padding-bottom: 2rem; }
+.privacy-body { padding: 0 1rem; max-width: 40rem; margin: 0 auto; color: var(--text-2); font-size: 0.92rem; line-height: 1.55; }
+.privacy-body h3 { margin: 1.4rem 0 0.4rem; font-size: 1rem; font-weight: 700; color: var(--text); }
+.privacy-body ul { padding-left: 1.1rem; display: grid; gap: 0.45rem; }
+.privacy-body a { color: var(--primary); }
+.privacy-body ul + p { margin-top: 0.6rem; }
+.privacy-updated { color: var(--faint); font-size: 0.78rem; }
+
+/* What a price here is, and isn't (#150). */
+.disclaimer { color: var(--faint); font-size: 0.75rem; line-height: 1.45; }
+.compare-disclaimer { list-style: none; padding: 1rem 1rem 0; }
+.profile-legal { padding: 0 1rem; margin-top: 1.5rem; text-align: center; }
+.profile-legal a { color: var(--muted); font-size: 0.85rem; }
+.profile-legal .disclaimer { margin-top: 0.6rem; }
+
+/* #151: quiet on purpose; the sheet it opens is where the weight is. */
+.profile-delete {
+  display: block;
+  margin: 1rem auto 0;
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .profile-version { margin-top: 2rem; text-align: center; color: var(--faint); font-size: 0.75rem; }
 
 /* ── Sign in (#115) ── */
@@ -1089,6 +1116,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .auth-input:focus { border-color: var(--primary); }
 .auth-hint { color: var(--muted); font-size: 0.8rem; margin-top: -0.4rem; }
+.auth-privacy { color: var(--muted); font-size: 0.8rem; text-align: center; }
+.auth-privacy a { color: var(--primary); }
 .auth-error { margin: 0; }
 
 /* ── Intro slides (#117) ── */

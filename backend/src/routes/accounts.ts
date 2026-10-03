@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword } from "../password.js";
 import { claimAnonymousLists, type ListCollision } from "../claimAnonymousLists.js";
 import { resolveListCollision, type CollisionResolution } from "../resolveListCollision.js";
 import { LIMITS, limiter, tooMany } from "../rateLimit.js";
+import { issueDeviceId } from "../deviceId.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -110,6 +111,37 @@ export async function accountsRoutes(app: FastifyInstance) {
   // POST /accounts/sign-out
   app.post("/accounts/sign-out", async (_req, reply) => {
     await reply.signOut();
+    return reply.status(204).send();
+  });
+
+  // DELETE /accounts/me — #151: the Shopper deletes their Account, at once.
+  app.delete<{ Body: { password?: string } }>("/accounts/me", async (req, reply) => {
+    if (!req.accountId) return reply.status(401).send({ error: "Sign in required" } as never);
+
+    const account = await prisma.account.findUnique({ where: { id: req.accountId } });
+    if (!account) return reply.status(401).send({ error: "Sign in required" } as never);
+
+    // The password, not just the session: a phone left signed in must not be
+    // enough to delete someone's account. Guesses here count against the
+    // same limit as sign-in (#152), or this would be a way around it.
+    const wait = limiter.take(`signin:email:${account.email}`, LIMITS.signInPerEmail);
+    if (wait) return tooMany(reply, wait, "password attempts");
+    if (!(await verifyPassword(req.body?.password ?? "", account.passwordHash))) {
+      return reply.status(401).send({ error: "That password isn't right" } as never);
+    }
+
+    // Lists are keyed by the Account's id, not a relation, so they go by
+    // hand; their items follow by cascade. Sessions and substitute decisions
+    // cascade from the Account itself. Popular Substitutes are counted from
+    // those decisions each time (loadPopular), so nothing of this Account
+    // stays in them; cached prices belong to the stores, not to anyone.
+    await prisma.$transaction([
+      prisma.list.deleteMany({ where: { userId: account.id } }),
+      prisma.account.delete({ where: { id: account.id } }),
+    ]);
+
+    await reply.signOut();
+    issueDeviceId(req, reply);
     return reply.status(204).send();
   });
 
