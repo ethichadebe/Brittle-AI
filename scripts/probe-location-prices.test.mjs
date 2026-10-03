@@ -34,7 +34,11 @@ const eq = (a, b, name) =>
 
 // Which place a coordinate is. The probe only ever sends the PLACES table's
 // own coordinates, so the latitude alone tells them apart.
-const placeOf = (lat) => ({ "-26.1076": "JHB", "-33.9175": "CPT", "-29.7258": "DBN" })[String(lat)] ?? "??";
+// ALX is no place of the probe's: it is a nearby store's own coordinates,
+// which the probe asks from when a place itself gets no delivering store.
+const ALX = { latitude: -26.103, longitude: 28.097 };
+const placeOf = (lat) =>
+  ({ "-26.1076": "JHB", "-33.9175": "CPT", "-29.7258": "DBN", "-33.9608": "GQB", [String(ALX.latitude)]: "ALX" })[String(lat)] ?? "??";
 
 function readRaw(req) {
   return new Promise((resolve) => {
@@ -87,20 +91,26 @@ const SHOPRITE_GROUP_CATALOGUE = {
 };
 SHOPRITE_GROUP_CATALOGUE.DBN = SHOPRITE_GROUP_CATALOGUE.JHB;
 
-// contextsFrom says where the stand-in reads the branch from:
-//   "cookie"  - the storeContexts cookie only, ignoring the body. The live
-//               site behaved this way on the third run: a branch sent in the
-//               body alone got the default store.
-//   "nowhere" - always the default store, so the probe must say "NOT from".
+// The stand-in reads the branch from the storeContexts cookie only, ignoring
+// the body: the live site behaved this way on the third run, where a branch
+// sent in the body alone got the default store. Per place:
+//   notServed   - no store at all; the site says another brand serves it.
+//   defaultAt   - priced at the default store whatever is asked, so the
+//                 probe must say "NOT from" rather than read it as a zone.
+//   digitalAt   - only a "digital" store, which sells nothing, as Shoprite
+//                 answered for Sandton and Sea Point on the fourth run.
+//   deliversVia - for a digitalAt place, the nearby store whose own
+//                 coordinates do get a delivering store.
 SHOPRITE_GROUP_CATALOGUE.DEF = SHOPRITE_GROUP_CATALOGUE.JHB;
-// emptyAt: places whose own store has nothing to sell, as Shoprite answered
-// for Sandton and Sea Point on the fourth run.
-function shopriteGroupServer({ brand, notServed = [], contextsFrom = "cookie", emptyAt = [] }) {
+SHOPRITE_GROUP_CATALOGUE.ALX = SHOPRITE_GROUP_CATALOGUE.JHB;
+function shopriteGroupServer({ brand, notServed = [], defaultAt = [], digitalAt = [], deliversVia = {} }) {
   return base(async (req, body, json) => {
     if (req.url.startsWith("/api/store/fetch-store-contexts")) {
       const place = placeOf(body?.address?.coordinates?.latitude);
       if (notServed.includes(place))
         return json({ storeContexts: [], servicedByOtherBrand: true, otherBrandStoreContexts: [] }), true;
+      if (digitalAt.includes(place))
+        return json({ storeContexts: [{ storeId: `5f32a7-${place}x01`, serviceOptionIds: ["digital"] }] }), true;
       return json({
         storeContexts: [
           { storeId: `5f32a7-${place}x01`, serviceOptionIds: ["d1f0"] },
@@ -110,17 +120,22 @@ function shopriteGroupServer({ brand, notServed = [], contextsFrom = "cookie", e
       }), true;
     }
     if (req.url.startsWith("/api/browse-by-store/get-stores-by-location")) {
-      const place = placeOf(body?.payload?.latitude);
-      return json([{ name: `${brand} ${place} Mall`, posSiteCode: "1234", distanceKm: 2.4 }]), true;
+      const { latitude, longitude, limit } = body?.payload ?? {};
+      const place = placeOf(latitude);
+      // Nearest first; the nearest is at the place itself.
+      const stores = [{ name: `${brand} ${place} Mall`, posSiteCode: "1234", distanceKm: 2.4, coordinates: { latitude, longitude } }];
+      if (deliversVia[place] === "ALX") stores.push({ name: `${brand} Alexandra`, posSiteCode: "5678", distanceKm: 2.9, coordinates: ALX });
+      return json(stores.slice(0, limit)), true;
     }
     if (req.url.startsWith("/api/catalogue/get-products-filter")) {
       const cookie = (req.headers.cookie ?? "").match(/(?:^|;\s*)storeContexts=([^;]*)/);
       const fromCookie = cookie ? JSON.parse(decodeURIComponent(cookie[1]))?.[0]?.storeId : undefined;
-      if (emptyAt.includes(fromCookie?.match(/-(\w{3})x0\d$/)?.[1])) return json({ products: [], totalCount: 0 }), true;
-      const storeId = (contextsFrom === "cookie" && fromCookie) || "5f32a7-DEFx01";
+      const asked = fromCookie?.match(/-(\w{3})x0\d$/)?.[1];
+      const storeId = fromCookie && !defaultAt.includes(asked) ? fromCookie : "5f32a7-DEFx01";
       const place = storeId.match(/-(\w{3})x0\d$/)?.[1];
       const q = body?.filterData?.filter?.productListSource?.search;
-      const products = (SHOPRITE_GROUP_CATALOGUE[place] ?? [])
+      // A digital store's catalogue is empty.
+      const products = (digitalAt.includes(place) ? [] : (SHOPRITE_GROUP_CATALOGUE[place] ?? []))
         .filter((p) => p.q === q)
         .map((p) => ({ id: p.id, name: p.name, price: p.price, oldPrice: p.oldPrice, bonusBuy: p.bonusBuy, storeId }));
       // The real site lists results under data in some responses.
@@ -284,7 +299,13 @@ const KEY = "test-key-5f3e9a";
 const seen = [];
 const servers = {
   checkers: shopriteGroupServer({ brand: "Checkers" }),
-  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"], contextsFrom: "nowhere", emptyAt: ["JHB"] }),
+  shoprite: shopriteGroupServer({
+    brand: "Shoprite",
+    notServed: ["CPT"],
+    defaultAt: ["DBN"],
+    digitalAt: ["JHB", "GQB"],
+    deliversVia: { JHB: "ALX" },
+  }),
   pnp: pnpServer({ failSearchAt: "KC03" }),
   scraperApi: scraperApiServer(seen),
 };
@@ -333,9 +354,10 @@ has(checkers, "* on promotion there", "explains the mark");
 console.log(" Shoprite");
 has(shoprite, "CPT Sea Point      0 items  not served (other brand)", "says where it doesn't deliver");
 has(shoprite, "Shoprite DBN Mall", "carries on with the next place");
-has(shoprite, "JHB Sandton        0 items", "an empty search is not an error");
-has(shoprite, "EMPTY; stores JHBx01[d1f0] JHBx02[d1f1]; reply keys products,totalCount, totalCount 0", "and says what the site named and answered");
-has(shoprite, "priced at DEFx01, NOT from its 2 nearby", "and says so, rather than reading it as one zone");
+has(shoprite, "priced at DEFx01, NOT from its 2 nearby", "says when the site priced at its default store");
+has(shoprite, "JHB Sandton        4 items  Shoprite JHB Mall (2.4km); delivers from Shoprite Alexandra (2.9km)",
+  "a place with only a digital store is priced at the nearest store that delivers");
+has(shoprite, "priced at ALXx01, from its 2 nearby", "and it is that store's prices");
 has(checkers, "priced at JHBx01, from its 2 nearby", "says which nearby store Sandton was priced at");
 
 console.log(" Pick n Pay");
@@ -357,6 +379,18 @@ eq(seen.every((r) => r.target.startsWith(`${seen.checkersOrigin}/api/`)), true, 
 eq(seen.filter((r) => r.target.includes("get-products-filter")).length, 12, "four searches at each of three places");
 hasnt(out, KEY, "never prints the key");
 
-if (fail) console.log(`\n--- probe output ---\n${out}`);
+console.log("\nnowhere nearby delivers");
+const lonely = shopriteGroupServer({ brand: "Shoprite", digitalAt: ["GQB"] });
+let second;
+try {
+  second = await runProbe({ SHOPRITE_ORIGIN: await listen(lonely), STORES: "shoprite", PLACES: "GQB,DBN", QUERIES: "bread" });
+} finally {
+  await new Promise((r) => lonely.close(r));
+}
+has(second.out, "none of the nearest 3 delivers", "says so");
+has(second.out, "GQB Gqeberha       0 items", "an empty search is not an error");
+has(second.out, "EMPTY; stores GQBx01[digital]; reply keys products,totalCount, totalCount 0", "and says what the site named and answered");
+
+if (fail) console.log(`\n--- probe output ---\n${out}\n--- second ---\n${second?.out ?? ""}`);
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -75,3 +75,15 @@
     - **A bug found on the way:** the production Checkers and Shoprite
       scrapers send the branch in the body only. So the app has shown one
       default store's prices to everyone.
+
+  - **Grilled after the measuring:**
+    - **Default store:** without a location, Checkers and the others
+      default to a Johannesburg store rather than the Cape Town one shown
+      today.
+    - **Shoprite where it doesn't deliver:** the owner asked whether it
+      could use the nearest store that does deliver. It probably can.
+      Shoprite's store finder gives each nearby store's coordinates. The
+      probe now asks again from each one, nearest first, up to three, and
+      prices at the first that names a delivering store. The stand-in
+      covers a place that finds one and a place that doesn't. Removing the
+      fallback, or counting "digital" as groceries, fails the test.

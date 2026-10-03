@@ -166,6 +166,13 @@ export function pricedAt(storeContexts, products) {
   return `priced at ${ids.map((id) => id.slice(-6)).join(",")}, ${fromNearby ? "from" : "NOT from"} its ${nearby.length} nearby`;
 }
 
+// A store that sells groceries online, rather than only "digital" things.
+export const sellsGroceries = (storeContexts) =>
+  storeContexts.some((c) => (c.serviceOptionIds ?? []).some((s) => s !== "digital"));
+
+// How many nearby stores to try before giving up. Each try is one request.
+const NEAREST_TRIES = 3;
+
 // For a search that came back empty: which stores the site named for the
 // place, how each one serves, and what the reply held. The fourth run found
 // Shoprite empty at both places once the cookie named a nearby store.
@@ -317,7 +324,7 @@ async function main() {
       let stage = "branch";
       try {
         const ctx = await call("POST", "/api/store/fetch-store-contexts?update=false", shopriteGroupAddress(place));
-        const storeContexts = ctx?.storeContexts ?? [];
+        let storeContexts = ctx?.storeContexts ?? [];
         if (!storeContexts.length) {
           const other = ctx?.servicedByOtherBrand;
           results.push({ place, branch: other ? `not served (${typeof other === "string" ? other : "other brand"})` : "not served", products: [] });
@@ -331,6 +338,35 @@ async function main() {
           if (near?.[0]?.name) branch = `${near[0].name} (${near[0].distanceKm ?? "?"}km)`;
         } catch {
           // The name is a label only; the prices don't depend on it.
+        }
+        // Where Shoprite doesn't deliver it names only a "digital" store, which
+        // sells nothing. The owner chose (#66) to price such a place at the
+        // nearest store that does deliver: ask again from each nearby store's
+        // own coordinates, nearest first.
+        if (!sellsGroceries(storeContexts)) {
+          stage = "nearest";
+          const nearby = await call("POST", "/api/browse-by-store/get-stores-by-location", {
+            payload: { latitude: place.latitude, longitude: place.longitude, limit: NEAREST_TRIES, brands: [brand] },
+          });
+          let found = null;
+          for (const store of (Array.isArray(nearby) ? nearby : []).slice(0, NEAREST_TRIES)) {
+            if (!store?.coordinates) continue;
+            const alt = await call(
+              "POST",
+              "/api/store/fetch-store-contexts?update=false",
+              shopriteGroupAddress({ city: store.name, ...store.coordinates })
+            );
+            if (sellsGroceries(alt?.storeContexts ?? [])) {
+              found = { store, storeContexts: alt.storeContexts };
+              break;
+            }
+          }
+          if (found) {
+            storeContexts = found.storeContexts;
+            branch += `; delivers from ${found.store.name} (${found.store.distanceKm ?? "?"}km)`;
+          } else {
+            branch += `; none of the nearest ${NEAREST_TRIES} delivers`;
+          }
         }
         stage = "search";
         const products = [];
