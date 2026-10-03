@@ -11,13 +11,12 @@ export const NO_ZONE = "none";
 export const UNCONFIGURED_ZONE = "unconfigured";
 
 // Per ADR 0001, a Price Zone is identified by whatever the store itself
-// calls it, opaque to us. For Checkers and Shoprite that identity lives in a
-// cookie, which also carries a session token — not something to store
-// verbatim in a database column or a log line. Hashing keeps it a stable,
-// opaque identifier (the same cookie always yields the same zone id, a
-// different cookie a different one) without ever storing the cookie itself.
-export function opaqueZone(cookie: string): string {
-  const trimmed = cookie.trim();
+// calls it, opaque to us. For Checkers and Shoprite that identity is the set
+// of store ids the site names for the branch (#66). Hashing keeps it a
+// stable, opaque identifier (the same stores always yield the same zone id,
+// different ones a different id) without storing the site's own ids.
+export function opaqueZone(identity: string): string {
+  const trimmed = identity.trim();
   if (!trimmed) return UNCONFIGURED_ZONE;
   return createHash("sha256").update(trimmed).digest("hex").slice(0, 12);
 }

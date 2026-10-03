@@ -43,7 +43,7 @@ const CATALOGUE: Record<string, Product[]> = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockZone.mockReturnValue("none");
+  mockZone.mockResolvedValue("none");
   mockSearch.mockImplementation(async (_store, query) => CATALOGUE[query] ?? []);
 });
 

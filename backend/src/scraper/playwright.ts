@@ -4,7 +4,8 @@ import type { Product, StoreSlug } from "@accucery/types";
 import {
   apiUrl,
   buildBody,
-  parseStoreContexts,
+  defaultBranch,
+  storeContextsCookie,
   normalise as parseShopriteGroup,
   CHECKERS_SITE,
   SHOPRITE_SITE,
@@ -45,15 +46,13 @@ function shopriteGroupStrategy(site: ShopriteGroupSite): Strategy {
   return {
     warmupUrl: `${site.origin}/`,
     browserSearch: async (page, query) => {
-      // Prefer the storeContexts the homepage just set in this browser.
-      const cookies = await page.context().cookies(site.origin);
-      const sc = cookies.find((c) => c.name === "storeContexts");
-      let storeContexts = sc ? parseStoreContexts(`storeContexts=${sc.value}`) : [];
-
-      // A fresh VPS visit often gets no storeContexts from the homepage, so fall
-      // back to the cookie captured from a real browser session.
-      if (!storeContexts.length) {
-        storeContexts = parseStoreContexts(process.env[site.cookieEnv] ?? "");
+      // The same default branch the primary scraper prices (#66). The site
+      // reads it from the storeContexts cookie, not the body, so it goes into
+      // this browser's cookie jar, replacing whatever the homepage set.
+      const storeContexts = await defaultBranch(site);
+      if (storeContexts.length) {
+        const value = storeContextsCookie(storeContexts).slice("storeContexts=".length);
+        await page.context().addCookies([{ name: "storeContexts", value, url: site.origin }]);
       }
 
       // page.evaluate runs inside Chrome — cookies auto-included, TLS fingerprint is Chrome's

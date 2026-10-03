@@ -46,8 +46,8 @@ export function createSearchEngine(registry: ScraperRegistry) {
   // checks this against the search cache before deciding whether a live
   // scrape is even needed. An unregistered store has no zone concept of its
   // own; NO_ZONE is as good as any value nothing will ever look up.
-  function currentZone(store: StoreSlug): string {
-    return registry[store]?.currentZone() ?? NO_ZONE;
+  async function currentZone(store: StoreSlug): Promise<string> {
+    return (await registry[store]?.currentZone()) ?? NO_ZONE;
   }
 
   return { searchProducts, currentZone };

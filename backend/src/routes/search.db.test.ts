@@ -37,7 +37,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   app = await buildApp();
   await app.ready();
-  mockZone.mockReturnValue("p10");
+  mockZone.mockResolvedValue("p10");
 });
 
 const search = (store: string, q: string) =>
@@ -80,10 +80,10 @@ describe("GET /search — caching", () => {
   it("is a miss for the same query in a different zone", async () => {
     mockSearch.mockResolvedValue([milk]);
 
-    mockZone.mockReturnValue("p10");
+    mockZone.mockResolvedValue("p10");
     await search("checkers", "milk");
 
-    mockZone.mockReturnValue("p30");
+    mockZone.mockResolvedValue("p30");
     await search("checkers", "milk");
 
     expect(mockSearch).toHaveBeenCalledTimes(2);
