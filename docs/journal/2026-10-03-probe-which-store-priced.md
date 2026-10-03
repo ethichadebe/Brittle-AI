@@ -28,3 +28,16 @@
       is built on either answer.
     - If it says "NOT from", the production scraper is likely pricing
       Checkers and Shoprite at a default store too.
+
+  - **It said "NOT from".** On a third, small run, Sandton and Sea Point were
+    both priced at one Cape Town Checkers store. Both Shoprite searches were
+    priced at a store near neither place.
+    - The branch went in the search body only. That is also how the
+      production scraper sends it through ScraperAPI, so the app's Checkers
+      and Shoprite prices are probably from a default store as well.
+    - A browser also carries the branch in a `storeContexts` cookie. The
+      probe now sends that cookie too.
+    - The stand-in now reads only the cookie, so a probe without it fails
+      the test. That is checked by removing it.
+    - **Not yet known:** whether ScraperAPI passes the cookie on. The next
+      run shows that.

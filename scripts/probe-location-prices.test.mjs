@@ -87,10 +87,13 @@ const SHOPRITE_GROUP_CATALOGUE = {
 };
 SHOPRITE_GROUP_CATALOGUE.DBN = SHOPRITE_GROUP_CATALOGUE.JHB;
 
-// ignoreContexts: price everything at one default store, whatever the body
-// says - what the second live run looked like.
+// contextsFrom says where the stand-in reads the branch from:
+//   "cookie"  - the storeContexts cookie only, ignoring the body. The live
+//               site behaved this way on the third run: a branch sent in the
+//               body alone got the default store.
+//   "nowhere" - always the default store, so the probe must say "NOT from".
 SHOPRITE_GROUP_CATALOGUE.DEF = SHOPRITE_GROUP_CATALOGUE.JHB;
-function shopriteGroupServer({ brand, notServed = [], ignoreContexts = false }) {
+function shopriteGroupServer({ brand, notServed = [], contextsFrom = "cookie" }) {
   return base(async (req, body, json) => {
     if (req.url.startsWith("/api/store/fetch-store-contexts")) {
       const place = placeOf(body?.address?.coordinates?.latitude);
@@ -109,7 +112,9 @@ function shopriteGroupServer({ brand, notServed = [], ignoreContexts = false }) 
       return json([{ name: `${brand} ${place} Mall`, posSiteCode: "1234", distanceKm: 2.4 }]), true;
     }
     if (req.url.startsWith("/api/catalogue/get-products-filter")) {
-      const storeId = ignoreContexts ? "5f32a7-DEFx01" : (body?.storeContexts?.[0]?.storeId ?? "");
+      const cookie = (req.headers.cookie ?? "").match(/(?:^|;\s*)storeContexts=([^;]*)/);
+      const fromCookie = cookie ? JSON.parse(decodeURIComponent(cookie[1]))?.[0]?.storeId : undefined;
+      const storeId = (contextsFrom === "cookie" && fromCookie) || "5f32a7-DEFx01";
       const place = storeId.match(/-(\w{3})x0\d$/)?.[1];
       const q = body?.filterData?.filter?.productListSource?.search;
       const products = (SHOPRITE_GROUP_CATALOGUE[place] ?? [])
@@ -184,7 +189,12 @@ function scraperApiServer(seen) {
     const target = u.searchParams.get("url");
     seen.push({ key: u.searchParams.get("api_key"), keep: u.searchParams.get("keep_headers"), target });
     const body = req.method === "POST" ? await readRaw(req) : undefined;
-    const r = await fetch(target, { method: req.method, headers: { "content-type": "application/json" }, body });
+    // keep_headers=true: the caller's own headers go through, the cookie included.
+    const r = await fetch(target, {
+      method: req.method,
+      headers: { "content-type": "application/json", ...(req.headers.cookie && { cookie: req.headers.cookie }) },
+      body,
+    });
     res.writeHead(r.status, { "content-type": "application/json" });
     res.end(await r.text());
   });
@@ -271,7 +281,7 @@ const KEY = "test-key-5f3e9a";
 const seen = [];
 const servers = {
   checkers: shopriteGroupServer({ brand: "Checkers" }),
-  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"], ignoreContexts: true }),
+  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"], contextsFrom: "nowhere" }),
   pnp: pnpServer({ failSearchAt: "KC03" }),
   scraperApi: scraperApiServer(seen),
 };

@@ -146,6 +146,14 @@ export function parsePnpProducts(json) {
     .filter((p) => p.id && p.name && Number.isFinite(p.price) && p.price > 0);
 }
 
+// The third run (2026-10-03) sent the branch in the search body only, as the
+// production scraper does, and every place was priced at one default store.
+// A browser also carries it in a storeContexts cookie, URL-encoded JSON (the
+// shape parseStoreContexts in shopriteGroup.ts reads), so the probe sends both.
+export function storeContextsCookie(storeContexts) {
+  return `storeContexts=${encodeURIComponent(JSON.stringify(storeContexts))}`;
+}
+
 // Which store the site actually priced at, and whether it is one of the
 // stores it named for this place. The second run (2026-10-03) found every
 // Checkers price identical in all nine provinces, which the hand check
@@ -268,7 +276,7 @@ async function main() {
       Origin: origin,
       Referer: `${origin}/search`,
     };
-    const call = async (method, path, body) => {
+    const call = async (method, path, body, more = {}) => {
       const target = `${origin}${path}`;
       const url = viaProxy
         ? `${SCRAPERAPI_URL}?api_key=${encodeURIComponent(key)}&url=${encodeURIComponent(target)}&keep_headers=true`
@@ -276,7 +284,7 @@ async function main() {
       // The URL carries the key, so a failure reports the status, never the URL.
       const res = await fetch(url, {
         method,
-        headers,
+        headers: { ...headers, ...more },
         ...(body !== undefined && { body: JSON.stringify(body) }),
         signal: AbortSignal.timeout(90000),
       });
@@ -312,7 +320,13 @@ async function main() {
         stage = "search";
         const products = [];
         for (const q of QUERIES) {
-          products.push(...parseShopriteGroupProducts(await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts))));
+          products.push(
+            ...parseShopriteGroupProducts(
+              await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts), {
+                Cookie: storeContextsCookie(storeContexts),
+              })
+            )
+          );
         }
         results.push({ place, branch: `${branch}; ${pricedAt(storeContexts, products)}`, products });
       } catch (e) {
