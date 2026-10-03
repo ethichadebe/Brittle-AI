@@ -3,7 +3,7 @@ import type { GroceryList } from "@accucery/types";
 import { DEFAULT_LIST_NAMES, datedListName, nameSuggestions } from "./listNames";
 
 const list = (name: string, createdAt: string): GroceryList => ({
-  id: name, storeSlug: "checkers", name, createdAt, itemCount: 0, checkedCount: 0, totalPrice: 0, branchName: null,
+  id: name, storeSlug: "checkers", name, createdAt, itemCount: 0, checkedCount: 0, totalPrice: 0, branchName: null, outOfDelivery: false,
 });
 
 describe("datedListName", () => {

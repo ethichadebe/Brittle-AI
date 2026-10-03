@@ -6,6 +6,7 @@ import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
 import type { Branch } from "../scraper/types.js";
+import { LOCATE_WAIT } from "./lists.js";
 
 // #131: a list priced at the shopper's own branch. Only the store is faked:
 // the branch it answers with, and the zone each branch prices in. Saving,
@@ -74,7 +75,7 @@ describe("finding a list's branch from the shopper's location", () => {
     const res = await locate(as, list.id);
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ branchName: "Checkers FX Sandhurst" });
+    expect(res.json()).toEqual({ finding: false, branchName: "Checkers FX Sandhurst", outOfDelivery: false, failed: false });
     expect(mockNearest).toHaveBeenCalledWith("checkers", HERE);
     const lists = (await as({ method: "GET", url: "/lists" })).json().lists as GroceryList[];
     expect(lists.find((l) => l.id === list.id)?.branchName).toBe("Checkers FX Sandhurst");
@@ -94,15 +95,18 @@ describe("finding a list's branch from the shopper's location", () => {
     expect(row.branch).toEqual(SANDHURST);
   });
 
-  it("keeps the default when the store has no branch near the shopper", async () => {
+  // #134: Shoprite only prices by branch where it delivers.
+  it("says the store doesn't deliver near the shopper, and keeps the default prices", async () => {
     const as = asDevice();
-    const list = await newList(as);
+    const list = await newList(as, "shoprite");
     mockNearest.mockResolvedValue(null);
 
     const res = await locate(as, list.id);
 
-    expect(res.json()).toEqual({ branchName: null });
-    expect((await testPrisma.list.findUniqueOrThrow({ where: { id: list.id } })).branch).toBeNull();
+    expect(mockNearest).toHaveBeenCalledWith("shoprite", HERE);
+    expect(res.json()).toEqual({ finding: false, branchName: null, outOfDelivery: true, failed: false });
+    const lists = (await as({ method: "GET", url: "/lists" })).json().lists as GroceryList[];
+    expect(lists.find((l) => l.id === list.id)).toMatchObject({ branchName: null, outOfDelivery: true });
   });
 
   it("says the store couldn't be reached, and leaves the list as it was", async () => {
@@ -137,6 +141,66 @@ describe("finding a list's branch from the shopper's location", () => {
     const list = await newList(as, "pick-n-pay");
     expect((await locate(as, list.id)).statusCode).toBe(422);
     expect(mockNearest).not.toHaveBeenCalled();
+  });
+});
+
+// #134: a Shoprite lookup can take a minute, longer than a proxy holds a request.
+describe("a slow lookup", () => {
+  it("answers 'still finding', then the branch once it's found", async () => {
+    const before = LOCATE_WAIT.ms;
+    LOCATE_WAIT.ms = 20;
+    try {
+      const as = asDevice();
+      const list = await newList(as, "shoprite");
+      let answer!: (b: Branch) => void;
+      mockNearest.mockReturnValue(new Promise<Branch>((r) => (answer = r)));
+
+      const first = await locate(as, list.id);
+      expect(first.statusCode).toBe(202);
+      expect(first.json()).toMatchObject({ finding: true });
+      // Asking again joins the lookup running, rather than starting another.
+      expect((await locate(as, list.id)).statusCode).toBe(202);
+      expect(mockNearest).toHaveBeenCalledTimes(1);
+      expect((await as({ method: "GET", url: `/lists/${list.id}/location` })).json()).toMatchObject({ finding: true });
+
+      answer({ name: "Shoprite Sophiatown", contexts: [{ storeId: "store-sophiatown" }] });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect((await as({ method: "GET", url: `/lists/${list.id}/location` })).json()).toEqual({
+        finding: false,
+        branchName: "Shoprite Sophiatown",
+        outOfDelivery: false,
+        failed: false,
+      });
+    } finally {
+      LOCATE_WAIT.ms = before;
+    }
+  });
+
+  it("reports a lookup that failed after the answer went back", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const before = LOCATE_WAIT.ms;
+    LOCATE_WAIT.ms = 20;
+    try {
+      const as = asDevice();
+      const list = await newList(as, "shoprite");
+      let fail!: (e: Error) => void;
+      mockNearest.mockReturnValue(new Promise<Branch>((_, r) => (fail = r)));
+
+      expect((await locate(as, list.id)).statusCode).toBe(202);
+      fail(new Error("Shoprite API returned 502"));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect((await as({ method: "GET", url: `/lists/${list.id}/location` })).json()).toMatchObject({ finding: false, failed: true });
+      expect((await testPrisma.list.findUniqueOrThrow({ where: { id: list.id } })).branch).toBeNull();
+    } finally {
+      LOCATE_WAIT.ms = before;
+    }
+  });
+
+  it("is someone else's list: 404", async () => {
+    const list = await newList(asDevice());
+    expect((await asDevice()({ method: "GET", url: `/lists/${list.id}/location` })).statusCode).toBe(404);
   });
 });
 

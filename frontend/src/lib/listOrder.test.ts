@@ -4,7 +4,7 @@ import { restoreList, withoutList } from "./listOrder";
 
 const list = (id: string): GroceryList => ({
   id, storeSlug: "checkers", name: id, createdAt: "2026-10-01T00:00:00Z",
-  itemCount: 0, checkedCount: 0, totalPrice: 0, branchName: null,
+  itemCount: 0, checkedCount: 0, totalPrice: 0, branchName: null, outOfDelivery: false,
 });
 const ids = (lists: GroceryList[]) => lists.map((l) => l.id);
 

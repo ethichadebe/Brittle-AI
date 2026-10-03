@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { BranchLookup } from "@accucery/types";
 import { api } from "./api";
 import {
+  POLL_MS,
   currentPosition,
   locateList,
   LocationError,
@@ -13,6 +15,13 @@ import {
 // and never kept or put in a URL.
 
 const HERE = { latitude: -26.1076, longitude: 28.0567 };
+const found = (branchName: string | null, more: Partial<BranchLookup> = {}): BranchLookup => ({
+  finding: false,
+  branchName,
+  outOfDelivery: false,
+  failed: false,
+  ...more,
+});
 
 function okJson(body: unknown) {
   return { ok: true, status: 200, statusText: "OK", json: () => Promise.resolve(body) } as Response;
@@ -25,10 +34,10 @@ afterEach(() => {
 
 describe("finding a list's branch", () => {
   it("sends the point in the body, never the URL, and answers with the branch name", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okJson({ branchName: "Checkers FX Sandhurst" }));
+    const fetchMock = vi.fn().mockResolvedValue(okJson(found("Checkers FX Sandhurst")));
     vi.stubGlobal("fetch", fetchMock);
 
-    expect(await locateList("list-1", HERE)).toBe("Checkers FX Sandhurst");
+    expect(await locateList("list-1", HERE)).toEqual(found("Checkers FX Sandhurst"));
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/lists\/list-1\/location$/);
@@ -44,8 +53,8 @@ describe("finding a list's branch", () => {
     const lookup = locateList("list-2", HERE);
     expect(pendingLocate("list-2")).toBe(lookup);
 
-    answer(okJson({ branchName: null }));
-    expect(await lookup).toBeNull();
+    answer(okJson(found(null)));
+    expect((await lookup).branchName).toBeNull();
     await Promise.resolve();
     expect(pendingLocate("list-2")).toBeUndefined();
   });
@@ -56,6 +65,47 @@ describe("finding a list's branch", () => {
     await expect(locateList("list-3", HERE)).rejects.toThrow();
     await Promise.resolve();
     expect(pendingLocate("list-3")).toBeUndefined();
+  });
+});
+
+// #134: a Shoprite that delivers can take a minute to find.
+describe("a slow lookup", () => {
+  it("asks again until the branch is found, without sending the point again", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okJson(found(null, { finding: true })))
+      .mockResolvedValueOnce(okJson(found(null, { finding: true })))
+      .mockResolvedValueOnce(okJson(found("Shoprite Sophiatown")));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const lookup = locateList("list-4", HERE);
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2 + 10);
+
+    expect(await lookup).toEqual(found("Shoprite Sophiatown"));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [url, init] of fetchMock.mock.calls.slice(1)) {
+      expect(url).toMatch(/\/lists\/list-4\/location$/);
+      expect(init?.method ?? "GET").toBe("GET");
+      expect(init?.body).toBeUndefined();
+    }
+    vi.useRealTimers();
+  });
+
+  it("gives up after a few minutes, still reporting it as finding", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => okJson(found(null, { finding: true }))));
+
+    const lookup = locateList("list-5", HERE);
+    await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+
+    expect((await lookup).finding).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("an out-of-delivery answer comes straight back", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(okJson(found(null, { outOfDelivery: true }))));
+    expect(await locateList("list-6", HERE)).toMatchObject({ outOfDelivery: true, branchName: null });
   });
 });
 
