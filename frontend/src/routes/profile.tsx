@@ -1,13 +1,14 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { initials } from "../lib/format";
 import type { Appearance } from "../lib/appearance";
 import { useAccountSession } from "../hooks/useAccountSession";
 import { useAppearance } from "../hooks/useAppearance";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
 import { PersonIcon } from "../components/icons";
+import { Disclaimer } from "../components/Disclaimer";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -27,6 +28,34 @@ function ProfilePage() {
   const { isEnabled, toggle } = useLoyaltySettings();
   const { appearance, setAppearance } = useAppearance();
   const [signingOut, setSigningOut] = useState(false);
+
+  // #151: deleting needs the password, typed into a sheet that says plainly
+  // what goes. Null when the sheet is closed.
+  const [deletePassword, setDeletePassword] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const closeDelete = () => {
+    setDeletePassword(null);
+    setDeleteError(null);
+  };
+
+  const deleteAccount = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!deletePassword) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.account.deleteAccount(deletePassword);
+      setDeletePassword(null);
+      setAccount(null);
+      navigate({ to: "/" });
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Couldn't delete your account. Check your connection and try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const loyaltyStores = STORE_CONFIGS.filter((s) => s.loyaltyProgramme !== null);
 
@@ -108,8 +137,46 @@ function ProfilePage() {
           <button className="btn btn-danger-ghost btn-block profile-sign-out" disabled={signingOut} onClick={signOut}>
             {signingOut ? "Signing out…" : "Sign out"}
           </button>
+          <button className="profile-delete" onClick={() => setDeletePassword("")}>
+            Delete account
+          </button>
         </div>
       )}
+
+      {deletePassword !== null && (
+        <div className="modal-backdrop" onClick={() => !deleting && closeDelete()}>
+          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={deleteAccount}>
+            <h3>Delete your account?</h3>
+            <p className="modal-body">
+              Your account, all your lists and your saved substitutes are deleted straight away. This can't be undone.
+            </p>
+            <input
+              className="modal-input"
+              type="password"
+              autoComplete="current-password"
+              placeholder="Your password"
+              aria-label="Your password"
+              autoFocus
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+            />
+            {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" disabled={deleting} onClick={closeDelete}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-danger" disabled={!deletePassword || deleting}>
+                {deleting ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="profile-legal">
+        <Link to="/privacy">Privacy notice</Link>
+        <Disclaimer />
+      </div>
 
       {/* Which deploy this is (#118), for checking an update has landed. */}
       <p className="profile-version">Version {__BUILD_ID__.slice(0, 16).replace("T", " ")}</p>

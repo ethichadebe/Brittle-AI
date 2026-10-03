@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type ListCollision } from "../lib/api";
 import { safeReturnPath } from "../lib/returnPath";
@@ -153,6 +153,11 @@ function SignInPage() {
           <button type="submit" className="btn btn-primary btn-block" disabled={!passwordOk || busy}>
             {busy ? "…" : mode === "sign-up" ? "Create account" : "Sign in"}
           </button>
+          {mode === "sign-up" && (
+            <p className="auth-privacy">
+              See how we look after your information in the <Link to="/privacy">privacy notice</Link>.
+            </p>
+          )}
           <button type="button" className="auth-switch" onClick={switchMode}>
             {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
           </button>

@@ -6,7 +6,7 @@ export const DEVICE_ID_COOKIE = "accucery_device_id";
 
 // 400 days is the longest `Max-Age` most browsers will honour rather than
 // silently truncating (Chrome 104+, matching its own cap on cookie lifetime).
-const MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+export const DEVICE_ID_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -41,15 +41,21 @@ export async function registerDeviceId(app: FastifyInstance): Promise<void> {
     // A missing or malformed cookie both get a fresh identity. A malformed one
     // is never treated as someone's real id — that would let a client hand us
     // an arbitrary string and have it silently accepted as an identity.
-    const deviceId = randomUUID();
-    req.deviceId = deviceId;
-    reply.setCookie(DEVICE_ID_COOKIE, deviceId, {
-      httpOnly: true,
-      // HTTPS-only in production (#153); local development runs on plain HTTP.
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: MAX_AGE_SECONDS,
-    });
+    issueDeviceId(req, reply);
+  });
+}
+
+// A new anonymous identity for this browser, with nothing behind it. Also
+// used once an Account is deleted (#151), so the device starts afresh.
+export function issueDeviceId(req: FastifyRequest, reply: FastifyReply): void {
+  const deviceId = randomUUID();
+  req.deviceId = deviceId;
+  reply.setCookie(DEVICE_ID_COOKIE, deviceId, {
+    httpOnly: true,
+    // HTTPS-only in production (#153); local development runs on plain HTTP.
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: DEVICE_ID_MAX_AGE_SECONDS,
   });
 }

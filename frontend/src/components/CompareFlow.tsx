@@ -11,6 +11,7 @@ import type {
 } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { formatRand } from "../lib/format";
+import { Disclaimer } from "./Disclaimer";
 import { CheckIcon, CloseIcon } from "./icons";
 
 // Who put a Substitute in a comparison total, as the shopper reads it.
@@ -309,6 +310,7 @@ export function CompareFlow({ listId, storeSlug, items, signedIn, onSignIn, onCl
               </li>
             )
           )}
+          <Disclaimer as="li" className="compare-disclaimer" />
         </ul>
       </div>
     </div>
