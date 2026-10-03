@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
-import type { GroceryList, ListItem, StoreSlug } from "@accucery/types";
+import type { BranchLookup, GroceryList, ListItem, StoreSlug } from "@accucery/types";
 import { api, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { priceAge } from "../lib/priceAge";
@@ -21,6 +21,7 @@ import {
   LocationError,
   pendingLocate,
   rememberLocation,
+  untilFound,
 } from "../lib/location";
 import {
   CheckIcon,
@@ -60,6 +61,8 @@ function HintBubble({ hint, onDismiss }: { hint: Hint; onDismiss: () => void }) 
   );
 }
 
+const storeNameOf = (slug: StoreSlug | null) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? "This store";
+
 export const Route = createFileRoute("/lists/$listId")({
   component: ListPage,
 });
@@ -73,6 +76,8 @@ function ListPage() {
   const [storeSlug, setStoreSlug] = useState<StoreSlug | null>(null);
   // #131: the branch this list is priced at; null is Joburg (the default).
   const [branchName, setBranchName] = useState<string | null>(null);
+  // #134: the store has no branch delivering near the shopper.
+  const [outOfDelivery, setOutOfDelivery] = useState(false);
   // Already true when the New list screen started a lookup for this list.
   const [locating, setLocating] = useState(() => pendingLocate(listId) !== undefined);
   const [branchNote, setBranchNote] = useState<string | null>(null);
@@ -97,15 +102,21 @@ function ListPage() {
 
   // Moving to a branch changes every price on the list, so they're
   // reloaded once it's saved. State is only set once the lookup answers.
-  const finishLocate = (lookup: Promise<string | null>) =>
+  const finishLocate = (lookup: Promise<BranchLookup>) =>
     lookup
       .then(
-        (name) => {
-          if (name) {
-            setBranchName(name);
+        (found) => {
+          if (found.branchName) {
+            setBranchName(found.branchName);
+            setOutOfDelivery(false);
             void reloadItems();
-          } else {
-            setBranchNote("No branch near you was found, so this list keeps Joburg prices.");
+          } else if (found.outOfDelivery) {
+            setOutOfDelivery(true);
+            setBranchNote(`${storeNameOf(storeSlug)} doesn't deliver near you, so this list shows Joburg prices. In-store prices may differ.`);
+          } else if (found.failed) {
+            setBranchNote("Couldn't reach the store to find your branch. Try again in a moment.");
+          } else if (found.finding) {
+            setBranchNote("Still looking for your branch. Open the list again in a minute.");
           }
         },
         (e) =>
@@ -119,7 +130,7 @@ function ListPage() {
       )
       .finally(() => setLocating(false));
 
-  const settleLocate = (lookup: Promise<string | null>) => {
+  const settleLocate = (lookup: Promise<BranchLookup>) => {
     setLocating(true);
     setBranchNote(null);
     return finishLocate(lookup);
@@ -143,11 +154,26 @@ function ListPage() {
       .catch(console.error);
     api.lists.list().then((lists) => {
       const found = lists.find((l) => l.id === listId) as GroceryList | undefined;
-      if (found) { setListName(found.name); setStoreSlug(found.storeSlug); setBranchName(found.branchName); }
+      if (found) {
+        setListName(found.name);
+        setStoreSlug(found.storeSlug);
+        setBranchName(found.branchName);
+        setOutOfDelivery(found.outOfDelivery);
+      }
     });
-    // A lookup the New list screen started for this list.
+    // A lookup the New list screen started for this list - or, after a
+    // reload, one still running on the server (#134).
     const lookup = pendingLocate(listId);
     if (lookup) void finishLocate(lookup);
+    else
+      api.lists
+        .locateStatus(listId)
+        .then((s) => {
+          if (!s.finding) return;
+          setLocating(true);
+          void finishLocate(untilFound(listId, s));
+        })
+        .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps -- finishLocate is rebuilt each render; listId is what it depends on
   }, [listId]);
 
@@ -307,9 +333,13 @@ function ListPage() {
             <span className="branch-line">
               <PinIcon />
               {locating ? (
-                <span>Finding your nearest {store?.name ?? "branch"}…</span>
+                <span className="branch-finding">
+                  Finding your nearest {store?.name ?? "branch"}…{storeSlug === "shoprite" && " This can take a minute."}
+                </span>
               ) : branchName ? (
                 <span className="branch-name">{branchName}</span>
+              ) : outOfDelivery ? (
+                <span className="branch-name">Joburg prices · no delivery near you</span>
               ) : (
                 <>
                   <span>Joburg prices ·</span>

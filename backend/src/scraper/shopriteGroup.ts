@@ -18,6 +18,11 @@ export interface ShopriteGroupSite {
   origin: string;
   /** Env var holding a developer's browser cookie for this host, for local dev without ScraperAPI. */
   cookieEnv: string;
+  /**
+   * Test-search a branch before accepting it. Shoprite needs this: on #66,
+   * Milnerton and Rustenburg named a delivering store and sold nothing.
+   */
+  verifyBranch?: boolean;
 }
 
 export const CHECKERS_SITE: ShopriteGroupSite = {
@@ -30,6 +35,7 @@ export const SHOPRITE_SITE: ShopriteGroupSite = {
   label: "Shoprite",
   origin: "https://www.shoprite.co.za",
   cookieEnv: "SHOPRITE_COOKIES",
+  verifyBranch: true,
 };
 
 function baseHeaders(site: ShopriteGroupSite): Record<string, string> {
@@ -202,30 +208,70 @@ async function post(site: ShopriteGroupSite, path: string, body: unknown, contex
   return res.json();
 }
 
+// How many nearby stores are asked about at once. Finding a Shoprite that
+// delivers can mean asking about many, each a few seconds through
+// ScraperAPI; a few at a time keeps that well under a minute without
+// asking ScraperAPI for more parallel requests than a plan allows.
+const NEARBY_BATCH = 4;
+
+// Searched to prove a branch sells: something every grocer stocks.
+const VERIFY_QUERY = "milk";
+
+/** Whether a branch's stores can be priced: one sells groceries, and - where the site needs it - a search there returns something. */
+async function usable(site: ShopriteGroupSite, contexts: StoreContext[]): Promise<boolean> {
+  if (!sellsGroceries(contexts)) return false;
+  if (!site.verifyBranch) return true;
+  const json = await post(site, "/api/catalogue/get-products-filter", JSON.parse(buildBody(VERIFY_QUERY, contexts)), contexts);
+  return normalise(json).length > 0;
+}
+
 /**
  * The branch that serves a place: its own delivering store if it has one,
- * otherwise the nearest Shoprite (or Checkers) that delivers. An empty list
- * when nothing nearby does, which the site prices at its national default.
+ * otherwise the nearest store that delivers, found by asking from each
+ * nearby store's own coordinates, nearest first. `storeName` is that store's
+ * name when it came from the store finder. Null when nothing nearby does.
+ *
+ * A failed request fails the lookup rather than being skipped: "Shoprite
+ * doesn't deliver here" must never be what a ScraperAPI hiccup looks like.
  */
-export async function findBranch(
+export async function locateBranch(
   site: ShopriteGroupSite,
   place: { city?: string; latitude: number; longitude: number }
-): Promise<StoreContext[]> {
+): Promise<{ contexts: StoreContext[]; storeName?: string } | null> {
   const own = (await post(site, "/api/store/fetch-store-contexts?update=false", addressBody(place)))?.storeContexts ?? [];
-  if (sellsGroceries(own)) return own;
+  if (await usable(site, own)) return { contexts: own };
 
   const nearby = await post(site, "/api/browse-by-store/get-stores-by-location", {
     payload: { latitude: place.latitude, longitude: place.longitude, limit: NEAREST_TRIES, brands: [site.label] },
   });
-  for (const store of (Array.isArray(nearby) ? nearby : []).slice(0, NEAREST_TRIES)) {
-    const at = store?.coordinates;
-    if (typeof at?.latitude !== "number" || typeof at?.longitude !== "number") continue;
-    const theirs =
-      (await post(site, "/api/store/fetch-store-contexts?update=false", addressBody({ city: String(store.name ?? ""), ...at })))
-        ?.storeContexts ?? [];
-    if (sellsGroceries(theirs)) return theirs;
+  const candidates = (Array.isArray(nearby) ? nearby : [])
+    .slice(0, NEAREST_TRIES)
+    .filter((s) => typeof s?.coordinates?.latitude === "number" && typeof s?.coordinates?.longitude === "number");
+  for (let i = 0; i < candidates.length; i += NEARBY_BATCH) {
+    const batch = candidates.slice(i, i + NEARBY_BATCH);
+    const named = await Promise.all(
+      batch.map(async (store) =>
+        ((await post(site, "/api/store/fetch-store-contexts?update=false", addressBody({ city: String(store.name ?? ""), ...store.coordinates })))
+          ?.storeContexts ?? []) as StoreContext[]
+      )
+    );
+    // Nearest first, within the batch as across batches.
+    for (const [k, contexts] of named.entries()) {
+      if (await usable(site, contexts)) {
+        const storeName = typeof batch[k].name === "string" && batch[k].name.trim() ? batch[k].name.trim() : undefined;
+        return { contexts, storeName };
+      }
+    }
   }
-  return [];
+  return null;
+}
+
+/** The stores of the branch that serves a place, or none: see locateBranch. */
+export async function findBranch(
+  site: ShopriteGroupSite,
+  place: { city?: string; latitude: number; longitude: number }
+): Promise<StoreContext[]> {
+  return (await locateBranch(site, place))?.contexts ?? [];
 }
 
 // One remembered default branch per site, shared by the scraper and the
@@ -311,8 +357,11 @@ function contextsOf(branch: Branch | undefined): StoreContext[] | null {
  * failed name lookup still saves the branch, under the store's own name.
  */
 export async function nearestBranch(site: ShopriteGroupSite, place: Place): Promise<Branch | null> {
-  const contexts = await findBranch(site, place);
-  if (!contexts.length) return null;
+  const found = await locateBranch(site, place);
+  if (!found) return null;
+  const { contexts } = found;
+  // A store found by the store finder already has its name.
+  if (found.storeName) return { name: found.storeName, contexts };
   let name = site.label;
   try {
     const near = await post(site, "/api/browse-by-store/get-stores-by-location", {

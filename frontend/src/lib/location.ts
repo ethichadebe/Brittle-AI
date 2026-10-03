@@ -1,4 +1,4 @@
-import type { StoreSlug } from "@accucery/types";
+import type { BranchLookup, StoreSlug } from "@accucery/types";
 import { api } from "./api";
 
 // #131: pricing a list at the shopper's nearest branch.
@@ -7,8 +7,8 @@ import { api } from "./api";
 // once to find the branch, and never kept: not in storage, not in state
 // beyond the call that uses it. Only the branch is saved, on the list.
 
-/** Stores whose lists can be priced at the nearest branch (mirrors the backend). */
-export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers"];
+/** Stores whose lists can be priced at the nearest branch (mirrors the backend): Checkers (#131), Shoprite (#134). */
+export const LOCATABLE_STORES: readonly StoreSlug[] = ["checkers", "shoprite"];
 
 // Whether the shopper has said yes to local prices before. Later lists then
 // use their location without asking again (the browser remembers its own
@@ -56,11 +56,28 @@ export function currentPosition(): Promise<{ latitude: number; longitude: number
 // Lookups started by the New list screen, so the list it opens can show
 // "Finding your nearest…" and the result, without the position ever being
 // handed over. Keyed by list id, gone once settled.
-const pending = new Map<string, Promise<string | null>>();
+const pending = new Map<string, Promise<BranchLookup>>();
 
-/** Find and save a list's nearest branch. Resolves to its name, or null for none nearby. */
-export function locateList(listId: string, where: { latitude: number; longitude: number }): Promise<string | null> {
-  const lookup = api.lists.locate(listId, where).then((r) => r.branchName);
+// A Shoprite that delivers can take a minute to find (#134): the server
+// answers "still finding" and is asked again this often, for this long.
+export const POLL_MS = 3000;
+const POLL_LIMIT_MS = 3 * 60 * 1000;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Ask again until the lookup is done, or give up and report it as still finding. */
+export async function untilFound(listId: string, first: BranchLookup): Promise<BranchLookup> {
+  let status = first;
+  const since = Date.now();
+  while (status.finding && Date.now() - since < POLL_LIMIT_MS) {
+    await wait(POLL_MS);
+    status = await api.lists.locateStatus(listId);
+  }
+  return status;
+}
+
+/** Find and save a list's nearest branch, however long it takes. */
+export function locateList(listId: string, where: { latitude: number; longitude: number }): Promise<BranchLookup> {
+  const lookup = api.lists.locate(listId, where).then((first) => untilFound(listId, first));
   pending.set(listId, lookup);
   void lookup.then(
     () => pending.delete(listId),
@@ -69,6 +86,6 @@ export function locateList(listId: string, where: { latitude: number; longitude:
   return lookup;
 }
 
-export function pendingLocate(listId: string): Promise<string | null> | undefined {
+export function pendingLocate(listId: string): Promise<BranchLookup> | undefined {
   return pending.get(listId);
 }

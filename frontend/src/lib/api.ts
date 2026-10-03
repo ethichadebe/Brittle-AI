@@ -1,4 +1,5 @@
 import type {
+  BranchLookup,
   ComparisonResult,
   GroceryList,
   ListItem,
@@ -86,10 +87,13 @@ export const api = {
     // #131: price the list at the branch nearest this point. The point goes
     // in the body, never the URL, and the server keeps only the branch.
     locate: (id: string, where: { latitude: number; longitude: number }) =>
-      request<{ branchName: string | null }>(`/lists/${id}/location`, {
+      request<BranchLookup>(`/lists/${id}/location`, {
         method: "PUT",
         body: JSON.stringify(where),
       }),
+
+    // #134: where a slow lookup (a Shoprite that delivers) has got to.
+    locateStatus: (id: string) => request<BranchLookup>(`/lists/${id}/location`),
 
     compare: (id: string, targetStore: StoreSlug) =>
       request<ComparisonResult>(`/lists/${id}/compare`, {

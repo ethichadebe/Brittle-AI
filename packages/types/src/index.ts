@@ -49,6 +49,20 @@ export interface GroceryList {
   // The branch the list is priced at (#131), e.g. "Checkers FX Sandhurst";
   // null when it uses the store's default (Joburg) prices.
   branchName: string | null;
+  // The store has no branch that delivers near the shopper (#134), so the
+  // list uses the default and says so. Only ever true with branchName null.
+  outOfDelivery: boolean;
+}
+
+// Where finding a list's branch has got to (#131, #134). Finding a Shoprite
+// that delivers can take a minute, so the answer may be "still finding:
+// ask again".
+export interface BranchLookup {
+  finding: boolean;
+  branchName: string | null;
+  outOfDelivery: boolean;
+  // The last lookup couldn't reach the store; the list is as it was.
+  failed: boolean;
 }
 
 // List item
