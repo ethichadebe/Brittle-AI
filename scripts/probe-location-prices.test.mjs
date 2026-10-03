@@ -87,14 +87,20 @@ const SHOPRITE_GROUP_CATALOGUE = {
 };
 SHOPRITE_GROUP_CATALOGUE.DBN = SHOPRITE_GROUP_CATALOGUE.JHB;
 
-function shopriteGroupServer({ brand, notServed = [] }) {
+// ignoreContexts: price everything at one default store, whatever the body
+// says - what the second live run looked like.
+SHOPRITE_GROUP_CATALOGUE.DEF = SHOPRITE_GROUP_CATALOGUE.JHB;
+function shopriteGroupServer({ brand, notServed = [], ignoreContexts = false }) {
   return base(async (req, body, json) => {
     if (req.url.startsWith("/api/store/fetch-store-contexts")) {
       const place = placeOf(body?.address?.coordinates?.latitude);
       if (notServed.includes(place))
         return json({ storeContexts: [], servicedByOtherBrand: true, otherBrandStoreContexts: [] }), true;
       return json({
-        storeContexts: [{ storeId: `7a1c-store-${place}`, serviceOptionIds: ["d1f0"], isDefault: false }],
+        storeContexts: [
+          { storeId: `5f32a7-${place}x01`, serviceOptionIds: ["d1f0"] },
+          { storeId: `5f32a7-${place}x02`, serviceOptionIds: ["d1f1"] },
+        ],
         servicedByOtherBrand: false,
       }), true;
     }
@@ -103,8 +109,8 @@ function shopriteGroupServer({ brand, notServed = [] }) {
       return json([{ name: `${brand} ${place} Mall`, posSiteCode: "1234", distanceKm: 2.4 }]), true;
     }
     if (req.url.startsWith("/api/catalogue/get-products-filter")) {
-      const storeId = body?.storeContexts?.[0]?.storeId ?? "";
-      const place = storeId.replace("7a1c-store-", "");
+      const storeId = ignoreContexts ? "5f32a7-DEFx01" : (body?.storeContexts?.[0]?.storeId ?? "");
+      const place = storeId.match(/-(\w{3})x0\d$/)?.[1];
       const q = body?.filterData?.filter?.productListSource?.search;
       const products = (SHOPRITE_GROUP_CATALOGUE[place] ?? [])
         .filter((p) => p.q === q)
@@ -265,7 +271,7 @@ const KEY = "test-key-5f3e9a";
 const seen = [];
 const servers = {
   checkers: shopriteGroupServer({ brand: "Checkers" }),
-  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"] }),
+  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"], ignoreContexts: true }),
   pnp: pnpServer({ failSearchAt: "KC03" }),
   scraperApi: scraperApiServer(seen),
 };
@@ -314,7 +320,9 @@ has(checkers, "* on promotion there", "explains the mark");
 console.log(" Shoprite");
 has(shoprite, "CPT Sea Point      0 items  not served (other brand)", "says where it doesn't deliver");
 has(shoprite, "Shoprite DBN Mall", "carries on with the next place");
-has(shoprite, "price differs:         0", "Sandton and uMhlanga are one zone");
+has(shoprite, "price differs:         0", "nothing differs when every place gets the default store");
+has(shoprite, "priced at DEFx01, NOT from its 2 nearby", "and says so, rather than reading it as one zone");
+has(checkers, "priced at JHBx01, from its 2 nearby", "says which nearby store Sandton was priced at");
 
 console.log(" Pick n Pay");
 has(pnp, "no address yet: PnP Constantia (WC21)", "reports the default store");

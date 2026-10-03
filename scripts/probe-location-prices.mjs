@@ -129,6 +129,8 @@ export function parseShopriteGroupProducts(json) {
         name: String(p.name ?? ""),
         price,
         promo: Boolean(p.bonusBuy) || (Number.isFinite(old) && old > price),
+        // Each product names the store it was priced at.
+        ...(p.storeId && { storeId: String(p.storeId) }),
       };
     })
     .filter((p) => p.id && p.name && Number.isFinite(p.price) && p.price > 0);
@@ -142,6 +144,18 @@ export function parsePnpProducts(json) {
       return { id: String(p.code ?? ""), name: String(p.name ?? ""), price, promo: old > price };
     })
     .filter((p) => p.id && p.name && Number.isFinite(p.price) && p.price > 0);
+}
+
+// Which store the site actually priced at, and whether it is one of the
+// stores it named for this place. The second run (2026-10-03) found every
+// Checkers price identical in all nine provinces, which the hand check
+// contradicts; this says whether the site used the place at all.
+export function pricedAt(storeContexts, products) {
+  const nearby = storeContexts.map((c) => String(c.storeId));
+  const ids = [...new Set(products.map((p) => p.storeId).filter(Boolean))];
+  if (!ids.length) return "priced at: not stated";
+  const fromNearby = ids.every((id) => nearby.includes(id));
+  return `priced at ${ids.map((id) => id.slice(-6)).join(",")}, ${fromNearby ? "from" : "NOT from"} its ${nearby.length} nearby`;
 }
 
 // results: [{ place, branch, products: [{id,name,price,promo}] }] for one store.
@@ -300,7 +314,7 @@ async function main() {
         for (const q of QUERIES) {
           products.push(...parseShopriteGroupProducts(await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts))));
         }
-        results.push({ place, branch, products });
+        results.push({ place, branch: `${branch}; ${pricedAt(storeContexts, products)}`, products });
       } catch (e) {
         results.push({ place, error: `${stage}: ${errText(e)}`, products: [] });
       }
