@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { DEFAULT_ADDRESS, forgetDefaultStore, normalise, PnpScraper, smartShopperPrice } from "./pnp.js";
+import { addressAt, DEFAULT_ADDRESS, forgetDefaultStore, normalise, PnpScraper, smartShopperPrice } from "./pnp.js";
 
 // #132: Pick n Pay priced at a real store. The product below is the shape
 // the live API sent on the probe run of 2026-10-03 (#132), trimmed.
@@ -171,5 +171,36 @@ describe("searching", () => {
       new URL(url).pathname.endsWith("/products/search") ? json({}, 503) : json({ guid: "g1", baseStore: { uid: "GC13" } })
     );
     await expect(new PnpScraper().search("milk")).rejects.toThrow("PnP API returned 503");
+  });
+});
+
+// #135: a Pick n Pay list priced at the shopper's nearest store.
+describe("the store nearest a shopper", () => {
+  const HERE = { latitude: -33.93, longitude: 18.42 }; // Cape Town
+
+  it("is the store the site's cart gives the shopper's own coordinates", async () => {
+    expect(await new PnpScraper().nearestBranch(HERE)).toEqual({ name: "Pick n Pay Benmore", storeCode: "GC13" });
+
+    const [, address] = callsTo("/addresses/delivery")[0];
+    expect(JSON.parse(String(address.body))).toMatchObject({ latitude: HERE.latitude, longitude: HERE.longitude });
+  });
+
+  // The site refuses an address without a street and town; the phone gives neither.
+  it("fills in the nearest town and a placeholder street, never anything of the shopper's but the point", () => {
+    expect(addressAt(HERE)).toEqual({ street: "Main Road", town: "Sea Point", postalCode: "8005", ...HERE });
+    expect(addressAt({ latitude: -26.2, longitude: 28.0 }).town).toBe("Sandton");
+    expect(addressAt({ latitude: -29.8, longitude: 31.0 }).town).toBe("uMhlanga");
+  });
+
+  it("is a lookup of its own: it doesn't touch the remembered default", async () => {
+    await new PnpScraper().nearestBranch(HERE);
+    await new PnpScraper().search("milk");
+    // One cart for the shopper, one for the default.
+    expect(callsTo("/users/anonymous/carts")).toHaveLength(2);
+  });
+
+  it("fails, rather than inventing a store, when the site can't be reached", async () => {
+    standIn({ cartFails: true });
+    await expect(new PnpScraper().nearestBranch(HERE)).rejects.toThrow("PnP API returned 503");
   });
 });

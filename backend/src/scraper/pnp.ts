@@ -1,5 +1,5 @@
 import type { Product } from "@accucery/types";
-import type { Branch, Scraper } from "./types.js";
+import type { Branch, Place, Scraper } from "./types.js";
 import { opaqueZone } from "./zone.js";
 import { remember } from "./remember.js";
 
@@ -61,6 +61,32 @@ export const DEFAULT_ADDRESS: PnpAddress = {
   latitude: -26.1076,
   longitude: 28.0567,
 };
+
+// The site refuses an address without a street and town, and a shopper's
+// phone gives only coordinates (#135). The coordinates are what choose the
+// store (#66: Sandton's put the cart at Benmore), so the rest of the address
+// is filled in from the nearest of these towns - one per province, as the
+// location probe used - with a placeholder street. Nothing here is the
+// shopper's: their coordinates are used for this one lookup and discarded.
+const TOWNS = [
+  { town: "Sandton", postalCode: "2196", latitude: -26.1076, longitude: 28.0567 },
+  { town: "Sea Point", postalCode: "8005", latitude: -33.9175, longitude: 18.387 },
+  { town: "uMhlanga", postalCode: "4320", latitude: -29.7258, longitude: 31.0715 },
+  { town: "Gqeberha", postalCode: "6001", latitude: -33.9608, longitude: 25.6022 },
+  { town: "Bloemfontein", postalCode: "9301", latitude: -29.0852, longitude: 26.1596 },
+  { town: "Polokwane", postalCode: "0699", latitude: -23.9045, longitude: 29.4689 },
+  { town: "Mbombela", postalCode: "1200", latitude: -25.4753, longitude: 30.9694 },
+  { town: "Rustenburg", postalCode: "0299", latitude: -25.6676, longitude: 27.2421 },
+  { town: "Kimberley", postalCode: "8301", latitude: -28.7282, longitude: 24.7499 },
+];
+
+/** An address the site accepts, at the shopper's own coordinates. */
+export function addressAt(place: Place): PnpAddress {
+  // Close enough for picking a town name: degrees, not kilometres.
+  const d = (t: (typeof TOWNS)[number]) => (t.latitude - place.latitude) ** 2 + (t.longitude - place.longitude) ** 2;
+  const near = TOWNS.reduce((best, t) => (d(t) < d(best) ? t : best));
+  return { street: "Main Road", town: near.town, postalCode: near.postalCode, latitude: place.latitude, longitude: place.longitude };
+}
 
 /** The store that serves an address, by the site's own cart. */
 export async function storeFor(address: PnpAddress): Promise<{ code: string; name: string }> {
@@ -161,6 +187,13 @@ export class PnpScraper implements Scraper {
   // far cheaper than the scrape a cache check exists to avoid.
   async currentZone(branch?: Branch): Promise<string> {
     return opaqueZone(storeCodeOf(branch) ?? (await defaultStore.get())?.code ?? "");
+  }
+
+  // #135: the store the site's own cart gives the shopper's coordinates.
+  // Pick n Pay always gives some store, so this never answers "none".
+  async nearestBranch(place: Place): Promise<Branch | null> {
+    const store = await storeFor(addressAt(place));
+    return { name: store.name, storeCode: store.code };
   }
 
   async search(query: string, branch?: Branch): Promise<Product[]> {

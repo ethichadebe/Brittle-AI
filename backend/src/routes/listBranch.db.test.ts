@@ -138,13 +138,31 @@ describe("finding a list's branch from the shopper's location", () => {
 
   it("a store that doesn't price by branch yet is told so", async () => {
     const as = asDevice();
-    const list = await newList(as, "pick-n-pay");
+    // Makro's prices are the same everywhere (#66).
+    const list = await newList(as, "makro");
     expect((await locate(as, list.id)).statusCode).toBe(422);
     expect(mockNearest).not.toHaveBeenCalled();
   });
 });
 
 // #134: a Shoprite lookup can take a minute, longer than a proxy holds a request.
+// #135: Pick n Pay lists can be located too.
+describe("a Pick n Pay list", () => {
+  it("is priced at the store its location maps to", async () => {
+    const as = asDevice();
+    const list = await newList(as, "pick-n-pay");
+    mockNearest.mockResolvedValue({ name: "Pick n Pay Benmore", storeCode: "GC13" });
+
+    const res = await locate(as, list.id);
+
+    expect(mockNearest).toHaveBeenCalledWith("pick-n-pay", HERE);
+    expect(res.json()).toMatchObject({ branchName: "Pick n Pay Benmore" });
+    const row = await testPrisma.list.findUniqueOrThrow({ where: { id: list.id } });
+    expect(row.branch).toEqual({ name: "Pick n Pay Benmore", storeCode: "GC13" });
+    expect(JSON.stringify(row)).not.toContain(String(HERE.latitude));
+  });
+});
+
 describe("a slow lookup", () => {
   it("answers 'still finding', then the branch once it's found", async () => {
     const before = LOCATE_WAIT.ms;
