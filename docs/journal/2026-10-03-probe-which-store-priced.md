@@ -41,3 +41,17 @@
       the test. That is checked by removing it.
     - **Not yet known:** whether ScraperAPI passes the cookie on. The next
       run shows that.
+
+  - **With the cookie, Checkers is right.** Sandton was priced at one of its
+    own nearby stores and Sea Point at another.
+    - 17 of 23 breads differ in price. The Bakery White Bread is R16.99
+      against R17.99, exactly the hand check.
+    - So the production scraper, which sends the branch in the body only,
+      has been showing everyone one default Cape Town store's Checkers
+      prices.
+  - **Shoprite came back empty** at both places once the cookie named a
+    nearby store, although the default store had sold bread in the run
+    before.
+    - An empty search now prints the stores the site named, how each one
+      delivers, and what the reply held.
+    - The next small run says why.

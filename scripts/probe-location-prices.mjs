@@ -166,6 +166,21 @@ export function pricedAt(storeContexts, products) {
   return `priced at ${ids.map((id) => id.slice(-6)).join(",")}, ${fromNearby ? "from" : "NOT from"} its ${nearby.length} nearby`;
 }
 
+// For a search that came back empty: which stores the site named for the
+// place, how each one serves, and what the reply held. The fourth run found
+// Shoprite empty at both places once the cookie named a nearby store.
+export function describeEmpty(storeContexts, replies) {
+  const stores = storeContexts
+    .map((c) => `${String(c.storeId).slice(-6)}[${(c.serviceOptionIds ?? []).join(",") || "none"}]`)
+    .join(" ");
+  const r = replies[0];
+  const reply =
+    r && typeof r === "object"
+      ? `keys ${Object.keys(r).join(",") || "none"}, totalCount ${r.totalCount ?? r.data?.totalCount ?? "?"}`
+      : String(r);
+  return `EMPTY; stores ${stores}; reply ${reply}`;
+}
+
 // results: [{ place, branch, products: [{id,name,price,promo}] }] for one store.
 // Compares products seen at two or more places.
 export function compare(results) {
@@ -319,16 +334,16 @@ async function main() {
         }
         stage = "search";
         const products = [];
+        const replies = [];
         for (const q of QUERIES) {
-          products.push(
-            ...parseShopriteGroupProducts(
-              await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts), {
-                Cookie: storeContextsCookie(storeContexts),
-              })
-            )
-          );
+          const json = await call("POST", "/api/catalogue/get-products-filter", shopriteGroupSearchBody(q, storeContexts), {
+            Cookie: storeContextsCookie(storeContexts),
+          });
+          replies.push(json);
+          products.push(...parseShopriteGroupProducts(json));
         }
-        results.push({ place, branch: `${branch}; ${pricedAt(storeContexts, products)}`, products });
+        const detail = products.length ? pricedAt(storeContexts, products) : describeEmpty(storeContexts, replies);
+        results.push({ place, branch: `${branch}; ${detail}`, products });
       } catch (e) {
         results.push({ place, error: `${stage}: ${errText(e)}`, products: [] });
       }

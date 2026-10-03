@@ -93,7 +93,9 @@ SHOPRITE_GROUP_CATALOGUE.DBN = SHOPRITE_GROUP_CATALOGUE.JHB;
 //               body alone got the default store.
 //   "nowhere" - always the default store, so the probe must say "NOT from".
 SHOPRITE_GROUP_CATALOGUE.DEF = SHOPRITE_GROUP_CATALOGUE.JHB;
-function shopriteGroupServer({ brand, notServed = [], contextsFrom = "cookie" }) {
+// emptyAt: places whose own store has nothing to sell, as Shoprite answered
+// for Sandton and Sea Point on the fourth run.
+function shopriteGroupServer({ brand, notServed = [], contextsFrom = "cookie", emptyAt = [] }) {
   return base(async (req, body, json) => {
     if (req.url.startsWith("/api/store/fetch-store-contexts")) {
       const place = placeOf(body?.address?.coordinates?.latitude);
@@ -114,6 +116,7 @@ function shopriteGroupServer({ brand, notServed = [], contextsFrom = "cookie" })
     if (req.url.startsWith("/api/catalogue/get-products-filter")) {
       const cookie = (req.headers.cookie ?? "").match(/(?:^|;\s*)storeContexts=([^;]*)/);
       const fromCookie = cookie ? JSON.parse(decodeURIComponent(cookie[1]))?.[0]?.storeId : undefined;
+      if (emptyAt.includes(fromCookie?.match(/-(\w{3})x0\d$/)?.[1])) return json({ products: [], totalCount: 0 }), true;
       const storeId = (contextsFrom === "cookie" && fromCookie) || "5f32a7-DEFx01";
       const place = storeId.match(/-(\w{3})x0\d$/)?.[1];
       const q = body?.filterData?.filter?.productListSource?.search;
@@ -281,7 +284,7 @@ const KEY = "test-key-5f3e9a";
 const seen = [];
 const servers = {
   checkers: shopriteGroupServer({ brand: "Checkers" }),
-  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"], contextsFrom: "nowhere" }),
+  shoprite: shopriteGroupServer({ brand: "Shoprite", notServed: ["CPT"], contextsFrom: "nowhere", emptyAt: ["JHB"] }),
   pnp: pnpServer({ failSearchAt: "KC03" }),
   scraperApi: scraperApiServer(seen),
 };
@@ -330,7 +333,8 @@ has(checkers, "* on promotion there", "explains the mark");
 console.log(" Shoprite");
 has(shoprite, "CPT Sea Point      0 items  not served (other brand)", "says where it doesn't deliver");
 has(shoprite, "Shoprite DBN Mall", "carries on with the next place");
-has(shoprite, "price differs:         0", "nothing differs when every place gets the default store");
+has(shoprite, "JHB Sandton        0 items", "an empty search is not an error");
+has(shoprite, "EMPTY; stores JHBx01[d1f0] JHBx02[d1f1]; reply keys products,totalCount, totalCount 0", "and says what the site named and answered");
 has(shoprite, "priced at DEFx01, NOT from its 2 nearby", "and says so, rather than reading it as one zone");
 has(checkers, "priced at JHBx01, from its 2 nearby", "says which nearby store Sandton was priced at");
 
