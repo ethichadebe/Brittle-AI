@@ -26,6 +26,8 @@ export async function createSession(accountId: string): Promise<{ id: string; ex
 function setSessionCookie(reply: FastifyReply, sessionId: string, expiresAt: Date): void {
   reply.setCookie(SESSION_COOKIE, sessionId, {
     httpOnly: true,
+    // HTTPS-only in production (#153); local development runs on plain HTTP.
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     expires: expiresAt,

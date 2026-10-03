@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
 import type { BranchLookup, GroceryList, ListItem, StoreSlug } from "@accucery/types";
-import { api, imgSrc } from "../lib/api";
+import { api, ApiError, imgSrc } from "../lib/api";
 import { computeSummary } from "../lib/summary";
 import { priceAge } from "../lib/priceAge";
 import { formatRand } from "../lib/format";
@@ -125,7 +125,9 @@ function ListPage() {
               ? e.problem === "denied"
                 ? "Location is off for this site in your browser."
                 : "Couldn't find your location. Try again in a moment."
-              : "Couldn't reach the store to find your branch. Try again in a moment."
+              : e instanceof ApiError && e.status === 429
+                ? e.message
+                : "Couldn't reach the store to find your branch. Try again in a moment."
           )
       )
       .finally(() => setLocating(false));

@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../password.js";
 import { claimAnonymousLists, type ListCollision } from "../claimAnonymousLists.js";
 import { resolveListCollision, type CollisionResolution } from "../resolveListCollision.js";
+import { LIMITS, limiter, tooMany } from "../rateLimit.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -38,6 +39,10 @@ export async function accountsRoutes(app: FastifyInstance) {
   }>("/accounts", async (req, reply) => {
     const email = req.body.email ? normaliseEmail(req.body.email) : "";
     const password = req.body.password ?? "";
+
+    // #152: a device making account after account is a script.
+    const wait = limiter.take(`signup:${req.deviceId}`, LIMITS.signUpPerDevice);
+    if (wait) return tooMany(reply, wait, "sign-ups from this device");
 
     if (!EMAIL_RE.test(email)) {
       return reply.status(400).send({ error: "A valid email is required" } as never);
@@ -76,6 +81,15 @@ export async function accountsRoutes(app: FastifyInstance) {
   }>("/accounts/sign-in", async (req, reply) => {
     const email = req.body.email ? normaliseEmail(req.body.email) : "";
     const password = req.body.password ?? "";
+
+    // #152: guessing one account's password from many devices, or many
+    // accounts' from one device, is slowed to a stop either way. Counted
+    // whether or not the email exists, so the limit says nothing about it.
+    const wait = Math.max(
+      limiter.take(`signin:email:${email}`, LIMITS.signInPerEmail),
+      limiter.take(`signin:device:${req.deviceId}`, LIMITS.signInPerDevice)
+    );
+    if (wait) return tooMany(reply, wait, "sign-in attempts");
 
     const account = await prisma.account.findUnique({ where: { email } });
     // Same message whether the email does not exist or the password is

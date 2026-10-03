@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ListItem, StoreSlug } from "@accucery/types";
-import { api, imgSrc } from "../lib/api";
+import { api, ApiError, imgSrc } from "../lib/api";
 import { formatRand } from "../lib/format";
 import { CheckIcon, CloseIcon, PlusIcon } from "./icons";
 
@@ -47,6 +47,9 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Addable[]>([]);
   const [searching, setSearching] = useState(false);
+  // Why a search came back empty, when it wasn't for want of products:
+  // too many searches in a row (#152) says so, and when to try again.
+  const [searchNote, setSearchNote] = useState<string | null>(null);
   const [recent, setRecent] = useState<Addable[] | null>(null);
   const [added, setAdded] = useState<Map<string, Added>>(new Map());
   const [flashing, setFlashing] = useState<Set<string>>(new Set());
@@ -73,8 +76,16 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
       }
       setSearching(true);
       api.search(storeSlug, query.trim(), controller.signal, listId)
-        .then((products) => { if (!controller.signal.aborted) setResults(products); })
-        .catch(() => { if (!controller.signal.aborted) setResults([]); })
+        .then((products) => {
+          if (controller.signal.aborted) return;
+          setResults(products);
+          setSearchNote(null);
+        })
+        .catch((e) => {
+          if (controller.signal.aborted) return;
+          setResults([]);
+          setSearchNote(e instanceof ApiError && e.status === 429 ? e.message : null);
+        })
         .finally(() => { if (!controller.signal.aborted) setSearching(false); });
     }, SEARCH_DEBOUNCE_MS);
     return () => { clearTimeout(timer); controller.abort(); };
@@ -162,7 +173,7 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
 
       <ul className="add-results">
         {typed && searching && <li className="add-note">Searching…</li>}
-        {typed && !searching && results.length === 0 && <li className="add-note">No products found</li>}
+        {typed && !searching && results.length === 0 && <li className="add-note">{searchNote ?? "No products found"}</li>}
         {!typed && recent?.length === 0 && (
           <li className="add-note">Type to search {storeName}. Products you add will show here next time, for quick re-adding.</li>
         )}

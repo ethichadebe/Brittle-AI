@@ -45,6 +45,8 @@ export async function registerDeviceId(app: FastifyInstance): Promise<void> {
     req.deviceId = deviceId;
     reply.setCookie(DEVICE_ID_COOKIE, deviceId, {
       httpOnly: true,
+      // HTTPS-only in production (#153); local development runs on plain HTTP.
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: MAX_AGE_SECONDS,
