@@ -12,6 +12,7 @@ import { MoreIcon, PencilIcon, PersonIcon, PlusIcon, TrashIcon } from "../compon
 import { Intro } from "../components/Intro";
 import { Wordmark } from "../components/Wordmark";
 import { markIntroSeen, shouldShowIntro } from "../lib/onboarding";
+import { StoreLogo, storeBarFill } from "../components/StoreBrand";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -324,10 +325,13 @@ function ListCard({ list, open, menuOpen, onOpenChange, onMenu, onSelect, onRena
         <div className="list-card-head">
           <div className="list-card-title">
             <h2 className="list-card-name">{list.name}</h2>
-            <span className="store-label">
-              <span className="store-dot" style={{ background: store?.color }} />
-              {store?.name ?? list.storeSlug}
-            </span>
+            {store ? (
+              <span className="store-label">
+                <StoreLogo store={store} />
+              </span>
+            ) : (
+              <span className="store-label">{list.storeSlug}</span>
+            )}
           </div>
           <button
             className="list-card-more"
@@ -346,7 +350,7 @@ function ListCard({ list, open, menuOpen, onOpenChange, onMenu, onSelect, onRena
           {list.itemCount > 0 ? (
             <>
               <div className="progress-bar" aria-hidden="true">
-                <i style={{ width: `${progress * 100}%` }} />
+                <i style={storeBarFill(store, progress)} />
               </div>
               <span className="list-card-count" aria-label={`${list.checkedCount} of ${list.itemCount} ticked`}>
                 {list.checkedCount}/{list.itemCount}

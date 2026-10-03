@@ -45,6 +45,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
+    /* Store logos sit on a white tile, and the darkest bars (Woolworths'
+       black, Pick n Pay's navy) turn light enough to see on a dark track. */
+    --logo-tile: #ffffff;
+    --logo-pad: 3px 6px;
+    --bar-woolworths: #e5e7eb;
+    --bar-pick-n-pay: #5b8ac4;
     --bg: #121316;
     --surface: #1d1f23;
     --surface-2: #26292e;
@@ -75,6 +81,10 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --logo-tile: #ffffff;
+  --logo-pad: 3px 6px;
+  --bar-woolworths: #e5e7eb;
+  --bar-pick-n-pay: #5b8ac4;
   --bg: #121316;
   --surface: #1d1f23;
   --surface-2: #26292e;
@@ -1832,3 +1842,34 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ── Store logos (2026-10-03) ── */
+/* In light mode a logo sits straight on the page; in dark mode on a small
+   white tile, so each keeps its own colours. */
+.store-logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  background: var(--logo-tile, transparent);
+  padding: var(--logo-pad, 0);
+  line-height: 0;
+}
+.store-logo { max-width: 100%; }
+/* Sized by max-height, so a logo also shrinks to fit a narrow space (a
+   New list tile) without losing its shape. */
+.store-logo img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(var(--logo-h) * var(--logo-k, 1));
+}
+.store-logo--sm { --logo-h: 15px; }
+.store-logo--md { --logo-h: 18px; }
+/* Logos fill their height differently (Checkers' tall letters, Makro's
+   small ones), so each is scaled to look the same size as the others. */
+.store-logo img[src$="checkers.png"] { --logo-k: 0.8; }
+.store-logo img[src$="makro.png"] { --logo-k: 1.15; }
+.store-logo img[src$="pick-n-pay.png"] { --logo-k: 1.05; }
+.store-logo img[src$="woolworths.png"] { --logo-k: 0.85; }
+.store-tile-name { display: flex; }
