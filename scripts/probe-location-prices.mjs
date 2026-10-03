@@ -28,12 +28,17 @@
 // Google place id rather than coordinates. Makro showed no difference at all.
 //
 // Run inside the backend container, which is the only place with Playwright
-// and Chromium installed. scripts/ is not in the image, so the probe is piped
-// in, and report.sh posts the output to #66:
+// and Chromium installed. scripts/ is not in the image, and a deploy only
+// pulls images, so /opt/accucery's own scripts/ can be older than this file.
+// Fetch it to /tmp (never check files out inside /opt/accucery: a modified
+// tracked file there stops deploys, 2026-09-17) and pipe it in; report.sh
+// posts the output to #66:
 //
+//   curl -fsSL -o /tmp/probe-location-prices.mjs \
+//     https://raw.githubusercontent.com/ethichadebe/Brittle-AI/master/scripts/probe-location-prices.mjs
 //   cd /opt/accucery && bash scripts/report.sh 66 -- sh -c \
 //     'docker compose -f docker-compose.prod.yml exec -T backend \
-//        node --input-type=module < scripts/probe-location-prices.mjs'
+//        node --input-type=module < /tmp/probe-location-prices.mjs'
 //
 // COST. Checkers and Shoprite sit behind AWS WAF, which blocks the VPS's own
 // address, so they go through the ScraperAPI residential proxy the scrapers
