@@ -29,6 +29,9 @@ services:
       SCRAPERAPI_KEY: ${SCRAPERAPI_KEY}
       WOOLWORTHS_SEARCH_KEY: ${WOOLWORTHS_SEARCH_KEY}
       WOOLWORTHS_PRICE_ZONE: ${WOOLWORTHS_PRICE_ZONE:-}
+      # #147: email. The server refuses to start in production without the key.
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      MAIL_FROM: ${MAIL_FROM:-}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       NODE_ENV: production
     depends_on:
