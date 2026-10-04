@@ -1119,6 +1119,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .auth-privacy { color: var(--muted); font-size: 0.8rem; text-align: center; }
 .auth-privacy a { color: var(--primary); }
 .auth-error { margin: 0; }
+.auth-notice { color: var(--primary); font-size: 0.85rem; font-weight: 600; margin: 0; }
+a.auth-switch { text-decoration: none; }
+.auth-button-link { display: block; text-align: center; text-decoration: none; box-sizing: border-box; }
 
 /* ── Intro slides (#117) ── */
 .intro {

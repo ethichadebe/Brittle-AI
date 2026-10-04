@@ -3,9 +3,22 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type ListCollision } from "../lib/api";
 import { safeReturnPath } from "../lib/returnPath";
 
+interface SignInSearch {
+  then?: string;
+  /** Filled in, e.g. after a password reset (#149). */
+  email?: string;
+  /** Start on "Create account", e.g. from an expired confirm link (#148). */
+  mode?: "sign-up";
+  notice?: "password-changed";
+}
+
 export const Route = createFileRoute("/sign-in")({
-  validateSearch: (search: Record<string, unknown>): { then?: string } =>
-    typeof search.then === "string" ? { then: search.then } : {},
+  validateSearch: (search: Record<string, unknown>): SignInSearch => ({
+    ...(typeof search.then === "string" && { then: search.then }),
+    ...(typeof search.email === "string" && { email: search.email }),
+    ...(search.mode === "sign-up" && { mode: "sign-up" as const }),
+    ...(search.notice === "password-changed" && { notice: "password-changed" as const }),
+  }),
   component: SignInPage,
 });
 
@@ -17,10 +30,13 @@ const MIN_PASSWORD_LENGTH = 8;
 // has an account, so the app can't ask it.
 function SignInPage() {
   const navigate = useNavigate();
-  const { then } = Route.useSearch();
-  const [step, setStep] = useState<"email" | "password">("email");
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [email, setEmail] = useState("");
+  const search = Route.useSearch();
+  const { then } = search;
+  // "sent": sign-up emailed a confirm link (#148), and nothing exists yet.
+  const [step, setStep] = useState<"email" | "password" | "sent">(search.email ? "password" : "email");
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(search.mode ?? "sign-in");
+  const [email, setEmail] = useState(search.email ?? "");
+  const [resent, setResent] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,10 +64,12 @@ function SignInPage() {
     setError(null);
     setBusy(true);
     try {
-      const result =
-        mode === "sign-up"
-          ? await api.account.signUp(email.trim(), password)
-          : await api.account.signIn(email.trim(), password);
+      if (mode === "sign-up") {
+        await api.account.signUp(email.trim(), password);
+        setStep("sent");
+        return;
+      }
+      const result = await api.account.signIn(email.trim(), password);
       setCollisions(result.collisions);
       setSignedIn(true);
     } catch (e) {
@@ -76,6 +94,20 @@ function SignInPage() {
     }
   };
 
+  // Signing up again sends a fresh link; the last one stops working.
+  const resend = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await api.account.signUp(email.trim(), password);
+      setResent(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const switchMode = () => {
     setMode(mode === "sign-up" ? "sign-in" : "sign-up");
     setError(null);
@@ -90,7 +122,7 @@ function SignInPage() {
         <button
           className="btn-back"
           aria-label="Back"
-          onClick={() => (step === "password" ? setStep("email") : navigate({ to: "/profile" }))}
+          onClick={() => (step === "email" ? navigate({ to: "/profile" }) : setStep("email"))}
         >
           ‹
         </button>
@@ -98,7 +130,28 @@ function SignInPage() {
         <div style={{ width: 32 }} />
       </header>
 
-      {step === "email" ? (
+      {step === "sent" ? (
+        <div className="auth-form" role="status">
+          <h1 className="auth-title">Check your email</h1>
+          <p className="auth-lead">
+            We've sent a link to <strong>{email.trim()}</strong>. Open it to finish creating your account. It expires in 24
+            hours.
+          </p>
+          <p className="auth-lead">
+            Your lists stay on this device until then. If the link opens in a different browser, come back here afterwards and
+            sign in: your lists come with you.
+          </p>
+          {error && <p className="form-error auth-error" role="alert">{error}</p>}
+          {resent && <p className="auth-hint">Sent again. Only the newest link works.</p>}
+          <p className="auth-privacy">Nothing there? Check your spam folder.</p>
+          <button type="button" className="btn btn-ghost btn-block" disabled={busy} onClick={() => void resend()}>
+            {busy ? "…" : "Send it again"}
+          </button>
+          <button type="button" className="auth-switch" onClick={() => { setStep("email"); setResent(false); }}>
+            Use a different email
+          </button>
+        </div>
+      ) : step === "email" ? (
         <form
           className="auth-form"
           onSubmit={(e) => {
@@ -149,10 +202,18 @@ function SignInPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
           {mode === "sign-up" && <p className="auth-hint">At least {MIN_PASSWORD_LENGTH} characters</p>}
+          {search.notice === "password-changed" && mode === "sign-in" && !error && (
+            <p className="auth-notice" role="status">Password changed. Sign in with your new one.</p>
+          )}
           {error && <p className="form-error auth-error" role="alert">{error}</p>}
           <button type="submit" className="btn btn-primary btn-block" disabled={!passwordOk || busy}>
             {busy ? "…" : mode === "sign-up" ? "Create account" : "Sign in"}
           </button>
+          {mode === "sign-in" && (
+            <Link className="auth-switch" to="/forgot-password" search={{ email: email.trim() }}>
+              Forgot password?
+            </Link>
+          )}
           {mode === "sign-up" && (
             <p className="auth-privacy">
               See how we look after your information in the <Link to="/privacy">privacy notice</Link>.

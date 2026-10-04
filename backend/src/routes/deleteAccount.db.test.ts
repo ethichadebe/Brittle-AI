@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
+import { signUp } from "../test/signUp.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
 import { SESSION_COOKIE } from "../accountSession.js";
 import { LIMITS, limiter } from "../rateLimit.js";
@@ -46,9 +47,12 @@ function browser() {
 async function shopperWithData() {
   const b = browser();
   const email = `delete-me-${randomUUID()}@example.com`;
-  const signedUp = await b.send({ method: "POST", url: "/accounts", payload: { email, password: PASSWORD } });
+  const signedUp = await signUp(b.send, { email, password: PASSWORD });
   expect(signedUp.statusCode).toBe(201);
   const accountId: string = signedUp.json().id;
+  // An unused reset link (#149), which must go with the account.
+  await b.send({ method: "POST", url: "/accounts/password-reset", payload: { email } });
+  expect(await testPrisma.passwordReset.count({ where: { accountId } })).toBe(1);
   const list = (await b.send({ method: "POST", url: "/lists", payload: { storeSlug: "checkers", name: "Monthly" } })).json();
   const item = await testPrisma.listItem.create({
     data: { listId: list.id, productId: "milk-1", productName: "Milk 2L", imageUrl: "", regularPrice: 30, loyaltyPrice: null },
@@ -102,7 +106,7 @@ describe("deleting an account (#151)", () => {
     const sessionId = b.cookies[SESSION_COOKIE];
     // The check itself finds them while they exist, so an empty answer later means something.
     expect(await tablesContaining([accountId, listId])).toEqual(
-      expect.arrayContaining(["accounts has " + accountId, "lists has " + listId, "sessions has " + accountId, "substitute_decisions has " + accountId])
+      expect.arrayContaining(["accounts has " + accountId, "lists has " + listId, "sessions has " + accountId, "substitute_decisions has " + accountId, "password_resets has " + accountId])
     );
 
     expect((await remove(b, PASSWORD)).statusCode).toBe(204);
@@ -139,7 +143,7 @@ describe("deleting an account (#151)", () => {
 
     expect((await browser().send({ method: "POST", url: "/accounts/sign-in", payload: { email, password: PASSWORD } })).statusCode).toBe(401);
     const again = browser();
-    expect((await again.send({ method: "POST", url: "/accounts", payload: { email, password: PASSWORD } })).statusCode).toBe(201);
+    expect((await signUp(again.send, { email, password: PASSWORD })).statusCode).toBe(201);
     expect((await again.send({ method: "GET", url: "/lists" })).json().lists).toEqual([]);
   });
 

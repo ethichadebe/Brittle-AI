@@ -34,6 +34,7 @@ model Account {
   createdAt    DateTime  @default(now())
   sessions     Session[]
   substituteDecisions SubstituteDecision[]
+  passwordResets PasswordReset[]
 
   @@map("accounts")
 }
@@ -120,4 +121,31 @@ model ListItem {
   list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
 
   @@map("list_items")
+}
+
+// #148: a sign-up waiting for its email to be confirmed. No Account exists
+// until the link is opened. Only a hash of the link's token is kept, so a
+// copy of this table can't be used to confirm anything.
+model PendingSignup {
+  tokenHash    String   @id
+  email        String
+  passwordHash String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@map("pending_signups")
+}
+
+// #149: a one-time link to choose a new password. Hashed like PendingSignup,
+// and gone with the Account.
+model PasswordReset {
+  tokenHash String   @id
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+  @@map("password_resets")
 }

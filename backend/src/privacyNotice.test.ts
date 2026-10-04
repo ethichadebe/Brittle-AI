@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { SESSION_TTL_MS } from "./accountSession.js";
 import { DEVICE_ID_MAX_AGE_SECONDS } from "./deviceId.js";
+import { RESET_TTL_MS } from "./linkTokens.js";
 
 // #150: the privacy notice (frontend/src/routes/privacy.tsx) must say what the
 // code does. These are the statements that could quietly stop being true.
@@ -22,6 +23,12 @@ describe("the privacy notice", () => {
   it("says how long each cookie lasts", () => {
     expect(notice).toContain(`signed in (for ${SESSION_TTL_MS / DAY_MS} days)`);
     expect(notice).toContain(`(for ${(DEVICE_ID_MAX_AGE_SECONDS * 1000) / DAY_MS} days)`);
+  });
+
+  it("says how long an unconfirmed sign-up and a reset link last (#148, #149)", () => {
+    expect(RESET_TTL_MS).toBe(60 * 60 * 1000);
+    expect(notice).toContain("Password reset links expire after an hour");
+    expect(notice).toContain("never confirm your email, the sign-up is deleted");
   });
 
   it("says coordinates aren't stored, and the database has nowhere to store them", () => {

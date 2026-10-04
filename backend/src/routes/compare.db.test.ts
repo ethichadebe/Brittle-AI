@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
+import { signUp } from "../test/signUp.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
 import type { FastifyInstance, InjectOptions } from "fastify";
 
@@ -50,8 +51,8 @@ function withSession(base: InjectOptions, sessionId: string): InjectOptions {
 async function signedInDevice(email: string) {
   const deviceId = randomUUID();
   const device = asDevice(deviceId);
-  const signUp = await device({ method: "POST", url: "/accounts", payload: { email, password: "correct horse battery staple" } });
-  const session = cookieValue(signUp, "accucery_session")!;
+  const signedUp = await signUp(device, { email, password: "correct horse battery staple" });
+  const session = cookieValue(signedUp, "accucery_session")!;
   return { device, session };
 }
 

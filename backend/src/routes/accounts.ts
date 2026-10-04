@@ -5,6 +5,9 @@ import { claimAnonymousLists, type ListCollision } from "../claimAnonymousLists.
 import { resolveListCollision, type CollisionResolution } from "../resolveListCollision.js";
 import { LIMITS, limiter, tooMany } from "../rateLimit.js";
 import { issueDeviceId } from "../deviceId.js";
+import { appUrl, maskEmail, sendMail } from "../mail/mailer.js";
+import { alreadyRegisteredEmail, confirmEmail, resetPasswordEmail } from "../mail/templates.js";
+import { CONFIRM_TTL_MS, hashToken, newToken, RESET_TTL_MS } from "../linkTokens.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -32,11 +35,18 @@ function toPublic(account: { id: string; email: string }): AccountPublic {
   return { id: account.id, email: account.email };
 }
 
+// One answer for every link that can't be used, whatever the reason: expired,
+// used already, or never real.
+const LINK_INVALID = { error: "This link has expired or has already been used.", code: "link-invalid" } as never;
+
 export async function accountsRoutes(app: FastifyInstance) {
-  // POST /accounts — sign up
+  // POST /accounts — sign up. #148: no Account yet. A link is emailed, and
+  // the Account is created when it's opened (POST /accounts/confirm). The
+  // answer is the same whether or not the email already has an account: one
+  // that does gets an email saying so instead, so only its owner finds out.
   app.post<{
     Body: { email?: string; password?: string };
-    Reply: SignedIn;
+    Reply: { pending: true; email: string };
   }>("/accounts", async (req, reply) => {
     const email = req.body.email ? normaliseEmail(req.body.email) : "";
     const password = req.body.password ?? "";
@@ -53,26 +63,129 @@ export async function accountsRoutes(app: FastifyInstance) {
         .status(400)
         .send({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` } as never);
     }
+    const emailWait = limiter.take(`email:${email}`, LIMITS.emailsPerAddress);
+    if (emailWait) return tooMany(reply, emailWait, "emails to this address");
 
+    // Hashed either way, so the two answers take the same time.
+    const passwordHash = await hashPassword(password);
     const existing = await prisma.account.findUnique({ where: { email } });
-    if (existing) {
-      // Deliberately the same shape of failure as a validation error, not a
-      // distinct "email taken" reason — see the PR for what this does and
-      // does not protect against without an email-verification flow, which
-      // does not exist in this codebase yet.
-      return reply.status(409).send({ error: "Could not create an account with that email" } as never);
+    const base = appUrl();
+
+    try {
+      if (existing) {
+        await sendMail(alreadyRegisteredEmail(email, `${base}/sign-in`, `${base}/forgot-password`));
+      } else {
+        // Signing up again replaces the last link, so only the newest works.
+        const { token, hash } = newToken();
+        await prisma.$transaction([
+          prisma.pendingSignup.deleteMany({ where: { OR: [{ email }, { expiresAt: { lt: new Date() } }] } }),
+          prisma.pendingSignup.create({
+            data: { tokenHash: hash, email, passwordHash, expiresAt: new Date(Date.now() + CONFIRM_TTL_MS) },
+          }),
+        ]);
+        await sendMail(confirmEmail(email, `${base}/confirm-email?token=${token}`));
+      }
+    } catch (err) {
+      req.log.error({ err }, `sign-up email to ${maskEmail(email)} failed`);
+      return reply.status(502).send({ error: "We couldn't send the email. Try again in a minute." } as never);
     }
 
-    const passwordHash = await hashPassword(password);
-    const account = await prisma.account.create({ data: { email, passwordHash } });
+    return reply.status(202).send({ pending: true, email });
+  });
 
-    // Per ADR 0003 / #85: whatever lists this device already has, made
-    // before this Account existed, move onto it now. A brand-new Account
-    // has no lists of its own, so nothing here can collide.
+  // POST /accounts/confirm — #148: the link from the sign-up email. Creates
+  // the Account, signs this device in and claims its lists, as sign-up did.
+  app.post<{
+    Body: { token?: string };
+    Reply: SignedIn;
+  }>("/accounts/confirm", async (req, reply) => {
+    const tokenHash = hashToken(String(req.body?.token ?? ""));
+    const pending = await prisma.pendingSignup.findUnique({ where: { tokenHash } });
+    if (!pending || pending.expiresAt <= new Date()) return reply.status(400).send(LINK_INVALID);
+
+    // Works once: of two requests racing with the same link, one deletes it.
+    const { count } = await prisma.pendingSignup.deleteMany({ where: { tokenHash } });
+    if (count === 0) return reply.status(400).send(LINK_INVALID);
+
+    let account;
+    try {
+      account = await prisma.account.create({ data: { email: pending.email, passwordHash: pending.passwordHash } });
+    } catch {
+      // The email got an account another way meanwhile; this link is spent.
+      return reply.status(400).send(LINK_INVALID);
+    }
+    await prisma.pendingSignup.deleteMany({ where: { email: pending.email } });
+
+    // Per ADR 0003 / #85: whatever lists this device already has move onto
+    // the new Account. It has none of its own, so nothing can collide.
     const collisions = await claimAnonymousLists(req.deviceId, account.id);
 
     await reply.signIn(account.id);
     return reply.status(201).send({ ...toPublic(account), collisions });
+  });
+
+  // POST /accounts/password-reset — #149: emails a link to choose a new
+  // password. The same answer whether or not the email has an account.
+  app.post<{ Body: { email?: string } }>("/accounts/password-reset", async (req, reply) => {
+    const email = req.body?.email ? normaliseEmail(req.body.email) : "";
+    if (!EMAIL_RE.test(email)) return reply.status(400).send({ error: "A valid email is required" } as never);
+
+    const wait = Math.max(
+      limiter.take(`reset:device:${req.deviceId}`, LIMITS.resetsPerDevice),
+      limiter.take(`email:${email}`, LIMITS.emailsPerAddress)
+    );
+    if (wait) return tooMany(reply, wait, "reset emails");
+
+    const account = await prisma.account.findUnique({ where: { email } });
+    if (account) {
+      const { token, hash } = newToken();
+      try {
+        // Only the newest link works.
+        await prisma.$transaction([
+          prisma.passwordReset.deleteMany({ where: { OR: [{ accountId: account.id }, { expiresAt: { lt: new Date() } }] } }),
+          prisma.passwordReset.create({
+            data: { tokenHash: hash, accountId: account.id, expiresAt: new Date(Date.now() + RESET_TTL_MS) },
+          }),
+        ]);
+        await sendMail(resetPasswordEmail(email, `${appUrl()}/reset-password?token=${token}`));
+      } catch (err) {
+        // Logged, not answered: a different answer here would say the
+        // account exists.
+        req.log.error({ err }, `reset email to ${maskEmail(email)} failed`);
+      }
+    }
+    return reply.status(202).send({ sent: true });
+  });
+
+  // POST /accounts/password-reset/complete — #149: the new password. Every
+  // session for the account is signed out, this one included: the shopper
+  // then signs in with the new password, which also claims this device's
+  // lists as any sign-in does.
+  app.post<{
+    Body: { token?: string; password?: string };
+    Reply: { email: string };
+  }>("/accounts/password-reset/complete", async (req, reply) => {
+    const password = req.body?.password ?? "";
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return reply
+        .status(400)
+        .send({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` } as never);
+    }
+
+    const tokenHash = hashToken(String(req.body?.token ?? ""));
+    const reset = await prisma.passwordReset.findUnique({ where: { tokenHash }, include: { account: true } });
+    if (!reset || reset.expiresAt <= new Date()) return reply.status(400).send(LINK_INVALID);
+    const { count } = await prisma.passwordReset.deleteMany({ where: { tokenHash } });
+    if (count === 0) return reply.status(400).send(LINK_INVALID);
+
+    const passwordHash = await hashPassword(password);
+    await prisma.$transaction([
+      prisma.account.update({ where: { id: reset.accountId }, data: { passwordHash } }),
+      prisma.session.deleteMany({ where: { accountId: reset.accountId } }),
+      prisma.passwordReset.deleteMany({ where: { accountId: reset.accountId } }),
+    ]);
+    await reply.signOut();
+    return reply.status(200).send({ email: reset.account.email });
   });
 
   // POST /accounts/sign-in

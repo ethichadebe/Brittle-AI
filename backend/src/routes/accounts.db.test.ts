@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
+import { signUp, tokenFor } from "../test/signUp.js";
+import { devOutbox } from "../mail/mailer.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
 import type { FastifyInstance, InjectOptions } from "fastify";
 
@@ -23,35 +25,107 @@ function cookieValue(res: { cookies: { name: string; value: string }[] }, name: 
 
 const credentials = { email: "shopper@example.com", password: "correct horse battery staple" };
 
+// #148: sign-up emails a link; the Account exists only once it's opened.
 describe("POST /accounts — sign up", () => {
-  it("creates an Account and signs the Shopper in", async () => {
+  const send = (o: InjectOptions) => app.inject(o);
+
+  it("emails a confirm link, and creates no account and no session yet", async () => {
     const res = await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ pending: true, email: credentials.email });
+    expect(cookieValue(res, "accucery_session")).toBeUndefined();
+    expect(await testPrisma.account.findUnique({ where: { email: credentials.email } })).toBeNull();
+    expect(tokenFor(credentials.email, "/confirm-email")).toBeDefined();
+    const mail = devOutbox[devOutbox.length - 1];
+    expect(mail.subject).toBe("Confirm your email for Accucery");
+    expect(mail.html).toContain("Confirm my email");
+  });
+
+  it("keeps only a hash of the link, never the link itself or the password", async () => {
+    await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+    const token = tokenFor(credentials.email, "/confirm-email")!;
+    const stored = JSON.stringify(await testPrisma.pendingSignup.findMany());
+    expect(stored).not.toContain(token);
+    expect(stored).not.toContain(credentials.password);
+  });
+
+  it("opening the link creates the account and signs this device in", async () => {
+    const res = await signUp(send, credentials);
     expect(res.statusCode).toBe(201);
     expect(res.json()).toEqual({ id: expect.any(String), email: credentials.email, collisions: [] });
+    expect(res.json().passwordHash).toBeUndefined();
     expect(cookieValue(res, "accucery_session")).toBeDefined();
+    // The password chosen at sign-up is the one that works.
+    const signIn = await app.inject({ method: "POST", url: "/accounts/sign-in", payload: credentials });
+    expect(signIn.statusCode).toBe(200);
   });
 
-  it("never returns a password or password hash in the response", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/accounts",
-      payload: { email: "no-leak@example.com", password: "correct horse battery staple" },
-    });
-    const body = res.json();
-    expect(body.password).toBeUndefined();
-    expect(body.passwordHash).toBeUndefined();
+  it("a link works once", async () => {
+    await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+    const token = tokenFor(credentials.email, "/confirm-email")!;
+    expect((await app.inject({ method: "POST", url: "/accounts/confirm", payload: { token } })).statusCode).toBe(201);
+
+    const again = await app.inject({ method: "POST", url: "/accounts/confirm", payload: { token } });
+    expect(again.statusCode).toBe(400);
+    expect(again.json()).toEqual({ error: "This link has expired or has already been used.", code: "link-invalid" });
   });
 
-  it("refuses a duplicate email without confirming it belongs to someone", async () => {
-    const email = "dupe@example.com";
-    await app.inject({ method: "POST", url: "/accounts", payload: { email, password: "first password here" } });
+  it("an expired link is refused, and creates nothing", async () => {
+    await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+    const token = tokenFor(credentials.email, "/confirm-email")!;
+    await testPrisma.pendingSignup.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
 
-    const second = await app.inject({
-      method: "POST",
-      url: "/accounts",
-      payload: { email, password: "a different password" },
-    });
-    expect(second.statusCode).toBe(409);
+    const res = await app.inject({ method: "POST", url: "/accounts/confirm", payload: { token } });
+    expect(res.json().code).toBe("link-invalid");
+    expect(await testPrisma.account.count()).toBe(0);
+  });
+
+  it("a made-up link is refused the same way", async () => {
+    for (const token of ["", "not-a-real-token", "A".repeat(43)]) {
+      const res = await app.inject({ method: "POST", url: "/accounts/confirm", payload: { token } });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe("link-invalid");
+    }
+  });
+
+  it("signing up again sends a new link, and only the newest works", async () => {
+    await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+    const first = tokenFor(credentials.email, "/confirm-email")!;
+    await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+    const second = tokenFor(credentials.email, "/confirm-email")!;
+    expect(second).not.toBe(first);
+
+    expect((await app.inject({ method: "POST", url: "/accounts/confirm", payload: { token: first } })).statusCode).toBe(400);
+    expect((await app.inject({ method: "POST", url: "/accounts/confirm", payload: { token: second } })).statusCode).toBe(201);
+  });
+
+  // Telling these apart would say which emails have accounts.
+  it("answers the same for an email that already has an account, and emails its owner instead", async () => {
+    await signUp(send, credentials);
+    const before = await testPrisma.account.findUniqueOrThrow({ where: { email: credentials.email } });
+
+    const res = await app.inject({ method: "POST", url: "/accounts", payload: { ...credentials, password: "someone elses password" } });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ pending: true, email: credentials.email });
+    const mail = devOutbox[devOutbox.length - 1];
+    expect(mail.to).toBe(credentials.email);
+    expect(mail.subject).toBe("You already have an Accucery account");
+    expect(mail.text).toContain("/forgot-password");
+    expect(tokenFor(credentials.email, "/confirm-email")).toBeUndefined();
+    expect(await testPrisma.pendingSignup.count()).toBe(0);
+    // Nothing about the existing account changed.
+    expect(await testPrisma.account.findUniqueOrThrow({ where: { email: credentials.email } })).toEqual(before);
+  });
+
+  it("doesn't flood one address with emails", async () => {
+    for (let i = 0; i < 3; i++) {
+      expect((await app.inject({ method: "POST", url: "/accounts", payload: credentials })).statusCode).toBe(202);
+    }
+    const res = await app.inject({ method: "POST", url: "/accounts", payload: credentials });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error).toMatch(/^Too many emails to this address/);
   });
 
   it("rejects a malformed email", async () => {
@@ -73,10 +147,99 @@ describe("POST /accounts — sign up", () => {
   });
 });
 
+// #149: a forgotten password, reset by an emailed link.
+describe("resetting a forgotten password", () => {
+  const send = (o: InjectOptions) => app.inject(o);
+  const ask = (email: string) => app.inject({ method: "POST", url: "/accounts/password-reset", payload: { email } });
+  const complete = (token: string, password: string, cookies?: Record<string, string>) =>
+    app.inject({ method: "POST", url: "/accounts/password-reset/complete", payload: { token, password }, ...(cookies && { cookies }) });
+
+  it("answers the same whether or not the email has an account", async () => {
+    await signUp(send, credentials);
+    const known = await ask(credentials.email);
+    const unknown = await ask("nobody-here@example.com");
+
+    expect(known.statusCode).toBe(202);
+    expect(unknown.statusCode).toBe(202);
+    expect(known.json()).toEqual(unknown.json());
+    expect(tokenFor(credentials.email, "/reset-password")).toBeDefined();
+    expect(devOutbox.some((m) => m.to === "nobody-here@example.com")).toBe(false);
+  });
+
+  it("the new password works, the old one doesn't, and every session is signed out", async () => {
+    const first = await signUp(send, credentials);
+    const oldSession = cookieValue(first, "accucery_session")!;
+    const other = await app.inject({ method: "POST", url: "/accounts/sign-in", payload: credentials });
+    const otherSession = cookieValue(other, "accucery_session")!;
+
+    await ask(credentials.email);
+    const res = await complete(tokenFor(credentials.email, "/reset-password")!, "a brand new password");
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ email: credentials.email });
+
+    for (const session of [oldSession, otherSession]) {
+      const who = await app.inject({ method: "GET", url: "/accounts/session", cookies: { accucery_session: session } });
+      expect(who.json()).toEqual({ account: null });
+    }
+    expect((await app.inject({ method: "POST", url: "/accounts/sign-in", payload: credentials })).statusCode).toBe(401);
+    const signIn = await app.inject({ method: "POST", url: "/accounts/sign-in", payload: { ...credentials, password: "a brand new password" } });
+    expect(signIn.statusCode).toBe(200);
+  });
+
+  it("a link works once, expires, and can't be made up", async () => {
+    await signUp(send, credentials);
+    await ask(credentials.email);
+    const token = tokenFor(credentials.email, "/reset-password")!;
+    expect((await complete(token, "a brand new password")).statusCode).toBe(200);
+    expect((await complete(token, "another new password")).json().code).toBe("link-invalid");
+
+    await ask(credentials.email);
+    const late = tokenFor(credentials.email, "/reset-password")!;
+    await testPrisma.passwordReset.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect((await complete(late, "a brand new password")).json().code).toBe("link-invalid");
+
+    expect((await complete("made-up", "a brand new password")).json().code).toBe("link-invalid");
+    // None of those changed the password from the first reset.
+    expect((await app.inject({ method: "POST", url: "/accounts/sign-in", payload: { ...credentials, password: "a brand new password" } })).statusCode).toBe(200);
+  });
+
+  it("refuses a short new password, and keeps the link usable", async () => {
+    await signUp(send, credentials);
+    await ask(credentials.email);
+    const token = tokenFor(credentials.email, "/reset-password")!;
+    expect((await complete(token, "short")).statusCode).toBe(400);
+    expect((await complete(token, "long enough now")).statusCode).toBe(200);
+  });
+
+  it("is limited per email and per device", async () => {
+    // Sign-up and reset share one allowance per address: the confirm email
+    // was the first of three.
+    await signUp(send, credentials);
+    for (let i = 0; i < 2; i++) expect((await ask(credentials.email)).statusCode).toBe(202);
+    const paused = await ask(credentials.email);
+    expect(paused.statusCode).toBe(429);
+    expect(paused.json().error).toMatch(/^Too many reset emails/);
+
+    const device = { [DEVICE_ID_COOKIE]: randomUUID() };
+    let last = 0;
+    for (let i = 0; i <= 10; i++) {
+      last = (await app.inject({ method: "POST", url: "/accounts/password-reset", payload: { email: `r${i}@example.com` }, cookies: device })).statusCode;
+    }
+    expect(last).toBe(429);
+  });
+
+  it("the link is kept only as a hash", async () => {
+    await signUp(send, credentials);
+    await ask(credentials.email);
+    const token = tokenFor(credentials.email, "/reset-password")!;
+    expect(JSON.stringify(await testPrisma.passwordReset.findMany())).not.toContain(token);
+  });
+});
+
 describe("POST /accounts/sign-in", () => {
   it("signs in with the correct email and password", async () => {
     const email = "sign-in-happy@example.com";
-    await app.inject({ method: "POST", url: "/accounts", payload: { email, password: "correct horse battery staple" } });
+    await signUp((o) => app.inject(o), { email, password: "correct horse battery staple" });
 
     const res = await app.inject({
       method: "POST",
@@ -91,7 +254,7 @@ describe("POST /accounts/sign-in", () => {
   // prober can tell which emails have accounts by which message comes back.
   it("gives the same generic failure for an unknown email as for a wrong password", async () => {
     const email = "sign-in-wrong@example.com";
-    await app.inject({ method: "POST", url: "/accounts", payload: { email, password: "correct horse battery staple" } });
+    await signUp((o) => app.inject(o), { email, password: "correct horse battery staple" });
 
     const wrongPassword = await app.inject({
       method: "POST",
@@ -116,29 +279,21 @@ describe("GET /accounts/session and sign-out", () => {
     expect(before.json()).toEqual({ account: null });
 
     const email = "session-check@example.com";
-    const signUp = await app.inject({
-      method: "POST",
-      url: "/accounts",
-      payload: { email, password: "correct horse battery staple" },
-    });
-    const sessionId = cookieValue(signUp, "accucery_session")!;
+    const signedUp = await signUp((o) => app.inject(o), { email, password: "correct horse battery staple" });
+    const sessionId = cookieValue(signedUp, "accucery_session")!;
 
     const signedIn = await app.inject({
       method: "GET",
       url: "/accounts/session",
       cookies: { accucery_session: sessionId },
     });
-    expect(signedIn.json()).toEqual({ account: { id: signUp.json().id, email } });
+    expect(signedIn.json()).toEqual({ account: { id: signedUp.json().id, email } });
   });
 
   it("signing out clears the session, so the same cookie no longer signs anyone in", async () => {
     const email = "sign-out@example.com";
-    const signUp = await app.inject({
-      method: "POST",
-      url: "/accounts",
-      payload: { email, password: "correct horse battery staple" },
-    });
-    const sessionId = cookieValue(signUp, "accucery_session")!;
+    const signedUp = await signUp((o) => app.inject(o), { email, password: "correct horse battery staple" });
+    const sessionId = cookieValue(signedUp, "accucery_session")!;
 
     await app.inject({
       method: "POST",
@@ -186,12 +341,8 @@ describe("claiming anonymous lists at sign-in", () => {
 
     await anon({ method: "POST", url: "/lists", payload: { storeSlug: "checkers", name: "Monthly" } });
 
-    const signUp = await anon({
-      method: "POST",
-      url: "/accounts",
-      payload: { email: "claims-at-signup@example.com", password: "correct horse battery staple" },
-    });
-    const sessionId = cookieValue(signUp, "accucery_session")!;
+    const signedUp = await signUp(anon, { email: "claims-at-signup@example.com", password: "correct horse battery staple" });
+    const sessionId = cookieValue(signedUp, "accucery_session")!;
 
     const signedInView = await anon(withSession({ method: "GET", url: "/lists" }, sessionId));
     expect(signedInView.json().lists.map((l: { name: string }) => l.name)).toContain("Monthly");
@@ -207,7 +358,7 @@ describe("claiming anonymous lists at sign-in", () => {
     const password = "correct horse battery staple";
 
     // The account is created on one device, with nothing to claim.
-    await asDevice(randomUUID())({ method: "POST", url: "/accounts", payload: { email, password } });
+    await signUp(asDevice(randomUUID()), { email, password });
 
     // A second, later session on a different device builds a list before
     // ever signing in.
@@ -225,7 +376,7 @@ describe("claiming anonymous lists at sign-in", () => {
   it("signing in with no anonymous lists on the device is a no-op", async () => {
     const email = "nothing-to-claim@example.com";
     const password = "correct horse battery staple";
-    await asDevice(randomUUID())({ method: "POST", url: "/accounts", payload: { email, password } });
+    await signUp(asDevice(randomUUID()), { email, password });
 
     // A fresh device, never used to build a list, signs in.
     const freshDevice = asDevice(randomUUID());
@@ -250,8 +401,8 @@ describe("claiming anonymous lists at sign-in", () => {
     // Sign up, then sign in immediately (simpler than juggling the sign-up
     // cookie) and create "Monthly"/checkers while genuinely signed in, so it
     // is owned by the Account from the start.
-    const signUp = await device({ method: "POST", url: "/accounts", payload: { email, password } });
-    const firstSession = cookieValue(signUp, "accucery_session")!;
+    const signedUp = await signUp(device, { email, password });
+    const firstSession = cookieValue(signedUp, "accucery_session")!;
     await device(
       withSession(
         { method: "POST", url: "/lists", payload: { storeSlug: "checkers", name: "Monthly" } },
@@ -318,8 +469,8 @@ describe("resolving a list collision", () => {
     const deviceId = randomUUID();
     const device = asDevice(deviceId);
 
-    const signUp = await device({ method: "POST", url: "/accounts", payload: { email, password: "correct horse battery staple" } });
-    const firstSession = cookieValue(signUp, "accucery_session")!;
+    const signedUp = await signUp(device, { email, password: "correct horse battery staple" });
+    const firstSession = cookieValue(signedUp, "accucery_session")!;
     const accountList = await device(
       withSession({ method: "POST", url: "/lists", payload: { storeSlug: "checkers", name: "Monthly" } }, firstSession)
     );
@@ -429,11 +580,7 @@ describe("resolving a list collision", () => {
   // coincidence) must never be the one that gets merged into.
   it("never resolves into a different Account's same-named list", async () => {
     const stranger = asDevice(randomUUID());
-    const strangerSignUp = await stranger({
-      method: "POST",
-      url: "/accounts",
-      payload: { email: "stranger@example.com", password: "correct horse battery staple" },
-    });
+    const strangerSignUp = await signUp(stranger, { email: "stranger@example.com", password: "correct horse battery staple" });
     const strangerSession = cookieValue(strangerSignUp, "accucery_session")!;
     const strangerList = await stranger(
       withSession(

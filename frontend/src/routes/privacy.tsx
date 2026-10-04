@@ -93,6 +93,10 @@ function PrivacyPage() {
           Until you delete it. Deleting your account removes your account, your lists and your substitute picks straight away. A
           list made without an account stays until you delete it.
         </p>
+        <p>
+          If you sign up but never confirm your email, the sign-up is deleted within a day of its link expiring. Password reset
+          links expire after an hour and are then deleted too.
+        </p>
 
         <h3>Your rights</h3>
         <p>
