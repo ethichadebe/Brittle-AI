@@ -23,6 +23,10 @@ export const LIMITS = {
   signInPerEmail: [{ max: 10, windowMs: 15 * MINUTE }],
   signInPerDevice: [{ max: 30, windowMs: 15 * MINUTE }],
   signUpPerDevice: [{ max: 5, windowMs: HOUR }],
+  // Sign-up and reset both send email (#148, #149): one address can't be
+  // flooded with them, and one device can't send them to everyone.
+  emailsPerAddress: [{ max: 3, windowMs: HOUR }],
+  resetsPerDevice: [{ max: 10, windowMs: HOUR }],
   // Each new Checkers or Shoprite search spends ScraperAPI credits (#146).
   searchPerDevice: [
     { max: 30, windowMs: MINUTE },

@@ -52,7 +52,7 @@ nano .env          # fill in POSTGRES_PASSWORD, FRONTEND_URL, the cookies and SC
 | `POSTGRES_PASSWORD` | **Change this** — strong password |
 | `POSTGRES_DB` | Database name (default: `accucery`) |
 | `DATABASE_URL` | Must match the three `POSTGRES_*` values above |
-| `FRONTEND_URL` | Your VPS IP or domain (e.g. `http://123.456.789.0`) |
+| `FRONTEND_URL` | The app's public address, starting `https://`. Email links are built from it |
 | `CHECKERS_COOKIES` | Full cookie string from Checkers DevTools — see below |
 | `SHOPRITE_COOKIES` | The same, from `shoprite.co.za`. Optional: without it Shoprite prices against its own default store |
 | `SCRAPERAPI_KEY` | Routes Checkers and Shoprite through a residential proxy. Required on a VPS: their WAF blocks datacenter IPs |

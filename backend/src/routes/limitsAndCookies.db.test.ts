@@ -4,6 +4,7 @@ import type { FastifyInstance, InjectOptions } from "fastify";
 import type { Product } from "@accucery/types";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
+import { signUp } from "../test/signUp.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
 import { LIMITS, limiter } from "../rateLimit.js";
 
@@ -70,7 +71,7 @@ describe("sign-ups (#152)", () => {
     const as = asDevice();
     for (let i = 0; i < LIMITS.signUpPerDevice[0].max; i++) {
       const res = await as({ method: "POST", url: "/accounts", payload: { email: `s${i}-${randomUUID()}@example.com`, password: "long-enough-pw" } });
-      expect(res.statusCode).toBe(201);
+      expect(res.statusCode).toBe(202);
     }
     const paused = await as({ method: "POST", url: "/accounts", payload: { email: `s-${randomUUID()}@example.com`, password: "long-enough-pw" } });
     expect(paused.statusCode).toBe(429);
@@ -126,7 +127,7 @@ describe("location lookups (#152)", () => {
 
 describe("comparisons (#152)", () => {
   it("pause an account after too many, before any store is asked", async () => {
-    const signedUp = await app.inject({ method: "POST", url: "/accounts", payload: { email: `k-${randomUUID()}@example.com`, password: "long-enough-pw" } });
+    const signedUp = await signUp((o) => app.inject(o), { email: `k-${randomUUID()}@example.com`, password: "long-enough-pw" });
     const cookies = Object.fromEntries(signedUp.cookies.map((c) => [c.name, c.value]));
     // A list that isn't there: each try is counted, then answered 404.
     const compare = () => app.inject({ method: "POST", url: `/lists/${randomUUID()}/compare`, payload: { targetStore: "makro" }, cookies });
@@ -139,10 +140,13 @@ describe("comparisons (#152)", () => {
 
 describe("cookies (#153)", () => {
   it("are HTTPS-only in production", async () => {
+    const email = `c-${randomUUID()}@example.com`;
+    await signUp((o) => app.inject(o), { email, password: "long-enough-pw" });
     const before = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
-      const res = await app.inject({ method: "POST", url: "/accounts", payload: { email: `c-${randomUUID()}@example.com`, password: "long-enough-pw" } });
+      // A fresh device signing in gets both cookies: its id and the session.
+      const res = await app.inject({ method: "POST", url: "/accounts/sign-in", payload: { email, password: "long-enough-pw" } });
       const cookies = ([] as string[]).concat(res.headers["set-cookie"] ?? []);
       expect(cookies.length).toBeGreaterThanOrEqual(2);
       for (const c of cookies) expect(c).toMatch(/;\s*Secure/i);

@@ -150,10 +150,24 @@ export const api = {
     // "not signed in" — that's `{ account: null }`, not an error.
     session: () => request<{ account: AccountPublic | null }>("/accounts/session"),
 
+    // #148: emails a link. The account exists once it's opened (confirmEmail).
     signUp: (email: string, password: string) =>
-      request<SignedIn>("/accounts", {
+      request<{ pending: true; email: string }>("/accounts", {
         method: "POST",
         body: JSON.stringify({ email, password }),
+      }),
+
+    confirmEmail: (token: string) =>
+      request<SignedIn>("/accounts/confirm", { method: "POST", body: JSON.stringify({ token }) }),
+
+    // #149: the same answer whether or not the email has an account.
+    requestPasswordReset: (email: string) =>
+      request<{ sent: true }>("/accounts/password-reset", { method: "POST", body: JSON.stringify({ email }) }),
+
+    completePasswordReset: (token: string, password: string) =>
+      request<{ email: string }>("/accounts/password-reset/complete", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
       }),
 
     signIn: (email: string, password: string) =>

@@ -4,6 +4,7 @@ import type { FastifyInstance, InjectOptions } from "fastify";
 import type { Product } from "@accucery/types";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
+import { signUp } from "../test/signUp.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
 
 vi.mock("../scraper/engine.js", () => ({
@@ -55,8 +56,8 @@ async function signedInShopper(email: string) {
   const deviceId = randomUUID();
   const send = (opts: InjectOptions) =>
     app.inject({ ...opts, cookies: { ...(opts.cookies as Record<string, string> | undefined), [DEVICE_ID_COOKIE]: deviceId } });
-  const signUp = await send({ method: "POST", url: "/accounts", payload: { email, password: "correct horse battery staple" } });
-  const session = cookieValue(signUp, "accucery_session")!;
+  const signedUp = await signUp(send, { email, password: "correct horse battery staple" });
+  const session = cookieValue(signedUp, "accucery_session")!;
   const as = (opts: InjectOptions) =>
     send({ ...opts, cookies: { ...(opts.cookies as Record<string, string> | undefined), accucery_session: session } });
 

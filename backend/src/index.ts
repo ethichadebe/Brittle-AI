@@ -3,6 +3,7 @@ import { prisma } from "./db.js";
 import { warmBranches } from "./scraper/shopriteGroup.js";
 import { warmDefaultStore } from "./scraper/pnp.js";
 import { assertMailConfigured } from "./mail/mailer.js";
+import { sweepExpiredLinksHourly } from "./expiredLinks.js";
 
 // #147: no key, no start, in production. A deploy then refuses the new
 // version instead of shipping one that can't send email.
@@ -21,6 +22,7 @@ try {
   // lookup is logged and retried.
   warmBranches();
   warmDefaultStore();
+  sweepExpiredLinksHourly((err) => app.log.error({ err }, "deleting expired sign-up and reset links failed"));
 } catch (err) {
   app.log.error(err);
   process.exit(1);
