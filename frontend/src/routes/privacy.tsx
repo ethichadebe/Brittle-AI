@@ -76,6 +76,10 @@ function PrivacyPage() {
             for and, when you ask for local prices, your position. It isn't told who you are.
           </li>
           <li>
+            <strong>Resend</strong>, in the United States, which sends the app's emails. It sees your email address and what we
+            send you.
+          </li>
+          <li>
             <strong>The stores' websites</strong> see the same: searches, and your position once to find a branch.
           </li>
         </ul>
