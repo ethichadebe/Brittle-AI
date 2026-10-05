@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
 import type { GroceryList, StoreSlug } from "@accucery/types";
 import { api } from "../lib/api";
+import { track } from "../lib/analytics";
 import { datedListName, nameSuggestions } from "../lib/listNames";
 import {
   currentPosition,
@@ -86,6 +87,7 @@ function NewListPage() {
     setError(null);
     try {
       const list = await api.lists.create(store, name.trim());
+      track("list_created", { store });
       // The branch is found in the background: the list opens straight
       // away on Joburg prices and moves to the branch when it's found.
       if (locatable && useLocation) {

@@ -12,6 +12,7 @@ import type {
 import { api, ApiError, imgSrc } from "../lib/api";
 import { formatRand } from "../lib/format";
 import { Disclaimer } from "./Disclaimer";
+import { track } from "../lib/analytics";
 import { CheckIcon, CloseIcon } from "./icons";
 
 // Who put a Substitute in a comparison total, as the shopper reads it.
@@ -54,6 +55,7 @@ export function CompareFlow({ listId, storeSlug, items, signedIn, onSignIn, onCl
     setError(null);
     try {
       const result = await api.lists.compare(listId, targetStore);
+      track("compare_run", { store: storeSlug, target: targetStore });
       setComparison(result);
       setExcludedItems(new Set());
       setSelectedSuggestion(new Map());

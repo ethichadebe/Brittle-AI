@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { STORE_CONFIGS } from "@accucery/types";
 import type { BranchLookup, GroceryList, ListItem, StoreSlug } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
+import { track } from "../lib/analytics";
 import { computeSummary } from "../lib/summary";
 import { priceAge } from "../lib/priceAge";
 import { formatRand } from "../lib/format";
@@ -106,6 +107,7 @@ function ListPage() {
     lookup
       .then(
         (found) => {
+          if (found.branchName || found.outOfDelivery) track("location_used", { store: storeSlug ?? undefined });
           if (found.branchName) {
             setBranchName(found.branchName);
             setOutOfDelivery(false);

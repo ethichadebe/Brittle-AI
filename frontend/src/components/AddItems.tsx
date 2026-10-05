@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
+import { track } from "../lib/analytics";
 import { formatRand } from "../lib/format";
 import { CheckIcon, CloseIcon, PlusIcon } from "./icons";
 
@@ -120,6 +121,7 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
         loyaltyPrice: p.loyaltyPrice,
       });
       onSaved(item);
+      track("item_added", { store: storeSlug });
       setAdded((prev) => new Map(prev).set(p.productId, { itemId: item.id, merged }));
       setFlashing((prev) => new Set(prev).add(p.productId));
       setTimeout(() => setFlashing((prev) => {

@@ -38,3 +38,19 @@ describe("the content security policy", () => {
     for (const d of ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "connect-src 'self'"]) expect(policy).toContain(d);
   });
 });
+
+describe("with Google Analytics on", () => {
+  const html = "<html><head></head><body></body></html>";
+
+  it("lets only Google's script and hits through, and nothing else new", () => {
+    const off = contentSecurityPolicy(html);
+    const on = contentSecurityPolicy(html, { analytics: true });
+    expect(off).not.toContain("google");
+    expect(on).toContain("script-src 'self' https://www.googletagmanager.com");
+    expect(on).toMatch(/connect-src 'self' https:\/\/\*\.google-analytics\.com https:\/\/\*\.analytics\.google\.com https:\/\/www\.googletagmanager\.com/);
+    // Still no inline script without a fingerprint, and no eval.
+    expect(on).not.toContain("unsafe-inline");
+    expect(on).not.toContain("unsafe-eval");
+  });
+});
+

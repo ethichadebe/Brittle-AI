@@ -3,6 +3,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { withCsp } from "./src/build/csp";
+import { GA_MEASUREMENT_ID, isMeasurementId } from "./src/analyticsConfig";
 
 // One id per build (#118). The app carries it, /version.json says which build
 // the server is on, and sw.js changes with it so browsers install the new one.
@@ -27,7 +28,7 @@ function csp(): Plugin {
   return {
     name: "accucery-csp",
     apply: "build",
-    transformIndexHtml: { order: "post", handler: (html) => withCsp(html) },
+    transformIndexHtml: { order: "post", handler: (html) => withCsp(html, { analytics: isMeasurementId(GA_MEASUREMENT_ID) }) },
   };
 }
 
