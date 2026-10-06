@@ -11,6 +11,7 @@ import { compareRoutes } from "./routes/compare.js";
 import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
 import { recentProductsRoutes } from "./routes/recentProducts.js";
 import type { HealthResponse } from "@accucery/types";
+import { CreditBudgetSpent } from "./scraper/creditBudget.js";
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
   const app = Fastify({ logger: opts.logger ?? false });
@@ -20,6 +21,14 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     // The device-id cookie has to make the round trip for lists to be
     // scoped to anything, and a wildcard origin cannot be combined with it.
     credentials: true,
+  });
+
+  // #157: today's ScraperAPI allowance is spent. Whatever was asking (a
+  // search, a comparison) answers with a plain message, not a 500.
+  app.setErrorHandler((err, req, reply) => {
+    if (err instanceof CreditBudgetSpent) return reply.status(503).send({ error: err.message });
+    // Anything else: Fastify's own handling, as before.
+    throw err;
   });
 
   // Every request after this point carries `req.deviceId` — see deviceId.ts.

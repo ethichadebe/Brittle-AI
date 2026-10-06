@@ -1,7 +1,8 @@
 import type { Product } from "@accucery/types";
 import type { Branch, Place, Scraper } from "./types.js";
 import { opaqueZone } from "./zone.js";
-import { remember, type Remembered } from "./remember.js";
+import { remember, type Remembered, type RememberedStore } from "./remember.js";
+import { spendCredit } from "./creditBudget.js";
 
 // Checkers and Shoprite are both Shoprite Holdings and run the same commerce
 // platform: same `/api/catalogue/get-products-filter` endpoint, same request
@@ -24,6 +25,12 @@ export interface ShopriteGroupSite {
    * Milnerton and Rustenburg named a delivering store and sold nothing.
    */
   verifyBranch?: boolean;
+  /**
+   * Where the default (Joburg) branch is looked up from. Sandton, unless the
+   * site doesn't deliver there: then the store that does, so the first store
+   * asked is the one wanted (#157: each store asked costs credits).
+   */
+  defaultPlace?: { city: string; latitude: number; longitude: number };
 }
 
 export const CHECKERS_SITE: ShopriteGroupSite = {
@@ -37,6 +44,9 @@ export const SHOPRITE_SITE: ShopriteGroupSite = {
   origin: "https://www.shoprite.co.za",
   cookieEnv: "SHOPRITE_COOKIES",
   verifyBranch: true,
+  // Shoprite doesn't deliver in Sandton; Sophiatown, 10.8 km away, prices
+  // Joburg (#134). Asked from Sandton it took a dozen requests to reach.
+  defaultPlace: { city: "Sophiatown", latitude: -26.1755, longitude: 27.9819 },
 };
 
 function baseHeaders(site: ShopriteGroupSite): Record<string, string> {
@@ -134,13 +144,15 @@ export interface StoreContext {
 /** Where a shopper who hasn't shared a location is priced (decided on #66). */
 export const DEFAULT_PLACE = { city: "Sandton", latitude: -26.1076, longitude: 28.0567 };
 
-// How many nearby stores to ask from before giving up. From Sandton the
-// nearest Shoprite that delivers (Sophiatown, 10.8 km) was within 25.
-const NEAREST_TRIES = 25;
+// How many nearby stores to ask from before giving up (#157, decided with
+// the owner): each one asked costs ScraperAPI credits, and the nearest 8
+// cover almost every town. Beyond them the list keeps Joburg prices.
+export const NEAREST_TRIES = 8;
 
-// A found branch is kept this long: stores open, close and change service,
-// but not by the minute, and each lookup spends ScraperAPI credits.
-const BRANCH_TTL_MS = 6 * 60 * 60 * 1000;
+// A found branch is kept this long, across restarts (#157): stores open,
+// close and change service, but not by the week, and each lookup spends
+// ScraperAPI credits. Every deploy used to look them up again.
+export const BRANCH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // A failed lookup is retried sooner, so one bad minute doesn't leave six
 // hours of default-store prices.
 const FAILED_TTL_MS = 5 * 60 * 1000;
@@ -184,6 +196,9 @@ async function post(site: ShopriteGroupSite, path: string, body: unknown, contex
   let url: string;
   const cookies: string[] = [];
   if (scraperApiKey) {
+    // #157: every request through ScraperAPI is a credit, counted against
+    // today's allowance before it's made. Past it, this throws instead.
+    await spendCredit(path.includes("/catalogue/") ? "search" : "branch");
     // A VPS datacenter IP is blocked by the WAF in front of these sites, so the
     // request goes through ScraperAPI's residential pool. aws-waf-token is bound
     // to the IP that solved the challenge and is useless from another one, so
@@ -213,7 +228,9 @@ async function post(site: ShopriteGroupSite, path: string, body: unknown, contex
 // delivers can mean asking about many, each a few seconds through
 // ScraperAPI; a few at a time keeps that well under a minute without
 // asking ScraperAPI for more parallel requests than a plan allows.
-const NEARBY_BATCH = 4;
+// One at a time: asking four at once paid for up to three stores that a
+// nearer one made unnecessary (#157).
+const NEARBY_BATCH = 1;
 
 // Searched to prove a branch sells: something every grocer stocks.
 const VERIFY_QUERY = "milk";
@@ -282,13 +299,22 @@ export async function findBranch(
 // own default (no branch), and the zone says "unconfigured".
 const defaults = new Map<string, Remembered<StoreContext[]>>();
 
-/** The default branch for a site, looked up at most every few hours. */
+// Where default branches are kept across restarts. Set by the server at
+// startup (index.ts); tests leave it unset and remember in memory only.
+let branchStore: (<T>(key: string) => RememberedStore<T>) | undefined;
+
+export function keepDefaultBranchesIn(store: <T>(key: string) => RememberedStore<T>): void {
+  branchStore = store;
+}
+
+/** The default branch for a site, looked up at most once a week. */
 export function defaultBranch(site: ShopriteGroupSite): Promise<StoreContext[]> {
   let remembered = defaults.get(site.label);
   if (!remembered) {
-    remembered = remember(site.label, () => findBranch(site, DEFAULT_PLACE), [], {
+    remembered = remember(site.label, () => findBranch(site, site.defaultPlace ?? DEFAULT_PLACE), [], {
       ttlMs: BRANCH_TTL_MS,
       failedTtlMs: FAILED_TTL_MS,
+      store: branchStore?.<StoreContext[]>(`default-branch:${site.label}`),
     });
     defaults.set(site.label, remembered);
   }

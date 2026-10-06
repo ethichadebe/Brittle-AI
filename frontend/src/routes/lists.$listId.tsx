@@ -127,7 +127,7 @@ function ListPage() {
               ? e.problem === "denied"
                 ? "Location is off for this site in your browser."
                 : "Couldn't find your location. Try again in a moment."
-              : e instanceof ApiError && e.status === 429
+              : e instanceof ApiError && (e.status === 429 || e.status === 503)
                 ? e.message
                 : "Couldn't reach the store to find your branch. Try again in a moment."
           )

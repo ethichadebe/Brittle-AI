@@ -6,6 +6,7 @@ import { latestPrices, readZone } from "../services/basketPrices.js";
 import { nearestBranch } from "../scraper/engine.js";
 import { branchOf, describeBranch, LOCATABLE_STORES, OUT_OF_DELIVERY } from "../scraper/branch.js";
 import { LIMITS, limiter, tooMany } from "../rateLimit.js";
+import { CreditBudgetSpent } from "../scraper/creditBudget.js";
 
 // South Africa's mainland, with a margin. A point outside it is a typo or a
 // spoof; no store would serve it, so it's refused before any store is asked.
@@ -17,6 +18,8 @@ const within = (n: unknown, [lo, hi]: readonly [number, number]) => typeof n ===
 interface Lookup {
   done: boolean;
   failed: boolean;
+  /** Failed because today's ScraperAPI allowance is spent (#157). */
+  spent?: boolean;
   settled: Promise<void>;
 }
 const lookups = new Map<string, Lookup>();
@@ -145,6 +148,8 @@ export async function listsRoutes(app: FastifyInstance) {
             // Logged without the point: the error is the store's, not the shopper's.
             req.log.error({ err: String(err) }, "could not find the nearest branch");
             started.failed = true;
+            // #157: not the store's fault: today's ScraperAPI allowance is gone.
+            started.spent = err instanceof CreditBudgetSpent;
           }
         )
         .finally(() => {
@@ -157,6 +162,11 @@ export async function listsRoutes(app: FastifyInstance) {
     await Promise.race([lookup.settled, new Promise((r) => setTimeout(r, LOCATE_WAIT.ms))]);
 
     const status = await lookupStatus(list.id);
+    if (status.failed && lookup.spent) {
+      return reply
+        .status(503)
+        .send({ error: "Finding your branch needs a price check, and today's are used up. Try again tomorrow." } as never);
+    }
     if (status.failed) return reply.status(502).send({ error: "Couldn't reach the store to find your branch" } as never);
     return reply.status(status.finding ? 202 : 200).send(status);
   });

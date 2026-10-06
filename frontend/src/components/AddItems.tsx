@@ -85,7 +85,8 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
         .catch((e) => {
           if (controller.signal.aborted) return;
           setResults([]);
-          setSearchNote(e instanceof ApiError && e.status === 429 ? e.message : null);
+          // Too many searches (#152), or today's Checkers/Shoprite allowance is used (#157).
+          setSearchNote(e instanceof ApiError && (e.status === 429 || e.status === 503) ? e.message : null);
         })
         .finally(() => { if (!controller.signal.aborted) setSearching(false); });
     }, SEARCH_DEBOUNCE_MS);

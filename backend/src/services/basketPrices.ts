@@ -1,5 +1,6 @@
 import type { BasketPriceStatus, StoreSlug } from "@accucery/types";
 import { getCachedPrices, isFresh, refreshItems } from "./priceCache.js";
+import { CreditBudgetSpent } from "../scraper/creditBudget.js";
 import { currentZone } from "../scraper/engine.js";
 import { ZONE_SCOPED_STORES } from "../scraper/branch.js";
 import type { Branch } from "../scraper/types.js";
@@ -41,10 +42,20 @@ export interface BasketPrice {
 // Refreshed one at a time so each item stops reading as "updating" the
 // moment its own price lands, not when the whole list is done.
 async function refresh(storeSlug: StoreSlug, zone: string | undefined, items: BasketItem[], branch?: Branch): Promise<void> {
-  for (const item of items) {
+  for (const [i, item] of items.entries()) {
     const k = key(storeSlug, zone, item.productId);
     try {
       await refreshItems(storeSlug, [item], branch);
+    } catch (err) {
+      // #157: today's allowance ran out. The rest aren't tried: each reads as
+      // "outdated" (its saved price, with its age) until the retry window.
+      if (!(err instanceof CreditBudgetSpent)) throw err;
+      for (const rest of items.slice(i + 1)) {
+        const r = key(storeSlug, zone, rest.productId);
+        inFlight.delete(r);
+        lastAttempt.set(r, Date.now());
+      }
+      return;
     } finally {
       inFlight.delete(k);
       lastAttempt.set(k, Date.now());
@@ -79,7 +90,7 @@ export async function basketPrices(
   for (const item of items) {
     const row = latest.get(item.productId);
     let status: BasketPriceStatus;
-    if (row && isFresh(row.scrapedAt)) {
+    if (row && isFresh(row.scrapedAt, storeSlug)) {
       status = "current";
     } else {
       const k = key(storeSlug, zone, item.productId);
