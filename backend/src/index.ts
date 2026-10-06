@@ -2,7 +2,7 @@ import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { keepDefaultBranchesIn, warmBranches } from "./scraper/shopriteGroup.js";
 import { databaseStore } from "./scraper/rememberedStore.js";
-import { keepCreditsIn } from "./scraper/creditBudget.js";
+import { keepCreditsIn } from "./scraper/credits.js";
 import { databaseLedger } from "./scraper/creditLedger.js";
 import { warmDefaultStore } from "./scraper/pnp.js";
 import { assertMailConfigured } from "./mail/mailer.js";
@@ -15,7 +15,7 @@ assertMailConfigured();
 // #157: default branches survive restarts, so a deploy doesn't pay
 // ScraperAPI to find them again.
 keepDefaultBranchesIn(databaseStore);
-// ...and the day's ScraperAPI allowance survives them too.
+// ...and so do the counts of ScraperAPI credits spent.
 keepCreditsIn(databaseLedger);
 
 const app = await buildApp({ logger: true });

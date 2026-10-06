@@ -14,13 +14,11 @@
     reads them back for free.
   - **Shoprite's default is looked up from Sophiatown**, the store that
     prices Joburg. It's the first store asked, not the twelfth.
-  - **Daily allowance of 33 credits** (1,000 spread over a month), counted
-    in the database by day and purpose. Past it:
-    - nothing is spent;
-    - lists show their saved prices as outdated;
-    - a search shows its last saved answer, however old, or says to try
-      again tomorrow;
-    - comparisons and branch lookups say the same.
+  - **Every credit is counted** in the database, by day and purpose. A
+    daily allowance that refused requests past 33 credits was built, then
+    taken out on the owner's review: "try again tomorrow" is worse for
+    shoppers than buying a bigger plan. Nothing is refused now; the counts
+    are for the report.
   - **Checkers and Shoprite prices are reused for longer** (decided with the
     owner): a day for a list item, 3 days for a search. The free stores keep
     an hour and a day.
@@ -38,11 +36,12 @@
   - Capping Shoprite at 8 would have quietly broken its default if
     Sophiatown sat past 8th from Sandton (it was only known to be "within
     25"). Starting the default lookup at Sophiatown removes the question.
-  - All 10 safeguards were mutation-checked: removing any one fails a test.
+  - Each safeguard was mutation-checked: removing it fails a test.
 - **Laptop needed:** no.
 - **Friction:**
   - **The credits are exhausted until the plan renews**, so none of this can
-    be seen live yet. The report will show the first days after renewal.
+    be seen live yet. The report will show the first days after renewal,
+    and when spend is heading past the month's 1,000.
   - **Unconfirmed: whether ScraperAPI charges exactly 1 credit per request**
     to these sites. The report puts the app's count next to ScraperAPI's,
     so a difference will show.

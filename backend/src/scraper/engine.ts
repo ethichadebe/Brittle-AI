@@ -6,7 +6,6 @@ import { WoolworthsScraper } from "./woolworths.js";
 import { MakroScraper } from "./makro.js";
 import { playwrightScraper } from "./playwright.js";
 import { NO_ZONE } from "./zone.js";
-import { CreditBudgetSpent } from "./creditBudget.js";
 
 export type ScraperRegistry = Partial<Record<StoreSlug, Scraper>>;
 
@@ -37,8 +36,6 @@ export function createSearchEngine(registry: ScraperRegistry) {
       try {
         return await scraper.search(query, branch);
       } catch (err) {
-        // Out of today's allowance (#157): said plainly, not as "no products".
-        if (err instanceof CreditBudgetSpent) throw err;
         // Through ScraperAPI, the browser fallback loads the whole site: dozens
         // of credits a try, and it rarely gets past the WAF anyway (#157).
         // It's only worth trying on a developer's own connection.

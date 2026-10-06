@@ -2,7 +2,7 @@ import type { Product } from "@accucery/types";
 import type { Branch, Place, Scraper } from "./types.js";
 import { opaqueZone } from "./zone.js";
 import { remember, type Remembered, type RememberedStore } from "./remember.js";
-import { spendCredit } from "./creditBudget.js";
+import { countCredit } from "./credits.js";
 
 // Checkers and Shoprite are both Shoprite Holdings and run the same commerce
 // platform: same `/api/catalogue/get-products-filter` endpoint, same request
@@ -196,9 +196,9 @@ async function post(site: ShopriteGroupSite, path: string, body: unknown, contex
   let url: string;
   const cookies: string[] = [];
   if (scraperApiKey) {
-    // #157: every request through ScraperAPI is a credit, counted against
-    // today's allowance before it's made. Past it, this throws instead.
-    await spendCredit(path.includes("/catalogue/") ? "search" : "branch");
+    // #157: every request through ScraperAPI is a credit, counted so spend
+    // can be measured. Nothing is refused for want of them.
+    await countCredit(path.includes("/catalogue/") ? "search" : "branch");
     // A VPS datacenter IP is blocked by the WAF in front of these sites, so the
     // request goes through ScraperAPI's residential pool. aws-waf-token is bound
     // to the IP that solved the challenge and is useless from another one, so

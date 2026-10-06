@@ -1,5 +1,5 @@
 import { prisma } from "../db.js";
-import { CREDIT_STORES } from "../scraper/creditBudget.js";
+import { CREDIT_STORES } from "../scraper/credits.js";
 
 // Per CONTEXT.md: an Indicative Price is "the most recent one Accucery
 // observed, which may be up to a day old". This is the window that governs
@@ -22,14 +22,13 @@ export function normaliseQuery(query: string): string {
   return query.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** A search's cached answer while fresh; with anyAge, however old (#157: today's allowance is spent). */
-export async function getCachedSearch(storeSlug: string, zone: string, query: string, { anyAge = false } = {}) {
+export async function getCachedSearch(storeSlug: string, zone: string, query: string) {
   const row = await prisma.searchCache.findUnique({
     where: {
       storeSlug_zone_query: { storeSlug, zone, query: normaliseQuery(query) },
     },
   });
-  if (!row || (!anyAge && !isFresh(row.scrapedAt, storeSlug))) return null;
+  if (!row || !isFresh(row.scrapedAt, storeSlug)) return null;
   return row;
 }
 

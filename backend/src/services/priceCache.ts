@@ -2,7 +2,7 @@ import { prisma } from "../db.js";
 import { searchProducts } from "../scraper/engine.js";
 import type { Branch } from "../scraper/types.js";
 import type { StoreSlug } from "@accucery/types";
-import { CREDIT_STORES, CreditBudgetSpent } from "../scraper/creditBudget.js";
+import { CREDIT_STORES } from "../scraper/credits.js";
 
 export const TTL_MS = 60 * 60 * 1000; // 1 hour
 // #157 (decided with the owner): a list item at a store that costs ScraperAPI
@@ -79,8 +79,6 @@ export async function refreshItems(
         });
       }
     } catch (err) {
-      // Today's allowance is gone: stop, rather than fail every item in turn.
-      if (err instanceof CreditBudgetSpent) throw err;
       console.error(`[price-cache] refresh failed for ${item.productId}:`, err);
     }
   }

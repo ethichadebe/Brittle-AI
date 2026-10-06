@@ -1,4 +1,4 @@
-import { DAILY_CREDITS, joburgDay } from "./creditBudget.js";
+import { DAILY_GUIDE, joburgDay } from "./credits.js";
 
 // #157: what the app has spent on ScraperAPI, beside what ScraperAPI itself
 // says. Run on the server:
@@ -20,7 +20,7 @@ export interface AccountStatus {
 
 export function formatReport(rows: SpendRow[], today: string, account: AccountStatus | string | null): string {
   const days = [...new Set(rows.map((r) => r.day))].sort().reverse();
-  const lines = [`ScraperAPI credits spent by the app (daily allowance ${DAILY_CREDITS}), newest first:`];
+  const lines = [`ScraperAPI credits spent by the app, newest first (the free 1,000 a month is about ${DAILY_GUIDE} a day):`];
   if (days.length === 0) lines.push("  nothing counted yet");
   for (const day of days) {
     const of = rows.filter((r) => r.day === day);

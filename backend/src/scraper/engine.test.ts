@@ -90,16 +90,6 @@ describe("searchProducts (engine)", () => {
     }
   });
 
-  it("passes on 'today's allowance is spent' rather than calling it no products", async () => {
-    const { CreditBudgetSpent } = await import("./creditBudget.js");
-    const { CheckersScraper } = await import("./shopriteGroup.js");
-    (CheckersScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new CreditBudgetSpent());
-    const { playwrightScraper } = await import("./playwright.js");
-
-    await expect(searchProducts("checkers", "milk")).rejects.toBeInstanceOf(CreditBudgetSpent);
-    expect(playwrightScraper.search).not.toHaveBeenCalled();
-  });
-
   it("falls back to Playwright when the Shoprite primary scraper throws", async () => {
     const { ShopriteScraper } = await import("./shopriteGroup.js");
     (ShopriteScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(

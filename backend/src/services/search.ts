@@ -4,7 +4,6 @@ import { ZONE_SCOPED_STORES } from "../scraper/branch.js";
 import type { Branch } from "../scraper/types.js";
 import { getCachedSearch, upsertSearch } from "./searchCache.js";
 import { getCachedPrices, upsertCache } from "./priceCache.js";
-import { CreditBudgetSpent } from "../scraper/creditBudget.js";
 
 // A cache hit's row order is the store's own ranking, which a database
 // query has no reason to preserve — reordering here is what keeps a
@@ -51,17 +50,7 @@ export async function search(
   }
   if (opts.cacheOnly) return null;
 
-  let products: Product[];
-  try {
-    products = await searchProducts(storeSlug, query, branch);
-  } catch (err) {
-    // #157: today's ScraperAPI allowance is spent. An older answer to the
-    // same search beats none; with nothing saved, the shopper is told why.
-    if (!(err instanceof CreditBudgetSpent)) throw err;
-    const older = await getCachedSearch(storeSlug, zone, query, { anyAge: true });
-    if (!older) throw err;
-    return hydrate(storeSlug, older.productIds, ZONE_SCOPED_STORES.includes(storeSlug) ? zone : undefined);
-  }
+  const products = await searchProducts(storeSlug, query, branch);
   if (products.length > 0) {
     await Promise.all(
       products.map((p) =>

@@ -14,7 +14,7 @@ describe("the credit report (#157)", () => {
     );
     expect(report).toBe(
       [
-        "ScraperAPI credits spent by the app (daily allowance 33), newest first:",
+        "ScraperAPI credits spent by the app, newest first (the free 1,000 a month is about 33 a day):",
         "  2026-10-06 (today)    9  branch 2, search 7",
         "  2026-10-05   12  search 12",
         "ScraperAPI account: 140 of 1000 credits used this billing month",

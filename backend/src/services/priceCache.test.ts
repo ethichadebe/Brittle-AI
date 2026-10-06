@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { isFresh, TTL_MS, CREDIT_STORE_TTL_MS, refreshItems } from "./priceCache.js";
-import { CreditBudgetSpent } from "../scraper/creditBudget.js";
 
 vi.mock("../db.js", () => ({
   prisma: {
@@ -101,17 +100,6 @@ describe("refreshItems", () => {
 
     expect(mockSearch).toHaveBeenCalledOnce();
     expect(mockUpsert).toHaveBeenCalledTimes(2);
-  });
-
-  it("stops at once when today's ScraperAPI allowance is spent", async () => {
-    mockSearch.mockRejectedValue(new CreditBudgetSpent());
-    await expect(
-      refreshItems("checkers", [
-        { productId: "abc123", productName: "Clover Milk 1L" },
-        { productId: "def456", productName: "Blue Ribbon Bread" },
-      ])
-    ).rejects.toBeInstanceOf(CreditBudgetSpent);
-    expect(mockSearch).toHaveBeenCalledOnce();
   });
 
   it("handles scraper errors without throwing", async () => {
