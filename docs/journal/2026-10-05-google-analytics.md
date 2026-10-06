@@ -32,5 +32,10 @@
   Google's script: one page view per screen, the right events, no token, no
   policy errors.
 - **Laptop needed:** no.
-- **Friction:** the Measurement ID only exists once the owner creates the
-  property, so the PR waited for it.
+- **Friction:**
+  - The Measurement ID only exists once the owner creates the property, so
+    the PR waited for it.
+  - The Analytics phone app can't create properties; it took Chrome.
+  - Google's enhanced measurement was on by default, measuring page views
+    itself. The owner was asked to switch it off, since the app sends its
+    own cleaned ones.

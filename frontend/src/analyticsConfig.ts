@@ -4,7 +4,7 @@
 // this is set.
 //
 // The Measurement ID isn't a secret: every page that uses it shows it.
-export const GA_MEASUREMENT_ID = "";
+export const GA_MEASUREMENT_ID = "G-TK62VYR8WV";
 
 export const GA_SCRIPT_ORIGIN = "https://www.googletagmanager.com";
 /** Where gtag.js sends its hits. */
