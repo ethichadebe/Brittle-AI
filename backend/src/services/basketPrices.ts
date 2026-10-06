@@ -79,7 +79,7 @@ export async function basketPrices(
   for (const item of items) {
     const row = latest.get(item.productId);
     let status: BasketPriceStatus;
-    if (row && isFresh(row.scrapedAt)) {
+    if (row && isFresh(row.scrapedAt, storeSlug)) {
       status = "current";
     } else {
       const k = key(storeSlug, zone, item.productId);

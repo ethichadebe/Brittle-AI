@@ -36,6 +36,13 @@ export function createSearchEngine(registry: ScraperRegistry) {
       try {
         return await scraper.search(query, branch);
       } catch (err) {
+        // Through ScraperAPI, the browser fallback loads the whole site: dozens
+        // of credits a try, and it rarely gets past the WAF anyway (#157).
+        // It's only worth trying on a developer's own connection.
+        if (process.env.SCRAPERAPI_KEY) {
+          console.error(`[scraper:${store}] search failed:`, err);
+          return [];
+        }
         console.error(`[scraper:${store}] primary failed, trying Playwright fallback:`, err);
         return playwrightScraper.search(store, query);
       }

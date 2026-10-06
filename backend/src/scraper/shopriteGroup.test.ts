@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   CheckersScraper,
   ShopriteScraper,
+  BRANCH_TTL_MS,
   DEFAULT_PLACE,
+  NEAREST_TRIES,
+  SHOPRITE_SITE,
   forgetBranches,
   normalise,
   type StoreContext,
@@ -56,7 +59,9 @@ function standIn({ own = JHB, nearby = [], at = {}, products = [rawProduct], loo
     if (target.pathname === "/api/store/fetch-store-contexts") {
       if (lookupFails) return { ok: false, status: 502, statusText: "Bad Gateway" } as Response;
       const { latitude } = body.address.coordinates;
-      return jsonResponse({ storeContexts: latitude === DEFAULT_PLACE.latitude ? own : (at[String(latitude)] ?? DIGITAL) });
+      // Each site's own default place: Sandton, or Sophiatown for Shoprite (#157).
+      const home = latitude === DEFAULT_PLACE.latitude || latitude === SHOPRITE_SITE.defaultPlace!.latitude;
+      return jsonResponse({ storeContexts: home ? own : (at[String(latitude)] ?? DIGITAL) });
     }
     if (target.pathname === "/api/browse-by-store/get-stores-by-location") return jsonResponse(nearby);
     if (target.pathname === "/api/catalogue/get-products-filter") {
@@ -170,11 +175,11 @@ describe("where Shoprite doesn't deliver", () => {
     await new ShopriteScraper().search("milk");
 
     expect(JSON.parse(String(calls("/api/browse-by-store/get-stores-by-location")[0][1].body)).payload).toMatchObject({
-      latitude: DEFAULT_PLACE.latitude,
+      latitude: SHOPRITE_SITE.defaultPlace!.latitude,
       brands: ["Shoprite"],
     });
-    // Sandton, then Alexandra (digital only), then Sophiatown; the one with no
-    // coordinates is skipped rather than asked about the wrong place.
+    // Its default place, then Alexandra (digital only), then Sophiatown; the
+    // one with no coordinates is skipped rather than asked about the wrong place.
     expect(calls("/api/store/fetch-store-contexts")).toHaveLength(3);
     expect(searchCall()[1].headers.Cookie).toBe(branchCookie(SOPHIATOWN));
   });
@@ -201,10 +206,10 @@ describe("the branch is looked up rarely", () => {
     expect(calls("/api/store/fetch-store-contexts")).toHaveLength(1);
   });
 
-  it("again after six hours, without making a search wait for it", async () => {
+  it("again after a week, without making a search wait for it", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     await new CheckersScraper().search("milk");
-    vi.setSystemTime(Date.now() + 6 * 60 * 60 * 1000 + 1);
+    vi.setSystemTime(Date.now() + BRANCH_TTL_MS + 1);
 
     // The site has moved the branch, and answers slowly.
     const MOVED: StoreContext[] = [{ storeId: "store-moved", serviceOptionIds: ["sixty-min-delivery"] }];
@@ -233,7 +238,7 @@ describe("the branch is looked up rarely", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.useFakeTimers({ toFake: ["Date"] });
     const [before] = await new CheckersScraper().search("milk");
-    vi.setSystemTime(Date.now() + 6 * 60 * 60 * 1000 + 1);
+    vi.setSystemTime(Date.now() + BRANCH_TTL_MS + 1);
     standIn({ lookupFails: true });
 
     await new CheckersScraper().search("milk");
@@ -423,13 +428,24 @@ describe("the nearest Shoprite that delivers", () => {
     expect((await new ShopriteScraper().nearestBranch(HERE))?.name).toBe("Shoprite Sophiatown");
   });
 
-  it("asks about nearby stores a few at a time, and takes the nearest that delivers", async () => {
+  // #157: each store asked costs a ScraperAPI credit.
+  it("asks about nearby stores one at a time, and stops at the nearest that delivers", async () => {
     const nearby = Array.from({ length: 10 }, (_, i) => store(`Shoprite ${i}`, -27 - i / 100));
     standIn({ at: { [String(HERE.latitude)]: DIGITAL, "-27.05": ctx("five"), "-27.06": ctx("six") }, nearby });
 
     expect((await new ShopriteScraper().nearestBranch(HERE))?.name).toBe("Shoprite 5");
-    // Sandton, then two batches of four: the stores after the batch that
-    // found one are never asked about.
+    // The shopper's own address, then Shoprite 0 to 5: nothing after it.
+    expect(calls("/api/store/fetch-store-contexts")).toHaveLength(1 + 6);
+  });
+
+  it("asks about the nearest 8 stores at most, then gives up", async () => {
+    expect(NEAREST_TRIES).toBe(8);
+    const nearby = Array.from({ length: 12 }, (_, i) => store(`Shoprite ${i}`, -27 - i / 100));
+    // Only the tenth delivers: beyond the eight that are asked about.
+    standIn({ at: { [String(HERE.latitude)]: DIGITAL, "-27.09": ctx("ten") }, nearby });
+
+    expect(await new ShopriteScraper().nearestBranch(HERE)).toBeNull();
+    expect(JSON.parse(String(calls("/api/browse-by-store/get-stores-by-location")[0][1].body)).payload.limit).toBe(8);
     expect(calls("/api/store/fetch-store-contexts")).toHaveLength(1 + 8);
   });
 

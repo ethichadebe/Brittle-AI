@@ -2,11 +2,17 @@ import { prisma } from "../db.js";
 import { searchProducts } from "../scraper/engine.js";
 import type { Branch } from "../scraper/types.js";
 import type { StoreSlug } from "@accucery/types";
+import { CREDIT_STORES } from "../scraper/credits.js";
 
 export const TTL_MS = 60 * 60 * 1000; // 1 hour
+// #157 (decided with the owner): a list item at a store that costs ScraperAPI
+// credits is re-priced at most once a day. Prices there move with weekly
+// specials, not by the hour.
+export const CREDIT_STORE_TTL_MS = 24 * 60 * 60 * 1000;
 
-export function isFresh(scrapedAt: Date): boolean {
-  return Date.now() - scrapedAt.getTime() < TTL_MS;
+export function isFresh(scrapedAt: Date, storeSlug?: string): boolean {
+  const ttl = storeSlug && CREDIT_STORES.includes(storeSlug) ? CREDIT_STORE_TTL_MS : TTL_MS;
+  return Date.now() - scrapedAt.getTime() < ttl;
 }
 
 // With a zone, only that zone's prices: a list priced at one branch must
@@ -59,16 +65,17 @@ export async function refreshItems(
   for (const item of items) {
     try {
       const results = await searchProducts(storeSlug, item.productName, branch);
-      const match = results.find((p) => p.productId === item.productId);
-      if (match) {
+      // Every price the search returned, not only the one asked for (#157):
+      // they cost the same request, and the next refresh may need them.
+      for (const p of results) {
         await upsertCache({
           storeSlug,
-          productId: match.productId,
-          productName: match.name,
-          imageUrl: match.imageUrl,
-          zone: match.zone,
-          regularPrice: match.regularPrice,
-          loyaltyPrice: match.loyaltyPrice,
+          productId: p.productId,
+          productName: p.name,
+          imageUrl: p.imageUrl,
+          zone: p.zone,
+          regularPrice: p.regularPrice,
+          loyaltyPrice: p.loyaltyPrice,
         });
       }
     } catch (err) {

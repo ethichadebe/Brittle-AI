@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { isFresh, TTL_MS, refreshItems } from "./priceCache.js";
+import { isFresh, TTL_MS, CREDIT_STORE_TTL_MS, refreshItems } from "./priceCache.js";
 
 vi.mock("../db.js", () => ({
   prisma: {
@@ -21,6 +21,15 @@ const mockUpsert = vi.mocked(prisma.priceCache.upsert);
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("isFresh at a store that costs credits (#157)", () => {
+  it("re-prices a Checkers or Shoprite list item at most once a day", () => {
+    expect(isFresh(new Date(Date.now() - 5 * 60 * 60 * 1000), "checkers")).toBe(true);
+    expect(isFresh(new Date(Date.now() - CREDIT_STORE_TTL_MS - 1), "shoprite")).toBe(false);
+    // The free stores keep their hour.
+    expect(isFresh(new Date(Date.now() - 2 * TTL_MS), "pick-n-pay")).toBe(false);
+  });
 });
 
 describe("isFresh", () => {
@@ -83,13 +92,14 @@ describe("refreshItems", () => {
     expect(zonesUsed).toEqual(["p10", "p30"]);
   });
 
-  it("does not upsert when scraper returns no matching product", async () => {
-    mockSearch.mockResolvedValue([{ ...product, productId: "other" }]);
+  // #157: the other ~19 prices a search returns cost nothing extra to keep.
+  it("keeps every price the search returned, not only the one it was refreshing", async () => {
+    mockSearch.mockResolvedValue([{ ...product, productId: "other" }, product]);
 
     await refreshItems("checkers", [{ productId: "abc123", productName: "Clover Milk 1L" }]);
 
     expect(mockSearch).toHaveBeenCalledOnce();
-    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalledTimes(2);
   });
 
   it("handles scraper errors without throwing", async () => {

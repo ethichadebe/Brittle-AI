@@ -149,3 +149,25 @@ model PasswordReset {
   @@index([accountId])
   @@map("password_resets")
 }
+
+// #157: answers worth keeping across restarts, such as each store's default
+// branch, which costs ScraperAPI credits to find. Store data only: nothing
+// about any shopper.
+model RememberedValue {
+  key     String   @id
+  value   Json
+  savedAt DateTime
+
+  @@map("remembered_values")
+}
+
+// #157: ScraperAPI credits spent, per Joburg day and purpose ("search",
+// "branch"). The daily allowance is checked against it.
+model CreditSpend {
+  day     String
+  purpose String
+  count   Int    @default(0)
+
+  @@id([day, purpose])
+  @@map("credit_spend")
+}

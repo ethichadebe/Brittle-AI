@@ -5,8 +5,10 @@ import type { ListItem, Product } from "@accucery/types";
 import { buildApp } from "../app.js";
 import { testPrisma } from "../test/testDb.js";
 import { DEVICE_ID_COOKIE } from "../deviceId.js";
-import { TTL_MS as BASKET_WINDOW_MS } from "../services/priceCache.js";
-import { TTL_MS as INDICATIVE_WINDOW_MS } from "../services/searchCache.js";
+// These lists are at Checkers, which costs ScraperAPI credits, so its windows
+// are the longer ones decided on #157: a day for a list, 3 days for a search.
+import { CREDIT_STORE_TTL_MS as BASKET_WINDOW_MS } from "../services/priceCache.js";
+import { CREDIT_STORE_TTL_MS as INDICATIVE_WINDOW_MS } from "../services/searchCache.js";
 
 // #77: only the store is faked. Prices, their timestamps and the refresh
 // all run for real against the test database, with no network access.
@@ -85,7 +87,7 @@ describe("Basket Prices on an opened list (#77)", () => {
   it("never lets a list total show an Indicative Price: one older than the Basket window is refreshed", async () => {
     const { productId, productName, product } = fixture();
     // Fresh enough for a search result, too old for a list total.
-    const age = 2 * HOUR;
+    const age = 2 * 24 * HOUR;
     expect(age).toBeGreaterThan(BASKET_WINDOW_MS);
     expect(age).toBeLessThan(INDICATIVE_WINDOW_MS);
     await observed(productId, productName, 30, ago(age));
@@ -118,8 +120,8 @@ describe("Basket Prices on an opened list (#77)", () => {
   it("refreshes only the items on the opened list", async () => {
     const onList = fixture();
     const elsewhere = fixture();
-    await observed(onList.productId, onList.productName, 30, ago(3 * HOUR));
-    await observed(elsewhere.productId, elsewhere.productName, 30, ago(3 * HOUR));
+    await observed(onList.productId, onList.productName, 30, ago(30 * HOUR));
+    await observed(elsewhere.productId, elsewhere.productName, 30, ago(30 * HOUR));
     const listId = await listWith([{ productId: onList.productId, productName: onList.productName, regularPrice: 30 }]);
     mockSearch.mockResolvedValue([onList.product(28)]);
 
@@ -131,7 +133,7 @@ describe("Basket Prices on an opened list (#77)", () => {
 
   it("keeps a price it couldn't refresh, marked outdated, without re-scraping on every request", async () => {
     const { productId, productName } = fixture();
-    const observedAt = ago(5 * HOUR);
+    const observedAt = ago(30 * HOUR);
     await observed(productId, productName, 30, observedAt);
     const listId = await listWith([{ productId, productName, regularPrice: 30 }]);
     // The store no longer returns this product.
@@ -150,8 +152,8 @@ describe("Basket Prices on an opened list (#77)", () => {
 describe("Adding an item (#77)", () => {
   it("does not make a day-old price look fresh, nor write the phone's price into the shared cache", async () => {
     const { productId, productName, product } = fixture();
-    // A search served from the day-long search cache showed this price.
-    const observedAt = ago(20 * HOUR);
+    // A search served from the 3-day search cache showed this price.
+    const observedAt = ago(30 * HOUR);
     await observed(productId, productName, 30, observedAt);
     const list = await testPrisma.list.create({ data: { storeSlug: "checkers", name: "Monthly", userId: deviceId } });
     mockSearch.mockResolvedValue([product(26)]);
@@ -180,7 +182,7 @@ describe("A list total on the home screen (#77)", () => {
     await testPrisma.list.deleteMany({ where: { userId: deviceId } });
     // Added at R40 weeks ago; Accucery has since observed R32.
     await listWith([{ productId, productName, regularPrice: 40 }]);
-    await observed(productId, productName, 32, ago(3 * HOUR));
+    await observed(productId, productName, 32, ago(30 * HOUR));
 
     const res = await inject({ method: "GET", url: "/lists" });
 
