@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { tokenSearch, useLinkToken } from "../lib/linkToken";
+import { track } from "../lib/analytics";
 
 export const Route = createFileRoute("/confirm-email")({
   validateSearch: tokenSearch,
@@ -22,6 +23,7 @@ function ConfirmEmailPage() {
     setError(null);
     try {
       await api.account.confirmEmail(token);
+      track("sign_up_confirmed");
       void navigate({ to: "/", replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong. Check your connection and try again.");

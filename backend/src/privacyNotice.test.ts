@@ -46,6 +46,12 @@ describe("the privacy notice", () => {
       .join("\n");
     expect(code).toContain("SCRAPERAPI_KEY");
     if (/SCRAPERAPI/.test(code)) expect(notice).toContain("ScraperAPI");
+    // Google Analytics, once its Measurement ID is set in the frontend.
+    const analytics = readFileSync(join(REPO, "frontend/src/analyticsConfig.ts"), "utf8");
+    if (/GA_MEASUREMENT_ID = "G-/.test(analytics)) {
+      expect(notice).toContain("Google Analytics");
+      expect(notice).not.toMatch(/no analytics|no tracking/i);
+    }
     // #147 will send email through Resend: the notice must say so then.
     if (deps.includes("resend") || /api\.resend\.com/.test(code)) expect(notice).toContain("Resend");
   });

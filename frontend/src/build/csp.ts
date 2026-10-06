@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { GA_COLLECT_ORIGINS, GA_SCRIPT_ORIGIN } from "../analyticsConfig";
 
 // The page's content security policy (#153), written into the built
 // index.html. It allows the app's own files, and, by fingerprint only, the
@@ -19,16 +20,22 @@ export function inlineHashes(html: string): { scripts: string[]; styles: string[
   return { scripts, styles };
 }
 
-export function contentSecurityPolicy(html: string): string {
+export interface CspOptions {
+  /** Google Analytics is on: its script may load, and send its hits. */
+  analytics?: boolean;
+}
+
+export function contentSecurityPolicy(html: string, { analytics = false }: CspOptions = {}): string {
   const { scripts, styles } = inlineHashes(html);
+  const ga = (...sources: string[]) => (analytics ? sources : []);
   return [
     "default-src 'self'",
-    `script-src 'self' ${scripts.join(" ")}`.trim(),
+    ["script-src 'self'", ...scripts, ...ga(GA_SCRIPT_ORIGIN)].join(" "),
     `style-src 'self' ${styles.join(" ")}`.trim(),
     // Product pictures come through /api/image-proxy, so they're the site's own.
-    "img-src 'self' data: blob:",
+    ["img-src 'self' data: blob:", ...ga(...GA_COLLECT_ORIGINS)].join(" "),
     "font-src 'self' data:",
-    "connect-src 'self'",
+    ["connect-src 'self'", ...ga(...GA_COLLECT_ORIGINS)].join(" "),
     "manifest-src 'self'",
     "worker-src 'self'",
     "object-src 'none'",
@@ -38,7 +45,7 @@ export function contentSecurityPolicy(html: string): string {
 }
 
 /** The built page with its policy as the first thing in <head>. */
-export function withCsp(html: string): string {
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy(html)}" />`;
+export function withCsp(html: string, options: CspOptions = {}): string {
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy(html, options)}" />`;
   return html.replace(/<head>/i, `<head>\n    ${meta}`);
 }

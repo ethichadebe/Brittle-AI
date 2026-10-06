@@ -62,8 +62,9 @@ function PrivacyPage() {
 
         <h3>Cookies</h3>
         <p>
-          Two, both needed for the app to work: one keeps you signed in (for 30 days), and one tells this device's lists apart from
-          everyone else's (for 400 days). No advertising cookies, no tracking, no analytics.
+          Two of our own, both needed for the app to work: one keeps you signed in (for 30 days), and one tells this device's lists
+          apart from everyone else's (for 400 days). Google Analytics sets its own too, to count visits (see below). No advertising
+          cookies.
         </p>
 
         <h3>Who else handles it</h3>
@@ -78,6 +79,13 @@ function PrivacyPage() {
           <li>
             <strong>Resend</strong>, in the United States, which sends the app's emails. It sees your email address and what we
             send you.
+          </li>
+          <li>
+            <strong>Google Analytics</strong>, run by Google in the United States, which counts how the app is used: which screens
+            are opened, and a few actions such as creating a list or comparing prices, with the store's name. It also sees your
+            device, browser and rough area. It never gets your email, your lists, what you search for or your exact location, and
+            it isn't used for advertising. Google keeps it for 2 months. Your browser's tracking protection or an ad blocker
+            turns it off, and the app works the same.
           </li>
           <li>
             <strong>The stores' websites</strong> see the same: searches, and your position once to find a branch.

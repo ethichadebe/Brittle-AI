@@ -6,6 +6,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { applyAppearance, readAppearance } from "./lib/appearance";
 import { checkForUpdate, fetchServedBuild } from "./lib/appUpdate";
+import { startAnalytics, trackPage } from "./lib/analytics";
 
 // Before the first render, so a chosen Appearance never flashes the phone's.
 applyAppearance(document.documentElement, readAppearance(() => window.localStorage));
@@ -33,6 +34,12 @@ if (import.meta.env.PROD) {
 }
 
 const router = createRouter({ routeTree });
+
+// Google Analytics: production only, and only once a Measurement ID is set
+// (src/analyticsConfig.ts). One page view per screen the router settles on.
+if (import.meta.env.PROD && startAnalytics()) {
+  router.subscribe("onResolved", ({ toLocation }) => trackPage(toLocation.pathname));
+}
 
 declare module "@tanstack/react-router" {
   interface Register {
