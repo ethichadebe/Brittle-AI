@@ -13,6 +13,8 @@ beforeEach(async () => {
   await testPrisma.account.deleteMany();
   await testPrisma.priceCache.deleteMany();
   await testPrisma.searchCache.deleteMany();
+  await testPrisma.rememberedValue.deleteMany();
+  await testPrisma.creditSpend.deleteMany();
   // Rate limits (#152) belong to one test, not the run.
   limiter.clear();
 });

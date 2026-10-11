@@ -74,6 +74,22 @@ describe("searchProducts (engine)", () => {
     expect(result).toEqual([milk]);
   });
 
+  // #157: a browser through ScraperAPI loads the whole site, dozens of credits a try.
+  it("never falls back to the browser when searches go through ScraperAPI", async () => {
+    vi.stubEnv("SCRAPERAPI_KEY", "test-key");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { ShopriteScraper } = await import("./shopriteGroup.js");
+      (ShopriteScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Shoprite API returned 502"));
+      const { playwrightScraper } = await import("./playwright.js");
+
+      expect(await searchProducts("shoprite", "milk")).toEqual([]);
+      expect(playwrightScraper.search).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("falls back to Playwright when the Shoprite primary scraper throws", async () => {
     const { ShopriteScraper } = await import("./shopriteGroup.js");
     (ShopriteScraper.prototype.search as ReturnType<typeof vi.fn>).mockRejectedValueOnce(

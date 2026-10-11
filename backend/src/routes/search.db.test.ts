@@ -98,7 +98,8 @@ describe("GET /search — caching", () => {
 
     await testPrisma.searchCache.update({
       where: { storeSlug_zone_query: { storeSlug: "checkers", zone: "p10", query: "milk" } },
-      data: { scrapedAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+      // Checkers' window is 3 days (#157).
+      data: { scrapedAt: new Date(Date.now() - 73 * 60 * 60 * 1000) },
     });
 
     await search("checkers", "milk");

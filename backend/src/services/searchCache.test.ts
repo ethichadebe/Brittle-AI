@@ -9,7 +9,7 @@ vi.mock("../db.js", () => ({
   },
 }));
 
-import { isFresh, TTL_MS, normaliseQuery, getCachedSearch, upsertSearch } from "./searchCache.js";
+import { isFresh, TTL_MS, CREDIT_STORE_TTL_MS, normaliseQuery, getCachedSearch, upsertSearch } from "./searchCache.js";
 import { prisma } from "../db.js";
 
 const findUnique = vi.mocked(prisma.searchCache.findUnique);
@@ -17,6 +17,21 @@ const upsert = vi.mocked(prisma.searchCache.upsert);
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("isFresh at a store that costs credits (#157)", () => {
+  it("reuses a Checkers or Shoprite search for 3 days", () => {
+    const twoDays = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    expect(isFresh(twoDays, "checkers")).toBe(true);
+    expect(isFresh(twoDays, "shoprite")).toBe(true);
+    expect(isFresh(new Date(Date.now() - CREDIT_STORE_TTL_MS - 1), "shoprite")).toBe(false);
+  });
+
+  it("keeps a day for the free stores", () => {
+    const twoDays = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    expect(isFresh(twoDays, "pick-n-pay")).toBe(false);
+    expect(isFresh(new Date(Date.now() - TTL_MS / 2), "woolworths")).toBe(true);
+  });
 });
 
 describe("isFresh", () => {
@@ -66,7 +81,7 @@ describe("getCachedSearch", () => {
       zone: "p10",
       query: "milk",
       productIds: ["a"],
-      scrapedAt: new Date(Date.now() - TTL_MS - 1),
+      scrapedAt: new Date(Date.now() - CREDIT_STORE_TTL_MS - 1),
     });
     expect(await getCachedSearch("checkers", "p10", "milk")).toBeNull();
   });
