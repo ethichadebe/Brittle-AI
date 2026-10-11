@@ -8,7 +8,8 @@ export type StoreSlug =
   | "shoprite"
   | "pick-n-pay"
   | "woolworths"
-  | "makro";
+  | "makro"
+  | "clicks";
 
 export interface Store {
   slug: StoreSlug;

@@ -15,6 +15,7 @@ const SAMPLES: Record<string, string> = {
   "pick-n-pay": "https://cdn-prd-02.pnp.co.za/sys-master/images/beans.jpg",
   woolworths: "https://assets.woolworthsstatic.co.za/Red-Kidney-Beans-400-g.jpg",
   makro: "https://www.makro.co.za/parmalat-everfresh-milk.jpg",
+  clicks: "https://clicks.co.za/medias/?context=bWFzdGVy",
 };
 
 describe("image proxy allowlist", () => {
@@ -29,6 +30,7 @@ describe("image proxy allowlist", () => {
     expect(refererFor(SAMPLES["pick-n-pay"])).toBe("https://www.pnp.co.za/");
     expect(refererFor(SAMPLES.checkers)).toBe("https://www.checkers.co.za/");
     expect(refererFor(SAMPLES.makro)).toBe("https://www.makro.co.za/");
+    expect(refererFor(SAMPLES.clicks)).toBe("https://clicks.co.za/");
   });
 
   it("refuses anything not on the list", () => {

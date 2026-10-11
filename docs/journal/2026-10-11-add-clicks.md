@@ -1,0 +1,36 @@
+# 2026-10-11 — Add Clicks, free, through its own search
+
+- **Asked for:**
+  - Clicks and Dis-Chem, suggested by a shopper.
+  - Scrape them without ScraperAPI first, and fall back to it only if that doesn't work.
+- **What the server run showed (#165):**
+  - **Clicks** answered the VPS directly, and its Algolia search returned prices for 0 credits.
+  - **Dis-Chem** got Cloudflare's 403 direct. The ScraperAPI try didn't count: the account was at 1024 of 1000 for the month. Its 272-byte 403 was ScraperAPI refusing, which the probe wrongly reported as Cloudflare.
+- **What changed:**
+  - **Clicks is a store (#164):**
+    - `backend/src/scraper/clicks.ts` reads the Algolia app and key from Clicks' own JavaScript once a day. When Algolia refuses the key, it reads them again.
+    - The key isn't stored here.
+    - One national price, so no branches and no zones.
+  - **What a Clicks price is**, read from the promotion's wording, because Algolia's own "promo price" can't be taken as is:
+    - "Clubcard Members Only … Now R199.99" is the **ClubCard** (loyalty) price.
+    - "ClubCard customers instantly get 10% off" is 10% off the shelf price, also ClubCard. It isn't stacked on another promotion, because whether Clicks does that isn't known.
+    - "Now R189.99" and "20% off" are the price everyone pays.
+    - "Buy 2 for R130 or 1 for R169" is R169. Algolia says R130, which one never costs.
+    - "3 for 2", "2 for R170": a Conditional Price, so the shelf price stands, as for Pick n Pay and Woolworths.
+    - "Online only" deals aren't a shelf price, so they're ignored.
+  - **Wired in:**
+    - `StoreSlug` and `STORE_CONFIGS` (loyalty programme "ClubCard");
+    - the engine;
+    - the image proxy (`clicks.co.za`);
+    - the logo, rendered from Clicks' own SVG;
+    - the intro text.
+  - **The probe** now shows ScraperAPI's own refusal as it is. It also skips the paid step when the account says the credits are used up.
+- **Worked first time:** mostly.
+  - The first live run stacked ClubCard's 10% on a multi-buy price (Made 4 Baby nappies), so stacking was taken out.
+  - One test couldn't tell whether the "~id~TYPE" suffix was stripped, and was fixed.
+  - Every other deliberate break failed a test.
+  - Driven in Chromium against the live Clicks search: new list, search, images, ClubCard prices, Profile, dark mode.
+- **Laptop needed:** no.
+- **Friction:**
+  - The backend can't be run with `tsx` here (the types package's ESM), so it was run from its build, laid out the way the Docker image lays it out.
+  - Dis-Chem waits for the ScraperAPI credits to renew, then one rerun of the probe on #165.

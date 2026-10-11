@@ -20,6 +20,9 @@ const HOST_REFERERS: Record<string, string> = {
   // makro.co.za and NOT flixcart.com - the probe printed the real URLs rather
   // than letting the platform imply the host.
   "makro.co.za": "https://www.makro.co.za/",
+  // Clicks serves product images from its own site, as relative paths that
+  // clicks.ts makes absolute.
+  "clicks.co.za": "https://clicks.co.za/",
 };
 
 const ALLOWED_HOSTS = Object.keys(HOST_REFERERS);

@@ -4,6 +4,7 @@ import { CheckersScraper, ShopriteScraper } from "./shopriteGroup.js";
 import { PnpScraper } from "./pnp.js";
 import { WoolworthsScraper } from "./woolworths.js";
 import { MakroScraper } from "./makro.js";
+import { ClicksScraper } from "./clicks.js";
 import { playwrightScraper } from "./playwright.js";
 import { NO_ZONE } from "./zone.js";
 
@@ -77,6 +78,7 @@ const defaultRegistry: ScraperRegistry = {
   "pick-n-pay": new PnpScraper(),
   woolworths: new WoolworthsScraper(),
   makro: new MakroScraper(),
+  clicks: new ClicksScraper(),
 };
 
 // Production wiring — unchanged from before #74, just built through the
