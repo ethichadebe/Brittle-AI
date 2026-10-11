@@ -9,7 +9,7 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     title: "Know your total before the till",
-    body: "Build your list at Checkers, Pick n Pay, Shoprite, Woolworths or Makro, with live shelf prices as you add.",
+    body: "Build your list at Checkers, Pick n Pay, Shoprite, Woolworths, Makro or Clicks, with live shelf prices as you add.",
     art: <TotalArt />,
   },
   {

@@ -84,15 +84,22 @@ function dischem(mode) {
   });
 }
 
-function scraperapi(calls) {
+// used: what the account endpoint reports. refuse: answer every request with
+// ScraperAPI's own one-line refusal, as it does once the credits are gone
+// even when its count hasn't caught up.
+function scraperapi(calls, { used = 120, refuse = false } = {}) {
   return http.createServer(async (req, res) => {
     const u = new URL(req.url, "http://x");
     if (u.searchParams.get("api_key") !== KEY) { res.writeHead(401); return res.end("bad key"); }
     if (u.pathname === "/account") {
       res.writeHead(200, { "content-type": "application/json" });
-      return res.end('{"requestCount":120,"requestLimit":1000}');
+      return res.end(JSON.stringify({ requestCount: used, requestLimit: 1000 }));
     }
     calls.push({ premium: u.searchParams.get("premium") === "true" });
+    if (refuse) {
+      res.writeHead(403, { "content-type": "text/plain" });
+      return res.end("You have exhausted the API Credits available in this monthly cycle.");
+    }
     const r = await fetch(u.searchParams.get("url"), { headers: { "x-via": "scraperapi" } });
     res.writeHead(r.status, { "content-type": r.headers.get("content-type") ?? "text/html" });
     res.end(await r.text());
@@ -109,11 +116,11 @@ function run(env) {
   });
 }
 
-async function scenario(name, { dischemMode = "blockDirect", key = KEY, extra = {} } = {}, expectations) {
+async function scenario(name, { dischemMode = "blockDirect", key = KEY, extra = {}, scraperApi = {} } = {}, expectations) {
   console.log(name);
   const seen = [];
   const calls = [];
-  const servers = [clicks(), algolia(seen), dischem(dischemMode), scraperapi(calls)];
+  const servers = [clicks(), algolia(seen), dischem(dischemMode), scraperapi(calls, scraperApi)];
   const [c, a, d, s] = await Promise.all(servers.map(listen));
   const { out, code } = await run({
     CLICKS_ORIGIN: c, ALGOLIA_URL: a, DISCHEM_ORIGIN: d,
@@ -170,6 +177,22 @@ await scenario("premium asked for, within the cap", { dischemMode: "blockAll", e
 await scenario("premium asked for, past the cap", { dischemMode: "blockAll", extra: { DISCHEM_PREMIUM: "1" } }, (out, { calls }) => {
   has(out, "premium, 10 credits: skipped, would pass the 3-credit cap", "refuses to pass the cap");
   check(calls.every((c) => !c.premium), "never sends premium", () => JSON.stringify(calls));
+});
+
+// #165's first live run: 1024 of 1000 used, and a 272-byte refusal that the
+// probe reported as Cloudflare.
+await scenario("ScraperAPI used up", { scraperApi: { used: 1024 } }, (out, { calls }) => {
+  has(out, "used 1024 of 1000", "shows the count");
+  has(out, "used up: the paid steps below are skipped", "says the paid steps won't run");
+  has(out, "skipped, ScraperAPI is used up (1024 of 1000)", "skips the paid step");
+  has(out, "ScraperAPI not really tried", "the verdict doesn't count it as tried");
+  check(calls.length === 0, "no ScraperAPI calls", () => JSON.stringify(calls));
+});
+
+await scenario("ScraperAPI refuses with its own message", { scraperApi: { refuse: true } }, (out) => {
+  has(out, "ScraperAPI refused: You have exhausted the API Credits", "shows ScraperAPI's own words");
+  const line = out.split("\n").find((l) => l.startsWith("ScraperAPI standard")) ?? "";
+  check(!line.includes("Cloudflare"), "doesn't blame Cloudflare for it", () => line);
 });
 
 await scenario("no ScraperAPI key", { key: "" }, (out, { calls }) => {

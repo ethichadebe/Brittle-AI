@@ -65,4 +65,16 @@ export const STORE_CONFIGS: StoreConfig[] = [
     // Settings as loyalty-capable, which Makro is not.
     loyaltyProgramme: null,
   },
+  {
+    slug: "clicks",
+    name: "Clicks",
+    // The blue of its logo.
+    color: "#005093",
+    // Its site search is Algolia, read directly for no ScraperAPI credits:
+    // probed from the VPS before switching on (#164, #165). One national price.
+    active: true,
+    // Card-only deals ("Clubcard Members Only") and the card's percentage off
+    // are its loyalty price; public promotions are its regular price.
+    loyaltyProgramme: "ClubCard",
+  },
 ];

@@ -1906,4 +1906,5 @@ a.auth-switch { text-decoration: none; }
 .store-logo img[src$="makro.png"] { --logo-k: 1.15; }
 .store-logo img[src$="pick-n-pay.png"] { --logo-k: 1.05; }
 .store-logo img[src$="woolworths.png"] { --logo-k: 0.85; }
+.store-logo img[src$="clicks.png"] { --logo-k: 1.1; }
 .store-tile-name { display: flex; }

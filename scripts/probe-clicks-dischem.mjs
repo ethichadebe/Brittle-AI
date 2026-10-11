@@ -59,6 +59,9 @@ const say = (s = "") => console.log(redact(s));
 const flat = (s, n = 80) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 let credits = 0;
+// Set when ScraperAPI's own count says the period's credits are gone: a
+// request then only fetches its refusal, which once read as Cloudflare (#165).
+let usedUp = "";
 
 async function get(url, { method = "GET", headers = {}, body } = {}) {
   try {
@@ -77,6 +80,7 @@ async function get(url, { method = "GET", headers = {}, body } = {}) {
 // Through ScraperAPI, counting the spend. Never returns or prints the URL.
 async function viaScraperApi(target, extra = "", cost = 1) {
   if (!KEY) return { skipped: "SCRAPERAPI_KEY is not set" };
+  if (usedUp) return { skipped: `ScraperAPI is used up (${usedUp}); rerun when it renews` };
   if (credits + cost > MAX_CREDITS) return { skipped: `would pass the ${MAX_CREDITS}-credit cap` };
   credits += cost;
   const url = `${SCRAPERAPI_URL}?api_key=${encodeURIComponent(KEY)}&url=${encodeURIComponent(target)}${extra}`;
@@ -100,8 +104,13 @@ async function account() {
   const r = await get(`${SCRAPERAPI_ACCOUNT}?api_key=${encodeURIComponent(KEY)}`);
   let a = null;
   try { a = JSON.parse(r.text); } catch { /* shown below */ }
-  if (r.status === 200 && a) say(`used ${a.requestCount ?? "?"} of ${a.requestLimit ?? "?"} this period`);
-  else say(`HTTP ${r.status}: ${flat(r.text, 60)}`);
+  if (r.status === 200 && a) {
+    say(`used ${a.requestCount ?? "?"} of ${a.requestLimit ?? "?"} this period`);
+    if (Number(a.requestLimit) > 0 && Number(a.requestCount) >= Number(a.requestLimit)) {
+      usedUp = `${a.requestCount} of ${a.requestLimit}`;
+      say("used up: the paid steps below are skipped");
+    }
+  } else say(`HTTP ${r.status}: ${flat(r.text, 60)}`);
   say("");
 }
 
@@ -220,6 +229,12 @@ async function dischem() {
   for (const t of tries) {
     const r = await t.run();
     if (r.skipped) { say(`${t.how}: skipped, ${r.skipped}`); continue; }
+    // ScraperAPI's own refusal (out of credits, a bad key) is a line of
+    // text, not a page: it says nothing about Cloudflare, so it's shown as is.
+    if (t.cost > 0 && r.status !== 200 && !/<html|<!doctype/i.test(r.text)) {
+      say(`${t.how}: HTTP ${r.status}  ScraperAPI refused: ${flat(r.text, 100)}`);
+      continue;
+    }
     const blocked = challenged(r);
     say(`${t.how}: HTTP ${r.status}  ${r.text.length}B  "${title(r.text)}"  ${blocked ? "BLOCKED by Cloudflare" : "page arrived"}`);
     if (!blocked && r.status === 200) {
@@ -230,7 +245,7 @@ async function dischem() {
     }
   }
   if (!PREMIUM && KEY) say("premium (10 credits a search) not tried: rerun with DISCHEM_PREMIUM=1 MAX_CREDITS=11 to see");
-  say("verdict:  Dis-Chem blocked every way tried\n");
+  say(`verdict:  Dis-Chem blocked every way tried${usedUp || credits === 0 ? "; ScraperAPI not really tried" : ""}\n`);
   return { works: false };
 }
 
