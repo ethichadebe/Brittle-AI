@@ -1,0 +1,23 @@
+# 2026-10-11 — Probe Clicks and Dis-Chem before adding them
+
+- **Asked for:**
+  - Add stores that sell a lot of the same things: a shopper suggested Clicks and Dis-Chem.
+  - Try scraping without ScraperAPI first, and fall back to it only if that doesn't work.
+- **What changed:**
+  - **Issues for four candidates:**
+    - #164 Clicks;
+    - #165 Dis-Chem;
+    - #166 Takealot and #167 Baby City, both waiting on a decision.
+  - **`scripts/probe-clicks-dischem.mjs`**, run once from the server, posts its answer to #165:
+    - **Clicks:** reads the Algolia app, index and search-only key from Clicks' own JavaScript, then searches. The key is never stored here or printed.
+    - **Dis-Chem:** tries direct first. Only if Cloudflare turns that away does it spend 1 ScraperAPI credit. Premium (10 credits) runs only when asked, and never past a 3-credit cap.
+- **What was found from here, before the server:**
+  - **Clicks is free:** it answered a plain request, and Algolia returned prices, promo prices, ClubCard wording and images.
+  - **Dis-Chem is behind Cloudflare's challenge:** every URL, even `robots.txt`, gets a 403, and a real headless Chromium didn't get through either.
+  - **Takealot's own API** answered with JSON.
+  - **Baby City's page** names Klevu for search.
+- **Worked first time:** mostly. The offline test missed one break on the first try: reading fields from the first product only. Its stand-in products now differ, so it catches that. Every other deliberate break failed the test.
+- **Laptop needed:** no.
+- **Friction:**
+  - Store sites used to be unreachable from a cloud session (`docs/agents/automation.md`). Today Clicks, Takealot and Baby City answered, which saved a server round.
+  - Dis-Chem is still a server question.
