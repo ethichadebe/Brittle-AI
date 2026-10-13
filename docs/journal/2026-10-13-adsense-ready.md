@@ -32,3 +32,9 @@
 - **Friction:**
   - Real ads can't be seen until Google approves the site.
   - `ads.txt` has to be served from the main domain (ethichadebe.me), which this repo doesn't serve. That's a step for the owner.
+- **Later the same day:** the owner sent the publisher id (ca-pub-4662593343882096, public by design). It's now set, so deploying this:
+  - loads AdSense and Google's verification tag for the site review;
+  - writes `ads.txt`;
+  - switches to the strict policy;
+  - updates the privacy notice.
+  - No ad shows until the five slot ids are set after approval. Checked in Chromium: no CSP violations, the AdSense script loads with the id, and no ad boxes appear.

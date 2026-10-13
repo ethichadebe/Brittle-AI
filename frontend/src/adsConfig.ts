@@ -8,7 +8,7 @@
 // None of these is a secret: every page that shows an ad carries them.
 
 /** "ca-pub-" and 16 digits, from AdSense → Account → Account information. */
-export const ADSENSE_CLIENT: string = "";
+export const ADSENSE_CLIENT: string = "ca-pub-4662593343882096";
 
 /**
  * One ad unit per place, from AdSense → Ads → By ad unit. The id is the

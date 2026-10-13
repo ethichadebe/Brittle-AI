@@ -37,10 +37,11 @@ describe("loading AdSense", () => {
     expect(added[0].crossOrigin).toBe("anonymous");
   });
 
-  it("is off in the code as it ships until the owner fills it in", () => {
-    // Flips the day the real id goes in, as a reminder to check the privacy
-    // notice and ads.txt went with it.
-    expect(isPublisherId(ADSENSE_CLIENT)).toBe(false);
+  it("has the owner's publisher id, and no ad units until Google approves the site", () => {
+    // The id alone loads the script and the verification tag for Google's
+    // review; no ad shows until a slot id is set. Flips the day they go in,
+    // as a reminder to check each place in the browser first.
+    expect(isPublisherId(ADSENSE_CLIENT)).toBe(true);
     expect(Object.values(AD_SLOTS).every((s) => s === "")).toBe(true);
   });
 });
