@@ -14,6 +14,7 @@ import { formatRand } from "../lib/format";
 import { Disclaimer } from "./Disclaimer";
 import { track } from "../lib/analytics";
 import { CheckIcon, CloseIcon } from "./icons";
+import { AdSlot } from "./AdSlot";
 
 // Who put a Substitute in a comparison total, as the shopper reads it.
 const SOURCE_BADGE: Record<SubstituteSource, string> = {
@@ -169,6 +170,8 @@ export function CompareFlow({ listId, storeSlug, items, signedIn, onSignIn, onCl
           <span className="spinner" aria-hidden="true" />
           <h3>Comparing prices at {storeName(comparingAt)}…</h3>
           <p className="modal-body">This can take a moment for a longer list.</p>
+          {/* Ads (2026-10-13): only while waiting, gone when results show. */}
+          <AdSlot place="compareWait" />
         </div>
       </div>
     );

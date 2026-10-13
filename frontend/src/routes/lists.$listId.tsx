@@ -39,6 +39,8 @@ import {
 import { AddItems } from "../components/AddItems";
 import { CompareFlow } from "../components/CompareFlow";
 import { StoreLogo, storeBarFill } from "../components/StoreBrand";
+import { AdSlot, usePageAds } from "../components/AdSlot";
+import { PAGE_HEIGHTS } from "../lib/ads";
 
 // While any price on the list is being refreshed, ask again this often —
 // one item takes a few seconds to scrape — and give up after this long, so
@@ -308,6 +310,16 @@ function ListPage() {
   }, [addedNote]);
   const toGet = items.filter((i) => !i.isChecked);
   const inTrolley = items.filter((i) => i.isChecked);
+  // Ads (2026-10-13): in-feed ads among the items still to get, and a banner
+  // at the end of the list, above the total and Compare bar. Always under
+  // 30% of the page; the trolley's rows count as content too.
+  const ads = usePageAds({
+    banner: "listBanner",
+    feed: "listFeed",
+    count: toGet.length,
+    itemHeight: PAGE_HEIGHTS.listItem,
+    otherContent: PAGE_HEIGHTS.listChrome + (trolleyFolded ? 0 : inTrolley.length * PAGE_HEIGHTS.listItem),
+  });
   const progress = summary.itemCount > 0 ? summary.checkedCount / summary.itemCount : 0;
 
   const row = (item: ListItem) => (
@@ -391,12 +403,21 @@ function ListPage() {
       )}
 
       <ul className="items">
-        {toGet.map((item, i) => (
+        {toGet.flatMap((item, i) => [
           <Fragment key={item.id}>
             {row(item)}
             {i === 0 && hint && <HintBubble hint={hint} onDismiss={() => dismissHint(hint)} />}
-          </Fragment>
-        ))}
+          </Fragment>,
+          // Keyed by place, not by item, so ticking items never moves or
+          // reloads an ad: it keeps its spot, and the rows flow past it.
+          ...(ads.feedSpots.has(i + 1)
+            ? [
+                <li key={`ad-${i + 1}`} className="ad-row">
+                  <AdSlot place="listFeed" />
+                </li>,
+              ]
+            : []),
+        ])}
       </ul>
 
       {inTrolley.length > 0 && (
@@ -412,6 +433,8 @@ function ListPage() {
           {!trolleyFolded && <ul className="items">{inTrolley.map(row)}</ul>}
         </section>
       )}
+
+      {ads.showBanner && <AdSlot place="listBanner" />}
     </div>
 
       {/* Bottom bar, outside page-slide-in so position:fixed is viewport-relative */}

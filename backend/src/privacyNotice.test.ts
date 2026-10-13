@@ -9,7 +9,11 @@ import { RESET_TTL_MS } from "./linkTokens.js";
 // code does. These are the statements that could quietly stop being true.
 
 const REPO = join(import.meta.dirname, "..", "..");
-const notice = readFileSync(join(REPO, "frontend/src/routes/privacy.tsx"), "utf8").replace(/\s+/g, " ");
+// The page, and the words it shows (#150, moved to a component for the ads).
+const notice = ["frontend/src/routes/privacy.tsx", "frontend/src/components/PrivacyNotice.tsx"]
+  .map((f) => readFileSync(join(REPO, f), "utf8"))
+  .join("\n")
+  .replace(/\s+/g, " ");
 const privacy = readFileSync(join(REPO, "frontend/src/lib/privacy.ts"), "utf8");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -52,6 +56,12 @@ describe("the privacy notice", () => {
       expect(notice).toContain("Google Analytics");
       expect(notice).not.toMatch(/no analytics|no tracking/i);
     }
+    // AdSense, once its publisher id is set: the notice must name it, and the
+    // page must decide that from the same setting (PrivacyNotice.test.ts
+    // checks what each version says).
+    const ads = readFileSync(join(REPO, "frontend/src/adsConfig.ts"), "utf8");
+    if (/ADSENSE_CLIENT: string = "ca-pub-/.test(ads)) expect(notice).toContain("Google AdSense");
+    expect(notice).toContain("adsOn={isPublisherId(ADSENSE_CLIENT)}");
     // #147 will send email through Resend: the notice must say so then.
     if (deps.includes("resend") || /api\.resend\.com/.test(code)) expect(notice).toContain("Resend");
   });

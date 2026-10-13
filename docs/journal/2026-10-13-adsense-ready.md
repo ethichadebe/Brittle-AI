@@ -1,0 +1,34 @@
+# 2026-10-13 — Google AdSense, built and switched off until approved
+
+- **Asked for:** make money from the app.
+  - Decided with the owner: AdSense now, personalised. Sponsored products wait for 1,000+ users.
+  - **Placements:**
+    - home: a banner under New list, and in-feed ads under the lists;
+    - inside a list: a banner above the total and Compare bar, and in-feed ads between items;
+    - an unskippable video when Compare is tapped.
+  - **Changed after talking it through:**
+    - **No video on Compare.** AdSense has no such format, and a full-screen ad with a countdown breaks the Better Ads Standards on phones. Chrome can then block every ad on the site.
+    - **Instead, an ad while a comparison loads:** a 300×250 shown only during the wait, gone when results show. The owner wanted the results themselves left alone.
+    - **In-list ads at random spots, never over 30% of the page.**
+- **What changed:**
+  - **`src/adsConfig.ts`:** the publisher id and one slot id per place, all empty, so nothing changes until they're filled in.
+  - **With the publisher id set, the build:**
+    - adds Google's site-verification tag;
+    - writes `ads.txt`;
+    - switches the page to a strict security policy, the only kind AdSense supports. Scripts are still allowed by fingerprint only, plus what those load.
+    - The app's own `<script src>` can't be fingerprinted, so a small inline loader starts it instead. It waits for the page, as Vite's tag did.
+  - **Each place shows an ad only once its own slot id is set.** Every ad is labelled "Ad" and sits in a fixed-size box, so nothing jumps. An ad Google leaves empty takes no space.
+  - **`lib/adPlan.ts` places the in-feed ads:**
+    - random per visit, from a seed;
+    - at least 3 items above the first ad and at least 4 between two;
+    - never more than 30% of the page, banner included. The page heights were measured in the browser.
+    - Ads are keyed by spot, not by item, so ticking items never moves or reloads one.
+  - **Privacy notice:** moved to `components/PrivacyNotice.tsx`. While ads are off it says exactly what it said. Once the publisher id is set, it names AdSense, says the ads are personalised and links to myadcenter.google.com. It also drops "no advertising cookies".
+- **Worked first time:** mostly.
+  - Typing the slot ids as constants would have broken the build the day they were filled in, so they're plain strings now.
+  - Every new rule was broken on purpose and a test failed each time.
+  - A build with dummy ids ran in Chromium with no CSP violations. The app, Google Analytics and adsbygoogle.js all loaded, and Google was asked for ads; dummy ids get none.
+- **Laptop needed:** no.
+- **Friction:**
+  - Real ads can't be seen until Google approves the site.
+  - `ads.txt` has to be served from the main domain (ethichadebe.me), which this repo doesn't serve. That's a step for the owner.
