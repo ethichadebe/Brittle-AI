@@ -36,6 +36,8 @@ export const LIMITS = {
   locatePerDevice: [{ max: 10, windowMs: HOUR }],
   // A comparison searches every item at another store.
   comparePerAccount: [{ max: 20, windowMs: HOUR }],
+  // #171: each checkout asks Paystack for a payment page.
+  checkoutsPerAccount: [{ max: 10, windowMs: HOUR }],
 } satisfies Record<string, Limit[]>;
 
 export class RateLimiter {

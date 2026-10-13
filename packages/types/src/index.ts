@@ -231,3 +231,28 @@ export interface ComparisonResult {
   itemCount: number;
   complete: boolean;
 }
+
+// Premium (#171)
+
+export type PremiumPlan = "monthly" | "yearly";
+
+export interface PremiumStatus {
+  /** Premium can be bought: Paystack is set up. */
+  available: boolean;
+  premium: boolean;
+  plan: PremiumPlan | null;
+  /** Premium lasts until at least this, if it isn't renewed. */
+  accessUntil: string | null;
+  trialEndsAt: string | null;
+  /** In a free trial now. */
+  trialing: boolean;
+  /** Won't renew. */
+  cancelled: boolean;
+  /** A trial is still possible for this Account (the card is checked at checkout). */
+  trialAvailable: boolean;
+  /** In cents. */
+  prices: Record<PremiumPlan, number>;
+  trialDays: number;
+}
+
+export type PremiumOutcome = "trial-started" | "trial-used" | "card-not-reusable" | "subscribed" | "pending";

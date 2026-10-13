@@ -62,6 +62,12 @@ describe("the privacy notice", () => {
     const ads = readFileSync(join(REPO, "frontend/src/adsConfig.ts"), "utf8");
     if (/ADSENSE_CLIENT: string = "ca-pub-/.test(ads)) expect(notice).toContain("Google AdSense");
     expect(notice).toContain("adsOn={isPublisherId(ADSENSE_CLIENT)}");
+    // #171: Premium is paid through Paystack, and a trial card's fingerprint
+    // outlives the account; the notice must say both.
+    if (/api\.paystack\.co/.test(code)) {
+      expect(notice).toContain("Paystack");
+      expect(notice).toContain("fingerprint of the card used for a trial");
+    }
     // #147 will send email through Resend: the notice must say so then.
     if (deps.includes("resend") || /api\.resend\.com/.test(code)) expect(notice).toContain("Resend");
   });

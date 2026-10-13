@@ -8,6 +8,7 @@ import { issueDeviceId } from "../deviceId.js";
 import { appUrl, maskEmail, sendMail } from "../mail/mailer.js";
 import { alreadyRegisteredEmail, confirmEmail, resetPasswordEmail } from "../mail/templates.js";
 import { CONFIRM_TTL_MS, hashToken, newToken, RESET_TTL_MS } from "../linkTokens.js";
+import { stopBillingBeforeDelete } from "../payments/premium.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -241,6 +242,17 @@ export async function accountsRoutes(app: FastifyInstance) {
     if (wait) return tooMany(reply, wait, "password attempts");
     if (!(await verifyPassword(req.body?.password ?? "", account.passwordHash))) {
       return reply.status(401).send({ error: "That password isn't right" } as never);
+    }
+
+    // #171: Paystack stops charging first. If it can't be reached, nothing
+    // is deleted: an account that's gone must not leave a card being charged.
+    try {
+      await stopBillingBeforeDelete(account.id);
+    } catch (e) {
+      console.error("[premium] couldn't cancel before deleting:", e instanceof Error ? e.message : e);
+      return reply.status(502).send({
+        error: "We couldn't cancel your Premium subscription, so your account wasn't deleted. Try again in a minute.",
+      } as never);
     }
 
     // Lists are keyed by the Account's id, not a relation, so they go by

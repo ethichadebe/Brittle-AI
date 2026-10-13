@@ -9,6 +9,10 @@ beforeEach(async () => {
   await testPrisma.substituteDecision.deleteMany();
   await testPrisma.session.deleteMany();
   await testPrisma.passwordReset.deleteMany();
+  await testPrisma.premiumCheckout.deleteMany();
+  await testPrisma.premiumCharge.deleteMany();
+  await testPrisma.subscription.deleteMany();
+  await testPrisma.trialCard.deleteMany();
   await testPrisma.pendingSignup.deleteMany();
   await testPrisma.account.deleteMany();
   await testPrisma.priceCache.deleteMany();

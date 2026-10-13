@@ -1932,3 +1932,37 @@ a.auth-switch { text-decoration: none; }
 .ad:has(ins[data-ad-status="unfilled"]) { display: none; }
 .ad-row { list-style: none; }
 .compare-wait .ad { margin-top: 1.25rem; }
+
+/* ── Premium (#171) ── */
+.premium { padding-bottom: 2rem; }
+.premium-card {
+  background: var(--surface);
+  border-radius: 18px;
+  margin: 0.875rem;
+  padding: 1.25rem;
+}
+.premium-card h3 { margin: 0 0 0.75rem; }
+.premium-card p { margin: 0 0 1rem; line-height: 1.5; }
+.premium-perks { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; }
+.premium-perks li { display: flex; gap: 0.75rem; align-items: flex-start; }
+.premium-perks li svg { flex: none; width: 20px; height: 20px; color: var(--primary); margin-top: 2px; }
+.premium-perks li > span { display: flex; flex-direction: column; gap: 2px; }
+.premium-perks li > span > span { color: var(--muted); font-size: 0.9rem; }
+.premium-plans { margin-bottom: 1rem; }
+.premium-price { font-size: 1.5rem; font-weight: 800; display: flex; align-items: center; gap: 0.6rem; }
+.premium-saving {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-radius: 99px;
+  padding: 0.2rem 0.6rem;
+}
+.premium-fine { font-size: 0.8rem; color: var(--muted); margin: 0.9rem 0 0 !important; }
+.premium-status { color: var(--muted); }
+.premium-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.premium-cancel { color: var(--danger, #c0392b); }
+.premium-note, .premium-error { margin: 0.875rem 1.25rem; }
+.settings-row--link { text-decoration: none; color: inherit; }
+.profile-legal a + a { margin-left: 1rem; }
+.premium-fine a { color: var(--primary); }
