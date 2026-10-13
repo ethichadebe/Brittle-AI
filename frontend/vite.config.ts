@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
-import { withCsp } from "./src/build/csp";
+import { forAds, withCsp } from "./src/build/csp";
 import { GA_MEASUREMENT_ID, isMeasurementId } from "./src/analyticsConfig";
+import { ADSENSE_CLIENT, adsTxt, isPublisherId } from "./src/adsConfig";
+
+const ADS_ON = isPublisherId(ADSENSE_CLIENT);
 
 // One id per build (#118). The app carries it, /version.json says which build
 // the server is on, and sw.js changes with it so browsers install the new one.
@@ -17,6 +20,9 @@ function buildId(): Plugin {
       this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build: BUILD_ID }) });
       const sw = readFileSync(new URL("./sw.js", import.meta.url), "utf8").replace("__BUILD_ID__", BUILD_ID);
       this.emitFile({ type: "asset", fileName: "sw.js", source: sw });
+      // Google reads ads.txt from the main domain (ethichadebe.me); this copy
+      // on the app's own address is for checking it's right.
+      if (ADS_ON) this.emitFile({ type: "asset", fileName: "ads.txt", source: adsTxt(ADSENSE_CLIENT) });
     },
   };
 }
@@ -28,7 +34,11 @@ function csp(): Plugin {
   return {
     name: "accucery-csp",
     apply: "build",
-    transformIndexHtml: { order: "post", handler: (html) => withCsp(html, { analytics: isMeasurementId(GA_MEASUREMENT_ID) }) },
+    transformIndexHtml: {
+      order: "post",
+      handler: (html) =>
+        withCsp(ADS_ON ? forAds(html, ADSENSE_CLIENT) : html, { analytics: isMeasurementId(GA_MEASUREMENT_ID), ads: ADS_ON }),
+    },
   };
 }
 

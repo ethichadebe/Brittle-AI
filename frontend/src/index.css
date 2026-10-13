@@ -1908,3 +1908,27 @@ a.auth-switch { text-decoration: none; }
 .store-logo img[src$="woolworths.png"] { --logo-k: 0.85; }
 .store-logo img[src$="clicks.png"] { --logo-k: 1.1; }
 .store-tile-name { display: flex; }
+
+/* ── Ads (2026-10-13) ── */
+/* Each sits in a fixed-size box (lib/ads.ts AD_SHAPES), so nothing jumps when
+   one loads, always labelled. An ad Google leaves empty takes no space. */
+.ad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 9px auto;
+  max-width: 100%;
+  overflow: hidden;
+}
+.ad-label {
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ad:has(ins[data-ad-status="unfilled"]) { display: none; }
+.ad-row { list-style: none; }
+.compare-wait .ad { margin-top: 1.25rem; }

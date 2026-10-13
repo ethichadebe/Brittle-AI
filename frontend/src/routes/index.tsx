@@ -13,6 +13,8 @@ import { Intro } from "../components/Intro";
 import { Wordmark } from "../components/Wordmark";
 import { markIntroSeen, shouldShowIntro } from "../lib/onboarding";
 import { StoreLogo, storeBarFill } from "../components/StoreBrand";
+import { AdSlot, usePageAds } from "../components/AdSlot";
+import { PAGE_HEIGHTS } from "../lib/ads";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -118,6 +120,18 @@ function HomePage() {
 
   const avatar = account ? initials(account.email) : "";
 
+  // Ads (2026-10-13): a banner under New list, and in-feed ads among and
+  // under the lists, always under 30% of the screen.
+  const listCount = lists?.length ?? 0;
+  const ads = usePageAds({
+    banner: "homeBanner",
+    feed: "homeFeed",
+    count: listCount,
+    itemHeight: PAGE_HEIGHTS.homeCard,
+    otherContent: listCount > 0 ? PAGE_HEIGHTS.homeChrome : PAGE_HEIGHTS.homeEmpty,
+    allowEnd: true,
+  });
+
   if (showIntro) {
     return (
       <Intro
@@ -157,12 +171,16 @@ function HomePage() {
           <button className="btn btn-primary btn-pill" onClick={openCreate}>
             New list
           </button>
+          {ads.showBanner && <AdSlot place="homeBanner" />}
         </div>
       )}
 
+      {/* With lists, New list floats at the bottom; the banner leads the page. */}
+      {lists && lists.length > 0 && ads.showBanner && <AdSlot place="homeBanner" />}
+
       {lists && lists.length > 0 && (
         <ul className="list-cards">
-          {lists.map((list) => (
+          {lists.flatMap((list, i) => [
             <ListCard
               key={list.id}
               list={list}
@@ -173,8 +191,16 @@ function HomePage() {
               onSelect={() => navigate({ to: "/lists/$listId", params: { listId: list.id } })}
               onRename={() => startRename(list)}
               onDelete={() => removeList(list)}
-            />
-          ))}
+            />,
+            // Keyed by place, not by list, so an ad stays put as lists change.
+            ...(ads.feedSpots.has(i + 1)
+              ? [
+                  <li key={`ad-${i + 1}`} className="ad-row">
+                    <AdSlot place="homeFeed" />
+                  </li>,
+                ]
+              : []),
+          ])}
         </ul>
       )}
 
