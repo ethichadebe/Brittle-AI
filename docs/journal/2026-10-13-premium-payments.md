@@ -1,0 +1,38 @@
+# 2026-10-13 — Premium: subscriptions through Paystack, hidden until it has something to sell
+
+- **Asked for:** a Premium subscription.
+- **Decided with the owner:**
+  - R29/month or R249/year, through Paystack.
+  - A 7-day free trial, with a guard against "dummy emails for endless trials".
+  - Premium gets no ads, compare at every store at once, and family lists. Comparing at one store stays free.
+  - Family members get the shared list only.
+- **What changed (#171, the first of four slices; #172–#174 are the perks):**
+  - **Premium is time-based:** an account is Premium while `accessUntil` is in the future.
+    - Only Paystack moves that forward: a transaction this server verified with Paystack's API, or a webhook whose `x-paystack-signature` is the HMAC-SHA512 of the exact body.
+    - A lapse needs no event: a failed renewal just lets the time pass, with a day's grace for a late webhook.
+  - **The trial:**
+    - a R10 card check (`PAYSTACK_CARD_CHECK_CENTS`), refunded straight away;
+    - then a Paystack subscription whose first charge (`start_date`) is 7 days out.
+  - **One trial per account, and one per card:**
+    - Paystack's `authorization.signature` is the same for a card under any email.
+    - It's kept, without the account, even after the account is deleted.
+    - A refused card gets its check refunded, and the next checkout is a paid one.
+  - **Every payment is settled once,** whichever of the webhook and the return page arrives first. Each checkout remembers how it ended, so a reload shows the same answer, and each renewal is counted once by its charge reference (Paystack retries).
+  - **If saving a trial fails** after Paystack has made the subscription, that subscription is cancelled and the card freed, so nobody is charged for a trial the app never recorded.
+  - **Deleting an account cancels its subscription first.** If Paystack can't be reached, the account isn't deleted.
+  - **Screens:**
+    - `/premium` (plans, trial, status, cancel, change card);
+    - `/premium/return`;
+    - `/terms`.
+  - **Privacy notice:** names Paystack and the kept card fingerprint.
+  - **`PREMIUM_ON` (frontend) is off:** Profile shows no Premium entry until a perk exists, so nobody can pay for nothing. `/premium` works for testing with Paystack's test keys.
+- **Worked first time:** no, and the misses were the useful part.
+  - A renewal webhook delivered twice extended Premium twice, by milliseconds here and by hours with real retries. Fixed by counting each charge reference once.
+  - Driving it in Chromium against a fake Paystack showed a failed save leaving a live Paystack subscription. Fixed by cancelling it.
+  - The same run showed the return page racing the webhook and saying something vague; checkouts now keep their outcome.
+  - 26 database tests use a stand-in Paystack written from its OpenAPI spec (paystack.com's docs are blocked from here). Every money guard was broken on purpose and a test failed each time.
+- **Laptop needed:** no.
+- **Friction:**
+  - Paystack's docs site refuses this session, so its API was read from its spec on GitHub.
+  - The smallest rand charge Paystack allows isn't published, so the card check is a setting. The first test-mode run will confirm R10 works.
+  - The server's `docker-compose.prod.yml` isn't updated by deploys, so the five `PAYSTACK_*` lines must be added there by hand.

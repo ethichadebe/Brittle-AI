@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -18,9 +19,16 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as ConfirmEmailRouteImport } from './routes/confirm-email'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PremiumIndexRouteImport } from './routes/premium.index'
+import { Route as PremiumReturnRouteImport } from './routes/premium.return'
 import { Route as ListsNewRouteImport } from './routes/lists.new'
 import { Route as ListsListIdRouteImport } from './routes/lists.$listId'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
@@ -66,6 +74,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PremiumIndexRoute = PremiumIndexRouteImport.update({
+  id: '/premium/',
+  path: '/premium/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PremiumReturnRoute = PremiumReturnRouteImport.update({
+  id: '/premium/return',
+  path: '/premium/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ListsNewRoute = ListsNewRouteImport.update({
   id: '/lists/new',
   path: '/lists/new',
@@ -87,8 +105,11 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
+  '/premium/return': typeof PremiumReturnRoute
+  '/premium/': typeof PremiumIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -100,8 +121,11 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
+  '/premium/return': typeof PremiumReturnRoute
+  '/premium': typeof PremiumIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -114,8 +138,11 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
+  '/premium/return': typeof PremiumReturnRoute
+  '/premium/': typeof PremiumIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,8 +156,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/settings'
     | '/sign-in'
+    | '/terms'
     | '/lists/$listId'
     | '/lists/new'
+    | '/premium/return'
+    | '/premium/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,8 +172,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/settings'
     | '/sign-in'
+    | '/terms'
     | '/lists/$listId'
     | '/lists/new'
+    | '/premium/return'
+    | '/premium'
   id:
     | '__root__'
     | '/'
@@ -155,8 +188,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/settings'
     | '/sign-in'
+    | '/terms'
     | '/lists/$listId'
     | '/lists/new'
+    | '/premium/return'
+    | '/premium/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -169,12 +205,22 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   SignInRoute: typeof SignInRoute
+  TermsRoute: typeof TermsRoute
   ListsListIdRoute: typeof ListsListIdRoute
   ListsNewRoute: typeof ListsNewRoute
+  PremiumReturnRoute: typeof PremiumReturnRoute
+  PremiumIndexRoute: typeof PremiumIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in': {
       id: '/sign-in'
       path: '/sign-in'
@@ -238,6 +284,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/premium/': {
+      id: '/premium/'
+      path: '/premium'
+      fullPath: '/premium/'
+      preLoaderRoute: typeof PremiumIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/premium/return': {
+      id: '/premium/return'
+      path: '/premium/return'
+      fullPath: '/premium/return'
+      preLoaderRoute: typeof PremiumReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lists/new': {
       id: '/lists/new'
       path: '/lists/new'
@@ -265,8 +325,11 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   SignInRoute: SignInRoute,
+  TermsRoute: TermsRoute,
   ListsListIdRoute: ListsListIdRoute,
   ListsNewRoute: ListsNewRoute,
+  PremiumReturnRoute: PremiumReturnRoute,
+  PremiumIndexRoute: PremiumIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

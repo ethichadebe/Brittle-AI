@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
-import { STORE_CONFIGS } from "@accucery/types";
+import { useEffect, useState, type FormEvent } from "react";
+import { STORE_CONFIGS, type PremiumStatus } from "@accucery/types";
 import { api, ApiError } from "../lib/api";
 import { initials } from "../lib/format";
 import type { Appearance } from "../lib/appearance";
@@ -9,6 +9,8 @@ import { useAppearance } from "../hooks/useAppearance";
 import { useLoyaltySettings } from "../hooks/useLoyaltySettings";
 import { PersonIcon } from "../components/icons";
 import { Disclaimer } from "../components/Disclaimer";
+import { PREMIUM_ON } from "../premiumConfig";
+import { statusLine } from "../lib/premium";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -25,6 +27,12 @@ const APPEARANCES: { value: Appearance; label: string }[] = [
 function ProfilePage() {
   const navigate = useNavigate();
   const { account, setAccount } = useAccountSession();
+  // #171: shown once Premium is on sale, or to anyone who already has it.
+  const [premiumStatus, setPremium] = useState<PremiumStatus | null>(null);
+  useEffect(() => {
+    if (account) api.premium.status().then(setPremium).catch(() => setPremium(null));
+  }, [account]);
+  const premium = account ? premiumStatus : null;
   const { isEnabled, toggle } = useLoyaltySettings();
   const { appearance, setAppearance } = useAppearance();
   const [signingOut, setSigningOut] = useState(false);
@@ -91,6 +99,21 @@ function ProfilePage() {
           <button className="btn btn-primary btn-block" onClick={() => navigate({ to: "/sign-in" })}>
             Sign in
           </button>
+        </div>
+      )}
+
+      {(PREMIUM_ON || premium?.premium) && (
+        <div className="settings-section">
+          <h3 className="settings-section-title">Premium</h3>
+          <Link to="/premium" className="settings-row settings-row--link">
+            <div className="settings-row-info">
+              <span className="settings-row-label">{premium?.premium ? "You have Premium" : "Get Premium"}</span>
+              <span className="settings-row-sub">
+                {premium?.premium ? statusLine(premium) : "No ads, compare every store at once, family lists"}
+              </span>
+            </div>
+            <span aria-hidden="true">›</span>
+          </Link>
         </div>
       )}
 
@@ -175,6 +198,7 @@ function ProfilePage() {
 
       <div className="profile-legal">
         <Link to="/privacy">Privacy notice</Link>
+        <Link to="/terms">Terms</Link>
         <Disclaimer />
       </div>
 

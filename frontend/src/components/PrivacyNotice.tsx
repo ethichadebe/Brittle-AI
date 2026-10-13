@@ -96,6 +96,12 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
           </li>
         )}
         <li>
+          <strong>Paystack</strong>, a payment company owned by Stripe, which takes Premium payments if you subscribe. Your card details
+          go to Paystack, never to us. We keep your plan, when it renews or ends, and Paystack's references for your
+          subscription. To give each card one free trial, we keep Paystack's fingerprint of the card used for a trial (never its
+          number), even after you delete your account.
+        </li>
+        <li>
           <strong>The stores' websites</strong> see the same: searches, and your position once to find a branch.
         </li>
       </ul>
@@ -109,8 +115,9 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
       <h3>How long we keep it</h3>
       <p>
-        Until you delete it. Deleting your account removes your account, your lists and your substitute picks straight away. A
-        list made without an account stays until you delete it.
+        Until you delete it. Deleting your account cancels any Premium subscription, then removes your account, your lists and
+        your substitute picks straight away. The only thing kept is the fingerprint of a card that had a free trial, with nothing
+        to say whose it was. A list made without an account stays until you delete it.
       </p>
       <p>
         If you sign up but never confirm your email, the sign-up is deleted within a day of its link expiring. Password reset

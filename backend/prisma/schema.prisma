@@ -35,8 +35,83 @@ model Account {
   sessions     Session[]
   substituteDecisions SubstituteDecision[]
   passwordResets PasswordReset[]
+  subscription  Subscription?
+  premiumCheckouts PremiumCheckout[]
+  premiumCharges PremiumCharge[]
+  trialCards    TrialCard[]
 
   @@map("accounts")
+}
+
+// #171: an Account's Premium, paid through Paystack. Premium while
+// accessUntil is in the future; only Paystack (its signed webhooks, or a
+// transaction verified with its API) moves that forward, never the browser.
+model Subscription {
+  accountId        String    @id
+  account          Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// "monthly" or "yearly".
+  plan             String
+  accessUntil      DateTime?
+  /// One free trial per Account (and one per card: TrialCard).
+  trialStartedAt   DateTime?
+  trialEndsAt      DateTime?
+  /// The card had a trial before, so this checkout had to be a paid one.
+  trialRefusedAt   DateTime?
+  /// Paystack's own ids, for cancelling and changing the card.
+  customerCode     String?
+  subscriptionCode String?   @unique
+  emailToken       String?
+  /// Won't renew: cancelled here, or by Paystack. Premium lasts until accessUntil.
+  cancelled        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("subscriptions")
+}
+
+// #171: one Paystack checkout, so a payment is handled once whether its
+// webhook or the return page arrives first, and only for the Account that
+// started it.
+model PremiumCheckout {
+  reference String    @id
+  accountId String
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  plan      String
+  /// "trial": a small card check, refunded, then a subscription starting in
+  /// 7 days. "subscribe": the plan's first payment, now.
+  purpose   String
+  createdAt DateTime  @default(now())
+  handledAt DateTime?
+  /// How it ended, so a reload or a late webhook gets the same answer.
+  outcome   String?
+
+  @@index([accountId])
+  @@map("premium_checkouts")
+}
+
+// #171: each renewal charge, by Paystack's reference, so a webhook delivered
+// twice (Paystack retries) extends Premium once.
+model PremiumCharge {
+  reference String   @id
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+  @@map("premium_charges")
+}
+
+// #171: cards that have had a free trial, by Paystack's card signature (the
+// same physical card has the same signature under any email). Kept, without
+// the Account, when the Account is deleted: deleting and signing up again
+// must not earn a second trial.
+model TrialCard {
+  signature String   @id
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  usedAt    DateTime @default(now())
+
+  @@map("trial_cards")
 }
 
 // #91: a Shopper's deliberate pick or removal of one Substitute pairing —

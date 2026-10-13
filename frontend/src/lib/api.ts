@@ -3,6 +3,9 @@ import type {
   ComparisonResult,
   GroceryList,
   ListItem,
+  PremiumOutcome,
+  PremiumPlan,
+  PremiumStatus,
   Product,
   RecentProductsResponse,
   SearchResponse,
@@ -144,6 +147,21 @@ export const api = {
   // #114: products this Shopper has had on their lists at a store.
   recentProducts: (store: StoreSlug) =>
     request<RecentProductsResponse>(`/recent-products?store=${store}`).then((r) => r.products),
+
+  // #171: Premium, paid through Paystack.
+  premium: {
+    status: () => request<PremiumStatus>("/premium"),
+    /** Answers Paystack's payment page, to send the shopper to. */
+    checkout: (plan: PremiumPlan) =>
+      request<{ url: string; trial: boolean }>("/premium/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
+    confirm: (reference: string) =>
+      request<{ outcome: PremiumOutcome; status: PremiumStatus }>("/premium/confirm", {
+        method: "POST",
+        body: JSON.stringify({ reference }),
+      }),
+    cancel: () => request<PremiumStatus>("/premium/cancel", { method: "POST" }),
+    manageLink: () => request<{ url: string }>("/premium/manage-link"),
+  },
 
   account: {
     // Who, if anyone, this browser is signed in as. Never throws for

@@ -32,6 +32,13 @@ services:
       # #147: email. The server refuses to start in production without the key.
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAIL_FROM: ${MAIL_FROM:-}
+      # #171: Premium, through Paystack. Without the key and both plans,
+      # Premium simply isn't offered.
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_PLAN_MONTHLY: ${PAYSTACK_PLAN_MONTHLY:-}
+      PAYSTACK_PLAN_YEARLY: ${PAYSTACK_PLAN_YEARLY:-}
+      PAYSTACK_CARD_CHECK_CENTS: ${PAYSTACK_CARD_CHECK_CENTS:-}
+      PAYSTACK_BASE_URL: ${PAYSTACK_BASE_URL:-}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       NODE_ENV: production
     depends_on:
