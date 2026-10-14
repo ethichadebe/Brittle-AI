@@ -38,7 +38,36 @@ export const LIMITS = {
   comparePerAccount: [{ max: 20, windowMs: HOUR }],
   // #171: each checkout asks Paystack for a payment page.
   checkoutsPerAccount: [{ max: 10, windowMs: HOUR }],
+  // Per IP, beside the per-device limits above: a device is only a cookie,
+  // and a script that drops it is a new device every time. Generous, because
+  // mobile networks put many people behind one address (carrier NAT); about
+  // double a device's allowance.
+  searchPerIp: [
+    { max: 60, windowMs: MINUTE },
+    { max: 600, windowMs: HOUR },
+  ],
+  locatePerIp: [{ max: 30, windowMs: HOUR }],
+  signUpPerIp: [{ max: 20, windowMs: HOUR }],
+  signInPerIp: [{ max: 100, windowMs: 15 * MINUTE }],
+  resetsPerIp: [{ max: 30, windowMs: HOUR }],
 } satisfies Record<string, Limit[]>;
+
+// A private or loopback address is never a visitor's own: it's this server,
+// Docker's network, or a test. Seeing one means the proxies didn't pass the
+// visitor's address on (app.ts), and limiting it would put everyone under one
+// limit, so per-IP limits stand aside for it instead.
+const NOT_A_VISITOR = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1$|f[cd][0-9a-f]{2}:|fe80:)/i;
+
+export function isVisitorAddress(ip: string | undefined): ip is string {
+  if (!ip) return false;
+  const v4 = ip.replace(/^::ffff:/i, "");
+  return !NOT_A_VISITOR.test(v4);
+}
+
+/** Takes from a per-IP limit; 0 (no wait) when the address isn't a visitor's. */
+export function takeForIp(kind: string, ip: string | undefined, limits: Limit[]): number {
+  return isVisitorAddress(ip) ? limiter.take(`${kind}:ip:${ip.replace(/^::ffff:/i, "")}`, limits) : 0;
+}
 
 export class RateLimiter {
   private hits = new Map<string, number[]>();

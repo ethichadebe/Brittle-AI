@@ -5,7 +5,7 @@ import type { BranchLookup, GroceryList, StoreSlug } from "@accucery/types";
 import { latestPrices, readZone } from "../services/basketPrices.js";
 import { nearestBranch } from "../scraper/engine.js";
 import { branchOf, describeBranch, LOCATABLE_STORES, OUT_OF_DELIVERY } from "../scraper/branch.js";
-import { LIMITS, limiter, tooMany } from "../rateLimit.js";
+import { LIMITS, limiter, tooMany, takeForIp } from "../rateLimit.js";
 
 // South Africa's mainland, with a margin. A point outside it is a typo or a
 // spoof; no store would serve it, so it's refused before any store is asked.
@@ -133,7 +133,10 @@ export async function listsRoutes(app: FastifyInstance) {
     let lookup = lookups.get(list.id);
     if (!lookup || lookup.done) {
       // #152: only a new lookup counts; asking again joins the running one.
-      const wait = limiter.take(`locate:${req.deviceId}`, LIMITS.locatePerDevice);
+      const wait = Math.max(
+        limiter.take(`locate:${req.deviceId}`, LIMITS.locatePerDevice),
+        takeForIp("locate", req.ip, LIMITS.locatePerIp)
+      );
       if (wait) return tooMany(reply, wait, "location lookups");
       const started: Lookup = { done: false, failed: false, settled: Promise.resolve() };
       started.settled = nearestBranch(list.storeSlug as StoreSlug, { latitude: latitude as number, longitude: longitude as number })

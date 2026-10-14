@@ -13,8 +13,16 @@ import { recentProductsRoutes } from "./routes/recentProducts.js";
 import { premiumRoutes } from "./routes/premium.js";
 import type { HealthResponse } from "@accucery/types";
 
-export async function buildApp(opts: { logger?: boolean } = {}) {
-  const app = Fastify({ logger: opts.logger ?? false });
+export async function buildApp(opts: { logger?: boolean; trustProxy?: number | false } = {}) {
+  const app = Fastify({
+    logger: opts.logger ?? false,
+    // The visitor's address, for per-IP limits (rateLimit.ts). In production a
+    // request passes two proxies, each adding to X-Forwarded-For: the host's
+    // nginx (README, "If this host already uses port 80"), then the frontend
+    // container's. So the visitor is two hops back, and anything a visitor
+    // writes into the header themselves sits further left and is ignored.
+    trustProxy: opts.trustProxy ?? (process.env.NODE_ENV === "production" ? 2 : false),
+  });
 
   await app.register(cors, {
     origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
