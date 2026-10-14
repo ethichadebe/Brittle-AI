@@ -19,3 +19,8 @@
   The one-line Drive setup was checked to run without prompts.
 - **Laptop needed:** briefly. Google's sign-in for rclone needs a browser, so one `rclone authorize` runs on the owner's PC; everything else is on the server.
 - **Friction:** none in the code. The one decision was where the password lives: only with the owner, never on the server alone and never in the same Google account.
+- **Setting it up live (same day):** done from a phone and a Windows PC, in five steps. The first Drive copy went up encrypted: `off-site ok: copied to accucery-drive:, 1 kept there`. One step went wrong, and the fault was in the docs:
+  - The Windows rclone, a current one, printed its settings base64-encoded rather than a bare token. The server's 1.60 refused it (`invalid character 'e'`).
+  - rclone's own source (`fs/config/authorize.go`, `configmap.Simple.Encode`) showed the format: the token plus the client id and secret it was issued for. A token alone would have stopped renewing after an hour.
+  - The fix was a short Python block that unpacks all three into the server's config. It was tested here against a blob made in that exact format (same leading characters as the owner's), then worked first time on the server. `docs/backups.md` now gives that block.
+  - The same source says rclone's shared Google client id is being retired during 2026. The docs say what a failed Drive copy would look like, and how to switch to a client id of your own without touching the encryption.
