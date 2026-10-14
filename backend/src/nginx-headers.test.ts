@@ -40,3 +40,18 @@ describe("security headers", () => {
     expect(dockerfile).toContain("COPY nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf");
   });
 });
+
+// Per-IP limits (rateLimit.ts) count on each proxy adding the address it got
+// the request from; app.ts trusts exactly two of them in production.
+describe("the visitor's address", () => {
+  const XFF = /proxy_set_header\s+X-Forwarded-For\s+\$proxy_add_x_forwarded_for;/;
+
+  it("is passed on to the backend by the app's own nginx", () => {
+    const api = locations(conf).find((l) => l.head === "/api/");
+    expect(api?.body).toMatch(XFF);
+  });
+
+  it("is passed on by the host's nginx in the README's setup", () => {
+    expect(readFileSync(join(REPO, "README.md"), "utf8")).toMatch(XFF);
+  });
+});

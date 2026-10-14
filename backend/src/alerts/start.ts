@@ -1,6 +1,8 @@
 import { createIncidents, databaseIncidentStore } from "./incidents.js";
 import { createStoreHealth } from "./storeHealth.js";
 import { checkCredits } from "./creditAlerts.js";
+import { checkDisk } from "./diskAlerts.js";
+import { createErrorWatch, observeResponses } from "./serverErrors.js";
 import { telegramFromEnv } from "./telegram.js";
 import { observeSearches } from "../scraper/engine.js";
 import { scraperApiAccount } from "../scraper/creditReport.js";
@@ -23,9 +25,21 @@ export function startAlerts(log: (msg: string, err?: unknown) => void): void {
     health.searched(store, error).catch((err) => log("[alerts] store health check failed", err));
   });
 
+  const errors = createErrorWatch(incidents);
+  observeResponses((status, route) => {
+    errors.responded(status, route).catch((err) => log("[alerts] server error check failed", err));
+  });
+  setInterval(() => errors.check().catch((err) => log("[alerts] server error check failed", err)), MINUTE).unref();
+
   // Asking ScraperAPI about the account is free. Hourly is plenty: a free
   // month's 1,000 credits don't go from 80% to 100% in an hour.
   const credits = () => checkCredits(incidents, scraperApiAccount).catch((err) => log("[alerts] credit check failed", err));
-  setTimeout(credits, MINUTE).unref();
-  setInterval(credits, HOUR).unref();
+  // The disk fills over days, not minutes: hourly is plenty here too.
+  const disk = () => checkDisk(incidents).catch((err) => log("[alerts] disk check failed", err));
+  const hourly = () => {
+    void credits();
+    void disk();
+  };
+  setTimeout(hourly, MINUTE).unref();
+  setInterval(hourly, HOUR).unref();
 }

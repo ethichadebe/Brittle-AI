@@ -42,12 +42,17 @@ export function createIncidents(store: IncidentStore, notifier: Notifier, log: (
   // One update per key at a time: five failures landing at once send one message.
   const queues = new Map<string, Promise<void>>();
 
-  async function apply(key: string, level: number, text: string): Promise<void> {
+  async function current(key: string): Promise<number> {
     let was = known.get(key);
     if (was === undefined) {
       was = (await store.load(key)) ?? 0;
       known.set(key, was);
     }
+    return was;
+  }
+
+  async function apply(key: string, level: number, text: string): Promise<void> {
+    const was = await current(key);
     if (level === was) return;
     const speak = level > was || level === 0;
     if (speak) {
@@ -73,7 +78,7 @@ export function createIncidents(store: IncidentStore, notifier: Notifier, log: (
     return known.get(key);
   }
 
-  return { set, level };
+  return { set, level, current };
 }
 
 export type Incidents = ReturnType<typeof createIncidents>;

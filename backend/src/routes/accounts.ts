@@ -3,7 +3,7 @@ import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../password.js";
 import { claimAnonymousLists, type ListCollision } from "../claimAnonymousLists.js";
 import { resolveListCollision, type CollisionResolution } from "../resolveListCollision.js";
-import { LIMITS, limiter, tooMany } from "../rateLimit.js";
+import { LIMITS, limiter, tooMany, takeForIp } from "../rateLimit.js";
 import { issueDeviceId } from "../deviceId.js";
 import { appUrl, maskEmail, sendMail } from "../mail/mailer.js";
 import { alreadyRegisteredEmail, confirmEmail, resetPasswordEmail } from "../mail/templates.js";
@@ -53,7 +53,10 @@ export async function accountsRoutes(app: FastifyInstance) {
     const password = req.body.password ?? "";
 
     // #152: a device making account after account is a script.
-    const wait = limiter.take(`signup:${req.deviceId}`, LIMITS.signUpPerDevice);
+    const wait = Math.max(
+      limiter.take(`signup:${req.deviceId}`, LIMITS.signUpPerDevice),
+      takeForIp("signup", req.ip, LIMITS.signUpPerIp)
+    );
     if (wait) return tooMany(reply, wait, "sign-ups from this device");
 
     if (!EMAIL_RE.test(email)) {
@@ -133,6 +136,7 @@ export async function accountsRoutes(app: FastifyInstance) {
 
     const wait = Math.max(
       limiter.take(`reset:device:${req.deviceId}`, LIMITS.resetsPerDevice),
+      takeForIp("reset", req.ip, LIMITS.resetsPerIp),
       limiter.take(`email:${email}`, LIMITS.emailsPerAddress)
     );
     if (wait) return tooMany(reply, wait, "reset emails");
@@ -202,7 +206,8 @@ export async function accountsRoutes(app: FastifyInstance) {
     // whether or not the email exists, so the limit says nothing about it.
     const wait = Math.max(
       limiter.take(`signin:email:${email}`, LIMITS.signInPerEmail),
-      limiter.take(`signin:device:${req.deviceId}`, LIMITS.signInPerDevice)
+      limiter.take(`signin:device:${req.deviceId}`, LIMITS.signInPerDevice),
+      takeForIp("signin", req.ip, LIMITS.signInPerIp)
     );
     if (wait) return tooMany(reply, wait, "sign-in attempts");
 

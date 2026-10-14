@@ -70,3 +70,68 @@ Done for the first time on 2026-10-14 (#156); this is what worked.
 
 Nightly backups (`docs/backups.md`) carry on through all of this: cron runs
 them at 00:17, whether or not the server was restarted that day.
+
+## The disk
+
+Everything on the server shares one disk: the database, the nightly backups,
+Docker's images and every container's log. A full disk stops the database
+writing, and the app with it. So:
+
+- **The app watches it.** Once an hour the backend checks the disk and sends
+  one Telegram message at 85% used, one more at 95%, and one when it's back
+  under 80% (`backend/src/alerts/diskAlerts.ts`; the bot is set up in
+  `docs/alerts.md`).
+- **Container logs are capped** at 3 files of 10 MB each, for every container
+  on the server (set up once, below). Without a cap Docker keeps a container's
+  log forever.
+
+### Capping the logs (once)
+
+1. **Look** (changes nothing):
+
+   ```bash
+   df -h /; cat /etc/docker/daemon.json 2>/dev/null || echo "no daemon.json yet"
+   ```
+
+   If it prints `no daemon.json yet`, go on. If it prints a file, stop: the
+   settings below have to be merged into it by hand, not written over it.
+
+2. **Set the cap and restart Docker.** Every site blinks off for a few
+   seconds while Docker restarts, as when Docker updates:
+
+   ```bash
+   printf '%s\n' '{' '  "log-driver": "json-file",' '  "log-opts": { "max-size": "10m", "max-file": "3" }' '}' > /etc/docker/daemon.json && systemctl restart docker && sleep 20 && docker ps --format '{{.Names}}: {{.Status}}'
+   ```
+
+   Every container should be `Up`.
+
+3. **Give Accucery's containers the cap now.** Docker applies it to a
+   container only when the container is made again. This makes all three
+   again, so the app is down for a few seconds. The other apps pick it up on
+   their next deploy.
+
+   ```bash
+   cd /opt/accucery && docker compose -f docker-compose.prod.yml up -d --force-recreate && docker inspect --format '{{.Name}}: {{.HostConfig.LogConfig.Config}}' $(docker compose -f docker-compose.prod.yml ps -q)
+   ```
+
+   Each line ends `map[max-file:3 max-size:10m]`.
+
+### When the disk alert comes
+
+See what is using it (changes nothing):
+
+```bash
+df -h /; docker system df; du -sh /var/backups/accucery /var/log/journal 2>/dev/null
+```
+
+The usual cause is old Docker images: every deploy pulls new ones and keeps
+the old. This removes the ones no container uses that are over a week old.
+Running apps are not touched. Going back to an older version downloads it
+again.
+
+```bash
+docker image prune -a -f --filter "until=168h" && df -h /
+```
+
+If the system's own log (`/var/log/journal`) is large:
+`journalctl --vacuum-size=200M`.

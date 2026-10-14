@@ -138,6 +138,66 @@ describe("comparisons (#152)", () => {
   });
 });
 
+describe("per-IP limits", () => {
+  // Many devices, one address: a script that drops its cookie every time.
+  const fromIp = (ip: string) => (opts: InjectOptions) =>
+    app.inject({ ...opts, remoteAddress: ip, cookies: { [DEVICE_ID_COOKIE]: randomUUID() } });
+
+  it("pause searches from one address, however many devices it claims to be", async () => {
+    const as = fromIp("203.0.113.5");
+    for (let i = 0; i < LIMITS.searchPerIp[0].max; i++) {
+      expect((await as({ method: "GET", url: `/search?store=makro&q=ip-${i}-${randomUUID()}` })).statusCode).toBe(200);
+    }
+    const paused = await as({ method: "GET", url: `/search?store=makro&q=ip-last-${randomUUID()}` });
+    expect(paused.statusCode).toBe(429);
+    // Another address is unaffected.
+    expect((await fromIp("203.0.113.6")({ method: "GET", url: `/search?store=makro&q=ip-${randomUUID()}` })).statusCode).toBe(200);
+  });
+
+  it("pause sign-ups and sign-in attempts from one address", async () => {
+    const as = fromIp("203.0.113.7");
+    for (let i = 0; i < LIMITS.signUpPerIp[0].max; i++) {
+      await as({ method: "POST", url: "/accounts", payload: { email: `ip${i}-${randomUUID()}@example.com`, password: "long-enough-pw" } });
+    }
+    const signUp = await as({ method: "POST", url: "/accounts", payload: { email: `ip-${randomUUID()}@example.com`, password: "long-enough-pw" } });
+    expect(signUp.statusCode).toBe(429);
+
+    for (let i = 0; i < LIMITS.signInPerIp[0].max; i++) {
+      await as({ method: "POST", url: "/accounts/sign-in", payload: { email: `in${i}-${randomUUID()}@example.com`, password: "wrong-password" } });
+    }
+    const signIn = await as({ method: "POST", url: "/accounts/sign-in", payload: { email: `in-${randomUUID()}@example.com`, password: "x" } });
+    expect(signIn.statusCode).toBe(429);
+  });
+
+  it("stand aside for a private address, so a missing proxy header never puts everyone under one limit", async () => {
+    const as = fromIp("172.18.0.5");
+    for (let i = 0; i <= LIMITS.searchPerIp[0].max; i++) {
+      expect((await as({ method: "GET", url: `/search?store=makro&q=lan-${i}-${randomUUID()}` })).statusCode).toBe(200);
+    }
+  });
+
+  it("behind production's two proxies, use the visitor's address and ignore one they wrote themselves", async () => {
+    const proxied = await buildApp({ trustProxy: 2 });
+    await proxied.ready();
+    try {
+      // The frontend container connects; the host's nginx added the visitor
+      // (203.0.113.9); the visitor's own made-up entry is further left.
+      const search = (spoof: string) =>
+        proxied.inject({
+          method: "GET",
+          url: `/search?store=makro&q=xff-${randomUUID()}`,
+          remoteAddress: "172.18.0.4",
+          headers: { "x-forwarded-for": `${spoof}, 203.0.113.9, 172.18.0.1` },
+          cookies: { [DEVICE_ID_COOKIE]: randomUUID() },
+        });
+      for (let i = 0; i < LIMITS.searchPerIp[0].max; i++) expect((await search(`198.51.100.${i}`)).statusCode).toBe(200);
+      expect((await search("198.51.100.250")).statusCode).toBe(429);
+    } finally {
+      await proxied.close();
+    }
+  });
+});
+
 describe("cookies (#153)", () => {
   it("are HTTPS-only in production", async () => {
     const email = `c-${randomUUID()}@example.com`;
