@@ -10,6 +10,7 @@ message when it starts and one when it's fixed**, never one per failure.
 | **The site is down** | `monitor.yml` (ethichadebe/workflows) | a site fails two checks 30s apart, every 15 minutes | See below: it repeats while down. |
 | **A store's searches fail** | the app (`backend/src/alerts`) | 5 searches at one store fail in a row | Usually the store changed its site or is blocking us, or ScraperAPI is out of credits (Checkers, Shoprite). The message quotes the error. |
 | **ScraperAPI credits low** | the app, hourly | 80% of the month used, again at 95%, and when it renews | Checkers and Shoprite stop finding prices at 100%. Top up, or move to a bigger plan. |
+| **The disk is filling up** | the app, hourly | 85% of the server's disk used, again at 95%, and when it's back under 80% | `docs/server-upkeep.md`, "The disk", says what to look at and what's safe to remove. |
 | **A night's backup failed** | `accucery-backup` (`scripts/backup-db.sh`) | the nightly backup or its Drive copy fails | `tail /var/log/accucery-backup.log` says why. Earlier backups are untouched. |
 
 Once an alert has been sent, that's remembered: the app keeps it in the

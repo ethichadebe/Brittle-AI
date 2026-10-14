@@ -1,7 +1,17 @@
+# Every container's log is capped at 3 files of 10 MB, so logs can never fill
+# the disk. The server also sets this for every container on it, other apps
+# included, in /etc/docker/daemon.json (docs/server-upkeep.md, "The disk").
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -21,6 +31,7 @@ services:
     # https://github.com/ethichadebe/workflows/blob/main/docs/compose-destination.md
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
+    logging: *logging
     environment:
       DATABASE_URL: ${DATABASE_URL}
       FRONTEND_URL: ${FRONTEND_URL}
@@ -53,6 +64,7 @@ services:
   frontend:
     image: ${FRONTEND_IMAGE}
     restart: unless-stopped
+    logging: *logging
     ports:
       # Publishes on port 80 by default. A host already running something on 80
       # — a system nginx fronting several apps, say — sets FRONTEND_PORT in .env
