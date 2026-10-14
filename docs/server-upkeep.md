@@ -126,7 +126,7 @@ df -h /; docker system df; du -sh /var/backups/accucery /var/log/journal 2>/dev/
 
 The usual cause is old Docker images: every deploy pulls new ones and keeps
 the old. This removes the ones no container uses that are over a week old.
-Running apps are not touched. A rollback to a removed one simply downloads it
+Running apps are not touched. Going back to an older version downloads it
 again.
 
 ```bash

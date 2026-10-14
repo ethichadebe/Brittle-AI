@@ -12,6 +12,7 @@ import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
 import { recentProductsRoutes } from "./routes/recentProducts.js";
 import { premiumRoutes } from "./routes/premium.js";
 import type { HealthResponse } from "@accucery/types";
+import { responded } from "./alerts/serverErrors.js";
 
 export async function buildApp(opts: { logger?: boolean; trustProxy?: number | false } = {}) {
   const app = Fastify({
@@ -36,6 +37,12 @@ export async function buildApp(opts: { logger?: boolean; trustProxy?: number | f
   // ...and `req.accountId` when signed in — see accountSession.ts. Requires
   // registerDeviceId to have already registered @fastify/cookie.
   await registerAccountSession(app);
+
+  // Every response's status, by route pattern, for the server error alert
+  // (alerts/serverErrors.ts).
+  app.addHook("onResponse", async (req, reply) => {
+    responded(reply.statusCode, `${req.method} ${req.routeOptions.url ?? "(no route)"}`);
+  });
 
   app.get<{ Reply: HealthResponse }>("/health", async () => ({ status: "ok" }));
 
