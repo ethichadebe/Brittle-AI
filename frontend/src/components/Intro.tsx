@@ -93,8 +93,9 @@ export function Intro({ onGetStarted, onSkip, onSignIn }: IntroProps) {
 }
 
 // Accucery's own drawings, in the theme's colours, so they suit light and dark.
+// The landing page (Landing.tsx) uses them too.
 
-function TotalArt() {
+export function TotalArt() {
   return (
     <svg width="220" height="190" viewBox="0 0 220 190" fill="none" aria-hidden="true">
       <circle cx="110" cy="95" r="86" fill="var(--primary-soft)" />
@@ -113,7 +114,7 @@ function TotalArt() {
   );
 }
 
-function TrolleyArt() {
+export function TrolleyArt() {
   return (
     <svg width="220" height="190" viewBox="0 0 220 190" fill="none" aria-hidden="true">
       <circle cx="110" cy="95" r="86" fill="var(--primary-soft)" />
@@ -128,7 +129,7 @@ function TrolleyArt() {
   );
 }
 
-function CompareArt() {
+export function CompareArt() {
   return (
     <svg width="220" height="190" viewBox="0 0 220 190" fill="none" aria-hidden="true">
       <circle cx="110" cy="95" r="86" fill="var(--primary-soft)" />

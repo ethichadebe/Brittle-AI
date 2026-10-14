@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { markHintSeen, markIntroSeen, nextHint, shouldShowIntro } from "./onboarding";
+import { isInstalledApp, markHintSeen, markIntroSeen, nextHint, shouldShowIntro } from "./onboarding";
 
 const memory = () => {
   const data = new Map<string, string>();
@@ -9,6 +9,28 @@ const memory = () => {
 const blocked = () => {
   throw new Error("SecurityError");
 };
+
+describe("installed app or browser", () => {
+  const display = (standaloneQuery: boolean, iosStandalone?: boolean) => () => ({
+    matchMedia: (q: string) => ({ matches: standaloneQuery && q === "(display-mode: standalone)" }),
+    navigator: { standalone: iosStandalone },
+  });
+
+  it("knows the app opened from the home screen", () => {
+    expect(isInstalledApp(display(true))).toBe(true);
+    // iPhones say so on navigator instead.
+    expect(isInstalledApp(display(false, true))).toBe(true);
+  });
+
+  it("treats a browser tab as a browser", () => {
+    expect(isInstalledApp(display(false))).toBe(false);
+    expect(isInstalledApp(display(false, false))).toBe(false);
+  });
+
+  it("falls back to the browser when it can't tell", () => {
+    expect(isInstalledApp(() => { throw new Error("no matchMedia"); })).toBe(false);
+  });
+});
 
 describe("intro slides", () => {
   it("show on a first visit, and never once dismissed", () => {

@@ -10,8 +10,9 @@ import { useAccountSession } from "../hooks/useAccountSession";
 import { useDeferredDelete } from "../hooks/useDeferredDelete";
 import { MoreIcon, PencilIcon, PersonIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { Intro } from "../components/Intro";
+import { Landing } from "../components/Landing";
 import { Wordmark } from "../components/Wordmark";
-import { markIntroSeen, shouldShowIntro } from "../lib/onboarding";
+import { isInstalledApp, markIntroSeen, shouldShowIntro } from "../lib/onboarding";
 import { StoreLogo, storeBarFill } from "../components/StoreBrand";
 import { AdSlot, usePageAds } from "../components/AdSlot";
 import { PAGE_HEIGHTS } from "../lib/ads";
@@ -131,6 +132,24 @@ function HomePage() {
     otherContent: listCount > 0 ? PAGE_HEIGHTS.homeChrome : PAGE_HEIGHTS.homeEmpty,
     allowEnd: true,
   });
+
+  // 2026-10-14: in a browser, a newcomer gets the landing page instead of
+  // the slides; the installed app is past selling itself.
+  if (showIntro && !isInstalledApp(() => window)) {
+    return (
+      <Landing
+        onStart={() => {
+          leaveIntro();
+          void navigate({ to: "/lists/new" });
+        }}
+        onOpenApp={leaveIntro}
+        onSignIn={() => {
+          leaveIntro();
+          void navigate({ to: "/sign-in", search: { then: "/" } });
+        }}
+      />
+    );
+  }
 
   if (showIntro) {
     return (

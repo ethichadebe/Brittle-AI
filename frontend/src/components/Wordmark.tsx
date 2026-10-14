@@ -1,9 +1,11 @@
 // "Accucery" with the logo standing in for its "A": the home screen's title.
 // The opening animation (index.html) draws the same mark and lands it here,
 // so the two must keep the same shapes and the shared .wordmark-a sizing.
-export function Wordmark() {
+// The landing page shows it as a plain brand mark, since its own headline is
+// the page's h1.
+export function Wordmark({ as: Tag = "h1", className = "" }: { as?: "h1" | "span"; className?: string }) {
   return (
-    <h1 className="home-wordmark" aria-label="Accucery">
+    <Tag className={`home-wordmark ${className}`.trim()} aria-label="Accucery">
       <svg className="wordmark-a" viewBox="124 86 264 340" aria-hidden="true">
         <path
           className="wordmark-a-stroke"
@@ -24,6 +26,6 @@ export function Wordmark() {
         />
       </svg>
       <span aria-hidden="true">ccucery</span>
-    </h1>
+    </Tag>
   );
 }
