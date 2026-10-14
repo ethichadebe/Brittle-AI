@@ -10,8 +10,9 @@ import { useAccountSession } from "../hooks/useAccountSession";
 import { useDeferredDelete } from "../hooks/useDeferredDelete";
 import { MoreIcon, PencilIcon, PersonIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { Intro } from "../components/Intro";
+import { Landing } from "../components/Landing";
 import { Wordmark } from "../components/Wordmark";
-import { markIntroSeen, shouldShowIntro } from "../lib/onboarding";
+import { isInstalledApp, markIntroSeen, shouldShowIntro } from "../lib/onboarding";
 import { StoreLogo, storeBarFill } from "../components/StoreBrand";
 import { AdSlot, usePageAds } from "../components/AdSlot";
 import { PAGE_HEIGHTS } from "../lib/ads";
@@ -132,6 +133,24 @@ function HomePage() {
     allowEnd: true,
   });
 
+  // 2026-10-14: in a browser, a newcomer gets the landing page instead of
+  // the slides; the installed app is past selling itself.
+  if (showIntro && !isInstalledApp(() => window)) {
+    return (
+      <Landing
+        onStart={() => {
+          leaveIntro();
+          void navigate({ to: "/lists/new" });
+        }}
+        onOpenApp={leaveIntro}
+        onSignIn={() => {
+          leaveIntro();
+          void navigate({ to: "/sign-in", search: { then: "/" } });
+        }}
+      />
+    );
+  }
+
   if (showIntro) {
     return (
       <Intro
@@ -160,6 +179,9 @@ function HomePage() {
           {avatar || <PersonIcon />}
         </button>
       </header>
+
+      {/* Tablet and PC: the top bar has the name and profile; the page a heading. */}
+      {lists && lists.length > 0 && <h2 className="home-title">My lists</h2>}
 
       {loadError && <p className="home-error">Couldn't load your lists. Check your connection and try again.</p>}
 

@@ -38,6 +38,23 @@ export function markIntroSeen(storage: Store): void {
   markSeen(storage, INTRO_KEY);
 }
 
+// The installed app (opened from the home screen) gets the intro slides; a
+// browser gets the landing page, which sells the app before it explains it.
+interface Display {
+  matchMedia: (query: string) => { matches: boolean };
+  // iPhones say so here instead: navigator.standalone, not in the standard type.
+  navigator: object;
+}
+
+export function isInstalledApp(display: () => Display): boolean {
+  try {
+    const d = display();
+    return d.matchMedia("(display-mode: standalone)").matches || ("standalone" in d.navigator && d.navigator.standalone === true);
+  } catch {
+    return false;
+  }
+}
+
 // The next hint not yet seen on this device, or null when they all have been.
 export function nextHint(storage: Store): Hint | null {
   return HINTS.find((h) => !seen(storage, hintKey(h))) ?? null;

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -24,6 +25,11 @@ import { Route as PremiumReturnRouteImport } from './routes/premium.return'
 import { Route as ListsNewRouteImport } from './routes/lists.new'
 import { Route as ListsListIdRouteImport } from './routes/lists.$listId'
 
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
   '/premium/return': typeof PremiumReturnRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
   '/premium/return': typeof PremiumReturnRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/lists/new': typeof ListsNewRoute
   '/premium/return': typeof PremiumReturnRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sign-in'
     | '/terms'
+    | '/welcome'
     | '/lists/$listId'
     | '/lists/new'
     | '/premium/return'
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sign-in'
     | '/terms'
+    | '/welcome'
     | '/lists/$listId'
     | '/lists/new'
     | '/premium/return'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sign-in'
     | '/terms'
+    | '/welcome'
     | '/lists/$listId'
     | '/lists/new'
     | '/premium/return'
@@ -206,6 +218,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignInRoute: typeof SignInRoute
   TermsRoute: typeof TermsRoute
+  WelcomeRoute: typeof WelcomeRoute
   ListsListIdRoute: typeof ListsListIdRoute
   ListsNewRoute: typeof ListsNewRoute
   PremiumReturnRoute: typeof PremiumReturnRoute
@@ -214,6 +227,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -326,6 +346,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignInRoute: SignInRoute,
   TermsRoute: TermsRoute,
+  WelcomeRoute: WelcomeRoute,
   ListsListIdRoute: ListsListIdRoute,
   ListsNewRoute: ListsNewRoute,
   PremiumReturnRoute: PremiumReturnRoute,

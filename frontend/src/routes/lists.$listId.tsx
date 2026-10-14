@@ -335,6 +335,9 @@ function ListPage() {
 
   return (
     <>
+    {/* On a tablet or PC the list and its total sit side by side; on a phone
+        this does nothing and the bar stays fixed at the bottom. */}
+    <div className="list-layout">
     <div className="page-slide-in list-page">
       <header className="list-top">
         <button className="btn-back" aria-label="Back" onClick={() => navigate({ to: "/" })}>‹</button>
@@ -476,6 +479,7 @@ function ListPage() {
           Compare prices
         </button>
       </div>
+    </div>
 
       {adding && storeSlug && (
         <AddItems
