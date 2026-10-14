@@ -1,14 +1,15 @@
 # Database backups
 
-Two independent ways back (#154). Either one alone can rebuild the app's data:
+Three ways back (#154). Each one alone can rebuild the app's data:
 
 | | Covers | Kept | Set up by |
 | --- | --- | --- | --- |
-| **Host backups** (Hostinger) | losing the whole server: disk failure, a broken OS, a bad update | as the host's plan allows | the owner, in Hostinger's panel |
-| **Nightly dump** (`accucery-backup`) | mistakes and damage to the data: a bad migration, a wrong delete, corruption | 7 days, one per night | this repo's scripts, installed once on the server |
+| **Nightly dump** (`accucery-backup`) | mistakes and damage to the data: a bad migration, a wrong delete, corruption | 7 days on the server | this repo's scripts, installed once on the server |
+| **Off-site copy** of each dump, encrypted, on Google Drive | losing the whole server, with at most a night's data lost | 30 days | the same script, once Drive is connected (below) |
+| **Host backups** (Hostinger) | losing the whole server, back to the last weekly backup | weekly, as the plan allows | Hostinger, already on |
 
-The nightly dumps sit on the same disk as the database, so they can't help if
-the server itself is lost. That's what the host's backups are for.
+The nightly dumps sit on the same disk as the database, so on their own they
+can't help if the server is lost. The off-site copy and the host's backups can.
 
 ## What's in a dump
 
@@ -55,12 +56,79 @@ backup's numbers of accounts, lists, items and subscriptions next to the live
 ones, and `Restore rehearsal ok`. The live data is never touched by a
 rehearsal.
 
+## The off-site copy on Google Drive (once)
+
+Each night's dump is also copied to Google Drive, through rclone (Ubuntu's own
+package). Three things keep it safe:
+
+- **It's encrypted before it leaves the server** (an rclone "crypt" remote).
+  Google, or anyone who gets into the Drive account, sees only scrambled names
+  and contents.
+- **The key is a password only you keep.** Save it somewhere that is not this
+  server and not the same Google account: a password manager, or on paper.
+  Without it the copies can't be opened by anyone, you included. It is the
+  one thing you need to recover from losing the server.
+- **The Drive permission is the narrowest one** (`drive.file`): rclone can see
+  only the files it made itself, never the rest of the Drive.
+
+Steps (the server ones as root):
+
+1. **On the server,** install rclone:
+
+   ```bash
+   apt install -y rclone
+   ```
+
+2. **On a computer with a browser,** sign in to Google for rclone. On Windows:
+   download rclone from <https://rclone.org/downloads/> (Windows, Intel/AMD
+   64-bit), unzip it, type `powershell` in the folder's address bar, and run:
+
+   ```powershell
+   .\rclone.exe authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"
+   ```
+
+   A browser opens. Choose the Google account and allow it. PowerShell then
+   prints a token: one line starting `{"access_token":` and ending `}`. Copy
+   that whole line. It works like a password: paste it only into the next step.
+   The long string in the command just asks for the `drive.file` permission.
+
+3. **On the server,** connect Drive, pasting the token between the single quotes:
+
+   ```bash
+   rclone config create gdrive drive scope=drive.file config_refresh_token=false config_change_team_drive=false --non-interactive token='PASTE THE TOKEN HERE'
+   ```
+
+4. **On the server,** make the encrypted folder. This makes up a strong
+   password, shows it once, and stores it (scrambled) in rclone's root-only
+   config. **Save the password it prints before going on.**
+
+   ```bash
+   PW=$(openssl rand -base64 24) && echo "SAVE THIS PASSWORD: $PW" && rclone config create accucery-drive crypt remote=gdrive:accucery-backups password="$PW" --obscure >/dev/null && unset PW
+   ```
+
+5. **On the server,** turn the copy on, and take a backup to see it work:
+
+   ```bash
+   echo 'BACKUP_OFFSITE=accucery-drive:' > /etc/default/accucery-backup
+   accucery-backup
+   ```
+
+   It prints `backup ok: ...` and then `off-site ok: copied to accucery-drive:, 1 kept there`.
+   In Google Drive there is now a folder `accucery-backups` holding a file with
+   a scrambled name. That's the encrypted backup.
+
+If the copy fails one night, the night fails (for the alert, #155), but the
+local dump is kept as always. Copies older than 30 days are removed from Drive,
+and nothing else there is ever touched.
+
 ## Checking on it
 
 ```bash
 tail -n 7 /var/log/accucery-backup.log     # one line a night: ok, or FAILED and why
 ls -lh /var/backups/accucery               # the dumps themselves
 cat /var/backups/accucery/last-ok          # when the last good one was taken
+cat /var/backups/accucery/last-offsite-ok  # when the last good copy reached Drive
+rclone lsf accucery-drive:                 # the copies on Drive, by their real names
 ```
 
 A failed night leaves the earlier dumps alone: old ones are only removed after
@@ -93,10 +161,29 @@ The replaced database is kept, renamed `accucery_replaced_<time>`. The script
 prints the command that drops it once you're sure all is well. Nothing is lost
 by restoring the wrong file: run it again with the right one.
 
-**The server is lost.** Restore the host's latest backup from Hostinger's
-panel. That brings back the server as it was, with the database and these
-dumps. If the newest host backup is older than the newest dump on it, restore
-that dump afterwards, as above.
+**The server is lost.** The newest data is in last night's copy on Drive.
+Either way, first get a server running the app again:
+
+- **Restore Hostinger's latest backup** of the server (from its panel). That
+  brings back everything as of that week, rclone's settings included.
+- **Or start a new server** and set the app up as in the README.
+
+Then bring last night's data in from Drive. On a new server, first redo steps
+1 to 3 above, then make the encrypted folder again with **your saved password**
+in place of a new one:
+
+```bash
+rclone config create accucery-drive crypt remote=gdrive:accucery-backups password='YOUR SAVED PASSWORD' --obscure >/dev/null
+```
+
+Then, on either:
+
+```bash
+rclone lsf accucery-drive:     # lists the copies; nothing listed means the password is wrong
+mkdir -p /var/backups/accucery
+rclone copy accucery-drive:accucery-2026-10-14T001700Z.dump /var/backups/accucery/
+accucery-restore /var/backups/accucery/accucery-2026-10-14T001700Z.dump               # rehearse first
+accucery-restore --replace-live /var/backups/accucery/accucery-2026-10-14T001700Z.dump
 
 ## Testing the scripts
 
@@ -111,6 +198,15 @@ one it starts itself), with a stand-in `docker`, and covers:
 - an empty database refused;
 - a rehearsal;
 - a corrupt backup;
-- replacing live with and without the confirmation.
+- replacing live with and without the confirmation;
+- the off-site copy: uploading, catching a failed or cut-short upload,
+  pruning only its own files after 30 days, and never uploading a failed dump.
+
+The off-site cases use a stand-in `rclone`, because CI has none. The real one
+was run end to end with a local folder standing in for Drive (journal
+2026-10-14):
+- encrypted names and contents there;
+- a fresh setup with only the password found and restored the copy;
+- a wrong password listed nothing.
 
 CI's `scripts` job runs it on every pull request.
