@@ -16,21 +16,51 @@
 # cover mistakes and corruption, not losing the server; the host's own
 # snapshots cover that (docs/backups.md).
 #
-# Prints one line per run, and exits non-zero on any failure, for an alert to
-# catch (#155). "last-ok" in the folder holds the time of the last good backup.
+# OFF-SITE COPY (2026-10-14). When an rclone remote is set (below), each good
+# dump is also copied there, checked by size, and kept for 30 days. On the
+# server that remote is an encrypted ("crypt") one over Google Drive, so Google
+# only ever holds scrambled files; docs/backups.md sets it up. A failed upload
+# fails the run, for the alert, but never touches the local dump.
 #
-# Settings, for testing (scripts/backup-db.test.sh) more than for the server:
-#   ACCUCERY_DIR       where docker-compose.prod.yml and .env are  (/opt/accucery)
-#   BACKUP_DIR         where dumps go                            (/var/backups/accucery)
-#   BACKUP_KEEP_DAYS   how many days of dumps to keep            (7)
+# Prints a line per step, and exits non-zero on any failure, for an alert to
+# catch (#155). In the folder, "last-ok" holds the time of the last good
+# backup and "last-offsite-ok" that of the last good off-site copy.
+#
+# Settings. On the server the off-site ones live in /etc/default/accucery-backup
+# (read as plain KEY=value lines, never run), so a backup run by hand does
+# exactly what cron's does. The rest are for testing (scripts/backup-db.test.sh):
+#   ACCUCERY_DIR              where docker-compose.prod.yml and .env are  (/opt/accucery)
+#   BACKUP_DIR                where dumps go                            (/var/backups/accucery)
+#   BACKUP_KEEP_DAYS          how many days of dumps to keep            (7)
+#   BACKUP_OFFSITE            rclone remote for the off-site copy, e.g. accucery-drive:  (none)
+#   BACKUP_OFFSITE_KEEP_DAYS  how many days to keep there               (30)
+#   BACKUP_CONF               the settings file              (/etc/default/accucery-backup)
 
 set -euo pipefail
+
+# The settings file: only these two keys are read, and only as text. Anything
+# already set in the environment wins.
+BACKUP_CONF="${BACKUP_CONF:-/etc/default/accucery-backup}"
+if [ -r "$BACKUP_CONF" ]; then
+  # "|| [ -n ...]" keeps a last line with no newline; quotes around a value are dropped.
+  while IFS='=' read -r key value || [ -n "$key" ]; do
+    value="${value%\"}"; value="${value#\"}"
+    case "$key" in
+      BACKUP_OFFSITE) : "${BACKUP_OFFSITE:=$value}" ;;
+      BACKUP_OFFSITE_KEEP_DAYS) : "${BACKUP_OFFSITE_KEEP_DAYS:=$value}" ;;
+    esac
+  done < "$BACKUP_CONF"
+fi
 
 ACCUCERY_DIR="${ACCUCERY_DIR:-/opt/accucery}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/accucery}"
 KEEP_DAYS="${BACKUP_KEEP_DAYS:-7}"
+OFFSITE="${BACKUP_OFFSITE:-}"
+OFFSITE_KEEP_DAYS="${BACKUP_OFFSITE_KEEP_DAYS:-30}"
 
-case "$KEEP_DAYS" in '' | *[!0-9]* | 0) echo "BACKUP_KEEP_DAYS must be a whole number of days, at least 1" >&2; exit 2 ;; esac
+for days in "$KEEP_DAYS" "$OFFSITE_KEEP_DAYS"; do
+  case "$days" in '' | *[!0-9]* | 0) echo "BACKUP_KEEP_DAYS and BACKUP_OFFSITE_KEEP_DAYS must be whole numbers of days, at least 1" >&2; exit 2 ;; esac
+done
 
 # Compose finds .env next to the compose file; the database's own user and
 # name are read inside the container, so nothing here needs a password.
@@ -75,3 +105,29 @@ find "$BACKUP_DIR" -maxdepth 1 -name 'accucery-*.dump' -mtime +"$((KEEP_DAYS - 1
 kept="$(find "$BACKUP_DIR" -maxdepth 1 -name 'accucery-*.dump' | wc -l | tr -d ' ')"
 size="$(du -h "$final" | cut -f1)"
 echo "$(date -u +%FT%TZ) backup ok: $(basename "$final") ($size, $tables_with_data tables), $kept kept"
+
+# ── Off-site copy ──
+[ -n "$OFFSITE" ] || exit 0
+
+offsite_fail() {
+  echo "$(date -u +%FT%TZ) off-site copy FAILED: $* (the local backup is fine)" >&2
+  exit 1
+}
+
+# "accucery-drive:" or "accucery-drive:folder", either way.
+case "$OFFSITE" in *: | */) target="$OFFSITE$(basename "$final")" ;; *) target="$OFFSITE/$(basename "$final")" ;; esac
+
+rclone copyto "$final" "$target" --retries 3 || offsite_fail "rclone couldn't upload it"
+
+# Read the size back from there. Through an encrypted remote it's the
+# original's size, so the two must match exactly.
+there="$(rclone lsf --format s "$target")" || offsite_fail "the upload isn't there"
+[ "$there" = "$(stat -c %s "$final")" ] || offsite_fail "the copy there is $there bytes, not $(stat -c %s "$final")"
+date -u +%FT%TZ > "$BACKUP_DIR/last-offsite-ok"
+
+# Pruning there is housekeeping: if it fails, say so, but the night succeeded.
+rclone delete "$OFFSITE" --min-age "${OFFSITE_KEEP_DAYS}d" --include 'accucery-*.dump' \
+  || echo "$(date -u +%FT%TZ) off-site: couldn't remove copies older than $OFFSITE_KEEP_DAYS days; will try again tomorrow" >&2
+
+kept_there="$(rclone lsf "$OFFSITE" --include 'accucery-*.dump' | wc -l | tr -d ' ')" || kept_there="?"
+echo "$(date -u +%FT%TZ) off-site ok: copied to $OFFSITE, $kept_there kept there"

@@ -103,10 +103,40 @@ case "$1" in
   *) exit 92 ;;
 esac
 STUB
-  chmod +x "$BOX/bin/docker"
+  # A stand-in rclone: the remote "drive:" is the folder $STUB_DRIVE, and every
+  # call is logged. Enough of copyto, lsf and delete for backup-db.sh.
+  cat > "$BOX/bin/rclone" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >> "$STUB_RCLONE_LOG"
+local_path() { local p="${1#drive:}"; echo "$STUB_DRIVE/${p#/}"; }
+cmd="$1"; shift
+case "$cmd" in
+  copyto)
+    if [ -n "${BREAK_UPLOAD:-}" ]; then echo "Failed to copy: googleapi: Error 403: rate limit" >&2; exit 1; fi
+    mkdir -p "$STUB_DRIVE"
+    if [ -n "${SHORT_UPLOAD:-}" ]; then head -c 10 "$1" > "$(local_path "$2")"; else cp "$1" "$(local_path "$2")"; fi ;;
+  lsf)
+    if [ "$1" = --format ]; then
+      f="$(local_path "$3")"; [ -f "$f" ] || exit 3; stat -c %s "$f"
+    else
+      find "$(local_path "$1")" -maxdepth 1 -name "$3" -printf '%f\n' 2>/dev/null | sort
+    fi ;;
+  delete)
+    # delete <remote> --min-age <N>d --include <glob>
+    [ -n "${BREAK_PRUNE:-}" ] && exit 1
+    days="${3%d}"; find "$(local_path "$1")" -maxdepth 1 -name "$5" -mmin +$((days * 1440)) -delete ;;
+  *) exit 92 ;;
+esac
+STUB
+  chmod +x "$BOX/bin/docker" "$BOX/bin/rclone"
   export PATH="$BOX/bin:$PATH" ACCUCERY_DIR="$BOX/app" BACKUP_DIR="$BOX/backups/accucery"
   export STUB_LIVE_DB="$LIVE" STUB_LOG="$BOX/services"
+  export STUB_DRIVE="$BOX/drive" STUB_RCLONE_LOG="$BOX/rclone.log"
+  # Never the server's own settings file; off-site is off unless a case turns it on.
+  export BACKUP_CONF="$BOX/accucery-backup.conf"
+  unset BACKUP_OFFSITE BACKUP_OFFSITE_KEEP_DAYS
   : > "$STUB_LOG"
+  : > "$STUB_RCLONE_LOG"
   seed "$LIVE"
 }
 
@@ -169,6 +199,73 @@ teardown
 setup
 BACKUP_KEEP_DAYS=0 backup; code=$?
 check "a nonsense keep-days is refused" '[ $code -eq 2 ]'
+teardown
+
+# ── Off-site copy ──
+
+drive_dumps() { find "$STUB_DRIVE" -maxdepth 1 -name 'accucery-*.dump' 2>/dev/null | wc -l | tr -d ' '; }
+
+setup
+backup
+check "with no off-site set, rclone is never called" '[ ! -s "$STUB_RCLONE_LOG" ]' "$(cat "$STUB_RCLONE_LOG")"
+check "and nothing about it is printed" '! grep -q "off-site" "$BOX/out"' "$(cat "$BOX/out")"
+teardown
+
+setup
+printf 'BACKUP_OFFSITE="drive:"' > "$BACKUP_CONF"   # quoted, and no newline at the end
+backup; code=$?
+newest="$(dumps | tail -n 1)"
+check "an off-site remote in the settings file is used (as cron and a hand run both see it)" '[ $code -eq 0 ] && [ "$(drive_dumps)" -eq 1 ]' "$(cat "$BOX/out")"
+check "the copy there is the dump itself" 'cmp -s "$newest" "$STUB_DRIVE/$(basename "$newest")"'
+check "it says so" 'grep -q "off-site ok: copied to drive:, 1 kept there" "$BOX/out"' "$(cat "$BOX/out")"
+check "last-offsite-ok records the time" '[ -s "$BACKUP_DIR/last-offsite-ok" ]'
+teardown
+
+setup
+export BACKUP_OFFSITE="drive:"
+mkdir -p "$STUB_DRIVE"
+touch -d '31 days ago' "$STUB_DRIVE/accucery-2000-01-01T000000Z.dump"
+touch -d '29 days ago' "$STUB_DRIVE/accucery-2000-01-03T000000Z.dump"
+touch -d '90 days ago' "$STUB_DRIVE/someone-elses-file.pdf"
+backup
+check "copies there older than 30 days are removed" '[ ! -e "$STUB_DRIVE/accucery-2000-01-01T000000Z.dump" ]'
+check "younger ones stay" '[ -e "$STUB_DRIVE/accucery-2000-01-03T000000Z.dump" ] && [ "$(drive_dumps)" -eq 2 ]'
+check "nothing but backups is ever removed there" '[ -e "$STUB_DRIVE/someone-elses-file.pdf" ]'
+teardown
+
+setup
+export BACKUP_OFFSITE="drive:"
+mkdir -p "$STUB_DRIVE"
+touch -d '31 days ago' "$STUB_DRIVE/accucery-2000-01-01T000000Z.dump"
+BREAK_UPLOAD=1 backup; code=$?
+check "a failed upload fails the run, for the alert" '[ $code -ne 0 ]'
+check "and says the local backup is fine" 'grep -q "backup ok: " "$BOX/out" && grep -q "off-site copy FAILED: rclone couldn.t upload it (the local backup is fine)" "$BOX/out"' "$(cat "$BOX/out")"
+check "the local dump and last-ok are kept" '[ "$(dumps | wc -l)" -eq 1 ] && [ -s "$BACKUP_DIR/last-ok" ]'
+check "last-offsite-ok isn't written" '[ ! -e "$BACKUP_DIR/last-offsite-ok" ]'
+check "nothing is pruned there after a failed upload" '[ -e "$STUB_DRIVE/accucery-2000-01-01T000000Z.dump" ] && ! grep -q "^delete" "$STUB_RCLONE_LOG"' "$(cat "$STUB_RCLONE_LOG")"
+teardown
+
+setup
+export BACKUP_OFFSITE="drive:"
+SHORT_UPLOAD=1 backup; code=$?
+check "a copy that arrives cut short is caught" '[ $code -ne 0 ] && grep -q "off-site copy FAILED: the copy there is 10 bytes" "$BOX/out"' "$(cat "$BOX/out")"
+teardown
+
+setup
+export BACKUP_OFFSITE="drive:"
+BREAK_PRUNE=1 backup; code=$?
+check "failing to prune there is only a warning" '[ $code -eq 0 ] && grep -q "couldn.t remove copies older than 30 days" "$BOX/out" && grep -q "off-site ok" "$BOX/out"' "$(cat "$BOX/out")"
+teardown
+
+setup
+export BACKUP_OFFSITE="drive:"
+BREAK_DUMP=1 backup
+check "a failed dump is never uploaded" '[ ! -s "$STUB_RCLONE_LOG" ]' "$(cat "$STUB_RCLONE_LOG")"
+teardown
+
+setup
+BACKUP_OFFSITE_KEEP_DAYS=0 BACKUP_OFFSITE="drive:" backup; code=$?
+check "a nonsense off-site keep-days is refused" '[ $code -eq 2 ]'
 teardown
 
 # ── Restore: rehearse ──
