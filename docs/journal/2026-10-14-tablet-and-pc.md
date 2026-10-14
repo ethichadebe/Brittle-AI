@@ -1,0 +1,21 @@
+# 2026-10-14 — The app on a tablet or PC, not a phone-width column
+
+- **Asked for:** the whole site to suit a tablet or PC, so it doesn't look like a phone.
+- **What changed (768px and wider; phones untouched):**
+  - **A top bar across the screen:** the name, My lists, New list, and the profile (or Sign in). It's hidden while the landing page is up, which has its own.
+  - **Home:** a "My lists" heading and the lists in a grid (two across on a tablet, three on a PC). An in-feed ad takes a card's place, so ads stay as rare as on a phone.
+  - **A list:**
+    - the items in a card on the left;
+    - beside them, a panel with the total, Add and Compare that stays in view as you scroll.
+  - **The Undo bar** still rises at the bottom of the screen.
+  - **Sheets as dialogs:** the item sheet, Compare and Add items open as centred dialogs instead of rising from the bottom.
+  - **Forms and settings** (New list, Profile, Sign in, Premium, Privacy, Terms): a centred column with a page heading. Store tiles go three across, and the name chips wrap.
+- **How:** a CSS section with one breakpoint, plus `useWide()` so the top bar only exists on wide screens. That keeps phones from making the extra session check, and it means the opening animation still lands on the right wordmark. The list page gained one wrapper element for the side-by-side layout.
+- **Worked first time:** no.
+  - The first PC pass showed:
+    - the Add dialog stuck to the top;
+    - the name chips running past the column;
+    - a red hairline at the items card's corners (the swipe-to-delete layer).
+  - All are fixed. Every screen was screenshotted at phone size before and after: identical except 11 pixels caught mid-animation in one sheet.
+- **Laptop needed:** no.
+- **Friction:** none.

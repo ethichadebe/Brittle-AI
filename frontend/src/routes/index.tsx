@@ -180,6 +180,9 @@ function HomePage() {
         </button>
       </header>
 
+      {/* Tablet and PC: the top bar has the name and profile; the page a heading. */}
+      {lists && lists.length > 0 && <h2 className="home-title">My lists</h2>}
+
       {loadError && <p className="home-error">Couldn't load your lists. Check your connection and try again.</p>}
 
       {lists && lists.length === 0 && !loadError && (

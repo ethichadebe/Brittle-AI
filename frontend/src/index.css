@@ -1969,8 +1969,9 @@ a.auth-switch { text-decoration: none; }
 
 /* ── Landing page (2026-10-14) ──
    A newcomer's first view in a browser, and /welcome. Unlike the app it uses
-   the whole screen: "wide" on <html> lifts #root's phone width while it's up. */
-html.wide #root { max-width: none; }
+   the whole screen: "on-landing" on <html> lifts #root's phone width, and on
+   a PC the app's top bar and column, while it's up. */
+html.on-landing #root { max-width: none; }
 
 .landing { animation: fadeIn 0.25s ease-out both; overflow-x: clip; }
 .landing-wrap { max-width: 1120px; margin: 0 auto; padding: 0 1rem; }
@@ -2224,3 +2225,169 @@ html.wide #root { max-width: none; }
 .landing-footer-note { margin-top: 0.75rem; color: var(--muted); font-size: 0.8rem; line-height: 1.5; max-width: 48rem; }
 
 @media (prefers-reduced-motion: reduce) { .landing { animation: none; } }
+
+/* ── Tablet and PC (2026-10-14) ──
+   From 768px (hooks/useWide.ts) the app stops being a phone-width column: a
+   top bar across the screen (AppBar), lists in a grid, a list beside its
+   total, sheets as dialogs, and forms in a readable centred column. Below
+   768px nothing here applies, and the app is as it always was. */
+.home-title { display: none; }
+
+@media (min-width: 768px) {
+  #root { max-width: none; }
+
+  .app-bar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .app-bar-inner {
+    max-width: 1120px;
+    height: 64px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .app-bar-brand { margin-right: auto; text-decoration: none; }
+  .app-bar-brand .home-wordmark { font-size: 1.5rem; }
+  .app-bar-nav { display: flex; align-items: center; gap: 0.5rem; }
+  .app-bar-link {
+    padding: 0.5rem 0.8rem;
+    border-radius: 8px;
+    color: var(--text-2);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .app-bar-link:hover { background: var(--surface-2); }
+  .app-bar-link--on { color: var(--primary); }
+  .app-bar-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0 0.5rem;
+    padding: 0.55rem 1.1rem 0.55rem 0.9rem;
+    border-radius: 99px;
+  }
+  .app-bar-new svg { width: 18px; height: 18px; }
+
+  .app-main { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem 3rem; }
+  .app-main--narrow { max-width: 680px; }
+  html.on-landing .app-bar { display: none; }
+  html.on-landing .app-main { max-width: none; padding: 0; }
+
+  /* Home: the lists in a grid. The top bar carries New list. An in-feed ad
+     takes a card's place, so ads stay as rare as they are on a phone. */
+  .home { padding-bottom: 1rem; }
+  .home-header, .new-list-pill { display: none; }
+  .home-title { display: block; margin: 2rem 0 1.25rem; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+  .list-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; padding: 0; }
+  .list-cards .ad-row { display: grid; place-items: center; }
+  .home-empty { padding-top: 5rem; }
+
+  /* A list: the items in a card, and beside them the total, Add and Compare,
+     kept in view as the list scrolls. */
+  .list-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 2rem;
+    align-items: start;
+    padding-top: 1.5rem;
+  }
+  .list-page { padding-bottom: 0; }
+  .list-top { position: relative; padding: 0 0 1rem; }
+  .list-top-title h1 { font-size: 1.75rem; }
+  .list-page > .items { margin-top: 1rem; }
+  .list-page > .items, .trolley {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .trolley { margin-top: 1.25rem; }
+  .list-page .item { background: var(--surface); }
+  .list-page .items > li:last-child .item { border-bottom: 0; }
+  /* The red behind a row (swipe to delete) would show as a hairline at the
+     card's rounded corners; the end rows keep it hidden until dragged. */
+  .list-page .items > li:is(:first-child, :last-child):not(:has(.item--dragging)) { background: var(--surface); }
+  .list-page > .items:empty { display: none; }
+
+  .list-bar {
+    position: sticky;
+    top: calc(64px + 1.5rem);
+    left: auto;
+    bottom: auto;
+    transform: none;
+    z-index: 5;
+    width: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+  }
+  .list-bar-total { order: -1; margin-bottom: 0.25rem; }
+  .list-bar-amount { font-size: 2rem; }
+  .add-pill, .add-pill--raised { position: static; justify-content: center; height: 48px; box-shadow: none; }
+  .compare-btn { justify-content: center; padding: 0.7rem; font-size: 0.95rem; }
+  .list-bar .snackbar--docked {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: 1.5rem;
+    width: min(calc(100vw - 2rem), 448px);
+    transform: translateX(-50%);
+  }
+
+  /* Sheets that rise from the bottom on a phone open as dialogs here. */
+  .modal-backdrop, .search-overlay { align-items: center; }
+  .modal { border-radius: 16px; }
+  .compare-sheet {
+    max-width: 720px;
+    max-height: 85vh;
+    border-radius: 20px;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease-out;
+  }
+  .search-overlay--open .compare-sheet { opacity: 1; transform: none; }
+  .compare-sheet::before { display: none; }
+
+  /* Adding items: a dialog over the list rather than a whole new screen. */
+  .add-screen {
+    margin: auto;
+    width: min(720px, calc(100vw - 3rem));
+    max-width: none;
+    height: min(85vh, 860px);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 0 0 100vmax var(--backdrop), 0 24px 60px -20px var(--shadow);
+    animation: scaleIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Forms and settings: a page heading in place of the phone's top bar. */
+  .list-header {
+    position: static;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding: 2rem 0 0.75rem;
+    background: none;
+    border-bottom: 0;
+  }
+  .list-header .list-title { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+  .new-list { min-height: 0; }
+  .new-list-form { padding: 0.5rem 0 0; }
+  .new-list-submit { position: static; margin: 1.75rem 0 0; padding: 0; background: none; }
+  .store-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .auth-form { padding: 1.75rem 0; }
+  /* The chips wrap instead of scrolling sideways past the column. */
+  .name-chips { flex-wrap: wrap; overflow: visible; margin: 0.75rem 0 1.75rem; padding: 0; }
+  /* The page's own side padding does the phone's inset here. */
+  .profile-card, .premium-card { margin-inline: 0; }
+  .settings-section, .profile-legal, .privacy-body { padding-inline: 0; }
+}

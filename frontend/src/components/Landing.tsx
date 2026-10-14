@@ -81,10 +81,11 @@ const pickNPay = STORE_CONFIGS.find((s) => s.slug === "pick-n-pay");
 // The first thing a newcomer meets in a browser (2026-10-14): what Accucery
 // is, and a way in. The app proper is one tap away.
 export function Landing({ onStart, onSignIn, onOpenApp }: LandingProps) {
-  // The app is phone-width; this page uses the whole screen.
+  // The app's own frame (its phone width, or the top bar on a PC) steps
+  // aside: this page uses the whole screen and has its own header.
   useEffect(() => {
-    document.documentElement.classList.add("wide");
-    return () => document.documentElement.classList.remove("wide");
+    document.documentElement.classList.add("on-landing");
+    return () => document.documentElement.classList.remove("on-landing");
   }, []);
 
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
