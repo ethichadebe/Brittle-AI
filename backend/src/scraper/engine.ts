@@ -10,13 +10,22 @@ import { NO_ZONE } from "./zone.js";
 
 export type ScraperRegistry = Partial<Record<StoreSlug, Scraper>>;
 
+/** Told how each store search went: with the error when it failed (#155). */
+export type SearchObserver = (store: StoreSlug, error?: unknown) => void;
+
+// The production engine's observer, set once at startup by the alerts.
+let observer: SearchObserver = () => {};
+export function observeSearches(next: SearchObserver): void {
+  observer = next;
+}
+
 // A search engine is a registry plus its own per-store serial queue — the
 // queue is per-instance, not module-level, so a test engine built from a
 // fake registry can prove the queue itself works (no two calls for the same
 // store overlap) without sharing state with production or with any other
 // test. See #74: this is the whole reason `searchProducts` isn't just a
 // bare function reading a module-level registry any more.
-export function createSearchEngine(registry: ScraperRegistry) {
+export function createSearchEngine(registry: ScraperRegistry, observe: SearchObserver = (store, error) => observer(store, error)) {
   // Per-store serial queue — at most one in-flight request per store at a time.
   const storeQueues = new Map<string, Promise<unknown>>();
 
@@ -35,8 +44,11 @@ export function createSearchEngine(registry: ScraperRegistry) {
 
     return withStoreQueue(store, async () => {
       try {
-        return await scraper.search(query, branch);
+        const products = await scraper.search(query, branch);
+        observe(store);
+        return products;
       } catch (err) {
+        observe(store, err);
         // Through ScraperAPI, the browser fallback loads the whole site: dozens
         // of credits a try, and it rarely gets past the WAF anyway (#157).
         // It's only worth trying on a developer's own connection.

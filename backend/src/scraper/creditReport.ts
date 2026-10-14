@@ -37,23 +37,26 @@ export function formatReport(rows: SpendRow[], today: string, account: AccountSt
   return lines.join("\n");
 }
 
+/**
+ * What ScraperAPI says about the account: its counts, or why it couldn't be
+ * asked, or null with no key. Free: asking about the account costs no credit.
+ * Also read hourly by the credit alerts (#155).
+ */
+export async function scraperApiAccount(key = process.env.SCRAPERAPI_KEY): Promise<AccountStatus | string | null> {
+  if (!key) return null;
+  try {
+    const res = await fetch(`https://api.scraperapi.com/account?api_key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(15000) });
+    return res.ok ? ((await res.json()) as AccountStatus) : `${res.status} ${res.statusText}`;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
+
 async function main() {
   const { prisma } = await import("../db.js");
   const since = joburgDay(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000));
   const rows = await prisma.creditSpend.findMany({ where: { day: { gte: since } } });
-
-  const key = process.env.SCRAPERAPI_KEY;
-  let account: AccountStatus | string | null = null;
-  if (key) {
-    try {
-      // Free: asking about the account costs no credit.
-      const res = await fetch(`https://api.scraperapi.com/account?api_key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(15000) });
-      account = res.ok ? ((await res.json()) as AccountStatus) : `${res.status} ${res.statusText}`;
-    } catch (err) {
-      account = err instanceof Error ? err.message : String(err);
-    }
-  }
-  console.log(formatReport(rows, joburgDay(), account));
+  console.log(formatReport(rows, joburgDay(), await scraperApiAccount()));
   await prisma.$disconnect();
 }
 

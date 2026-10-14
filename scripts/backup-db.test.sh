@@ -128,7 +128,18 @@ case "$cmd" in
   *) exit 92 ;;
 esac
 STUB
-  chmod +x "$BOX/bin/docker" "$BOX/bin/rclone"
+  # A stand-in curl for Telegram: logs its arguments, what came on standard
+  # input, and the text sent; answers 200, or 401 when BREAK_TELEGRAM is set.
+  cat > "$BOX/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STUB_CURL_ARGS"
+cat >> "$STUB_CURL_STDIN"
+for a in "$@"; do case "$a" in text=*) printf '%s\n' "${a#text=}" >> "$STUB_TELEGRAM" ;; esac; done
+if [ -n "${BREAK_TELEGRAM:-}" ]; then printf 401; else printf 200; fi
+STUB
+  chmod +x "$BOX/bin/docker" "$BOX/bin/rclone" "$BOX/bin/curl"
+  export STUB_CURL_ARGS="$BOX/curl.args" STUB_CURL_STDIN="$BOX/curl.stdin" STUB_TELEGRAM="$BOX/telegram"
+  unset TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID
   export PATH="$BOX/bin:$PATH" ACCUCERY_DIR="$BOX/app" BACKUP_DIR="$BOX/backups/accucery"
   export STUB_LIVE_DB="$LIVE" STUB_LOG="$BOX/services"
   export STUB_DRIVE="$BOX/drive" STUB_RCLONE_LOG="$BOX/rclone.log"
@@ -266,6 +277,54 @@ teardown
 setup
 BACKUP_OFFSITE_KEEP_DAYS=0 BACKUP_OFFSITE="drive:" backup; code=$?
 check "a nonsense off-site keep-days is refused" '[ $code -eq 2 ]'
+teardown
+
+# ── Alerts (#155) ──
+
+BOT_TOKEN="123456:AAH-test-token-never-on-argv" # gitleaks:allow -- a made-up token, planted to prove it never reaches curl's command line
+with_bot() { printf 'POSTGRES_USER=x\nTELEGRAM_BOT_TOKEN="%s"\nTELEGRAM_CHAT_ID=4242\n' "$BOT_TOKEN" > "$ACCUCERY_DIR/.env"; }
+messages() { [ -s "$STUB_TELEGRAM" ] && wc -l < "$STUB_TELEGRAM" | tr -d ' ' || echo 0; }
+
+setup
+BREAK_DUMP=1 backup
+check "without the bot in .env, a failure sends nothing" '[ ! -e "$STUB_CURL_ARGS" ]'
+teardown
+
+setup
+with_bot
+BREAK_DUMP=1 backup
+check "a failed night sends one message, saying why" '[ "$(messages)" = 1 ] && grep -q "nightly backup failed: pg_dump exited with an error. Earlier backups are untouched" "$STUB_TELEGRAM"' "$(cat "$STUB_TELEGRAM" 2>/dev/null)"
+check "to the chat in .env" 'grep -q -- "chat_id=4242" "$STUB_CURL_ARGS"'
+check "the token never appears on curl's command line" '! grep -q "$BOT_TOKEN" "$STUB_CURL_ARGS"' "$(cat "$STUB_CURL_ARGS")"
+check "it goes in on curl's standard input instead" 'grep -q "url = \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\"" "$STUB_CURL_STDIN"'
+BREAK_DUMP=1 backup
+BREAK_DUMP=1 backup
+check "more failed nights send nothing more: one incident, one message" '[ "$(messages)" = 1 ]' "$(cat "$STUB_TELEGRAM")"
+backup
+check "the next good night says it's fixed" '[ "$(messages)" = 2 ] && tail -n 1 "$STUB_TELEGRAM" | grep -q "backups are working again: accucery-"' "$(cat "$STUB_TELEGRAM")"
+backup
+check "and good nights after that are quiet" '[ "$(messages)" = 2 ]'
+teardown
+
+setup
+with_bot
+BREAK_TELEGRAM=1 BREAK_DUMP=1 backup
+check "if Telegram refuses, it isn't counted as told" '[ ! -e "$BACKUP_DIR/alerting" ]'
+BREAK_DUMP=1 backup
+check "so the next failed night tries again" '[ "$(messages)" = 2 ] && [ -e "$BACKUP_DIR/alerting" ]'
+teardown
+
+setup
+with_bot
+export BACKUP_OFFSITE="drive:"
+BREAK_UPLOAD=1 backup
+check "a failed Drive copy says the server's backup is fine" 'grep -q "the copy to Google Drive failed (rclone couldn.t upload it); the backup on the server is fine" "$STUB_TELEGRAM"' "$(cat "$STUB_TELEGRAM" 2>/dev/null)"
+teardown
+
+setup
+printf 'TELEGRAM_BOT_TOKEN="..."\nTELEGRAM_CHAT_ID="..."\n' > "$ACCUCERY_DIR/.env"
+BREAK_DUMP=1 backup
+check "the old '...' placeholders count as no bot" '[ ! -e "$STUB_CURL_ARGS" ]'
 teardown
 
 # ── Restore: rehearse ──

@@ -22,9 +22,16 @@
 # only ever holds scrambled files; docs/backups.md sets it up. A failed upload
 # fails the run, for the alert, but never touches the local dump.
 #
-# Prints a line per step, and exits non-zero on any failure, for an alert to
-# catch (#155). In the folder, "last-ok" holds the time of the last good
-# backup and "last-offsite-ok" that of the last good off-site copy.
+# Prints a line per step, and exits non-zero on any failure. In the folder,
+# "last-ok" holds the time of the last good backup and "last-offsite-ok" that
+# of the last good off-site copy.
+#
+# ALERTS (#155). When the app's .env holds TELEGRAM_BOT_TOKEN and
+# TELEGRAM_CHAT_ID, the same bot as the deploy and the site monitor, a failed
+# night sends one message, and the next good night one more saying it's fixed.
+# A run of failures sends one, not one a night: "alerting" in the folder marks
+# an incident already reported. The token reaches curl on its standard input,
+# never on its command line, where any process listing would show it.
 #
 # Settings. On the server the off-site ones live in /etc/default/accucery-backup
 # (read as plain KEY=value lines, never run), so a backup run by hand does
@@ -75,9 +82,46 @@ chmod 700 "$BACKUP_DIR"
 stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
 final="$BACKUP_DIR/accucery-$stamp.dump"
 partial="$BACKUP_DIR/.accucery-$stamp.dump.partial"
-trap 'rm -f "$partial"' EXIT
+
+# The bot's two settings from the app's .env: read as text, never run, and only these keys.
+: "${TELEGRAM_BOT_TOKEN:=}" "${TELEGRAM_CHAT_ID:=}"
+if [ -r "$ACCUCERY_DIR/.env" ]; then
+  while IFS='=' read -r key value || [ -n "$key" ]; do
+    value="${value%\"}"; value="${value#\"}"
+    case "$key" in
+      TELEGRAM_BOT_TOKEN) : "${TELEGRAM_BOT_TOKEN:=$value}" ;;
+      TELEGRAM_CHAT_ID) : "${TELEGRAM_CHAT_ID:=$value}" ;;
+    esac
+  done < "$ACCUCERY_DIR/.env"
+fi
+
+# Sends one message; true only if Telegram took it. Off without both settings
+# (or with the old "..." placeholders).
+notify() {
+  case "$TELEGRAM_BOT_TOKEN|$TELEGRAM_CHAT_ID" in '|'* | *'|' | '...|'* | *'|...') return 1 ;; esac
+  local code
+  code="$(printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$TELEGRAM_BOT_TOKEN" |
+    curl -sS --max-time 20 -K - -o /dev/null -w '%{http_code}' \
+      --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=$1" 2>/dev/null)" || true
+  [ "$code" = 200 ]
+}
+
+reason="the script stopped unexpectedly"
+on_exit() {
+  local status=$?
+  rm -f "$partial"
+  if [ "$status" -ne 0 ]; then
+    if [ ! -e "$BACKUP_DIR/alerting" ] && notify "🚨 Accucery's nightly backup failed: $reason. Earlier backups are untouched. Check: tail /var/log/accucery-backup.log"; then
+      touch "$BACKUP_DIR/alerting"
+    fi
+  elif [ -e "$BACKUP_DIR/alerting" ] && notify "✅ Accucery's backups are working again: $(basename "$final")."; then
+    rm -f "$BACKUP_DIR/alerting"
+  fi
+}
+trap on_exit EXIT
 
 fail() {
+  reason="$*"
   echo "$(date -u +%FT%TZ) backup FAILED: $*" >&2
   exit 1
 }
@@ -110,6 +154,7 @@ echo "$(date -u +%FT%TZ) backup ok: $(basename "$final") ($size, $tables_with_da
 [ -n "$OFFSITE" ] || exit 0
 
 offsite_fail() {
+  reason="the copy to Google Drive failed ($*); the backup on the server is fine"
   echo "$(date -u +%FT%TZ) off-site copy FAILED: $* (the local backup is fine)" >&2
   exit 1
 }

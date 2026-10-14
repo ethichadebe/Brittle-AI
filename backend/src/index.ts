@@ -7,6 +7,7 @@ import { databaseLedger } from "./scraper/creditLedger.js";
 import { warmDefaultStore } from "./scraper/pnp.js";
 import { assertMailConfigured } from "./mail/mailer.js";
 import { sweepExpiredLinksHourly } from "./expiredLinks.js";
+import { startAlerts } from "./alerts/start.js";
 
 // #147: no key, no start, in production. A deploy then refuses the new
 // version instead of shipping one that can't send email.
@@ -32,6 +33,8 @@ try {
   warmBranches();
   warmDefaultStore();
   sweepExpiredLinksHourly((err) => app.log.error({ err }, "deleting expired sign-up and reset links failed"));
+  // #155: store and credit alerts to Telegram, when the bot is configured.
+  startAlerts((msg, err) => (err ? app.log.error({ err }, msg) : app.log.warn(msg)));
 } catch (err) {
   app.log.error(err);
   process.exit(1);

@@ -168,8 +168,8 @@ rclone lsf accucery-drive:                 # the copies on Drive, by their real 
 ```
 
 A failed night leaves the earlier dumps alone: old ones are only removed after
-a new one has been checked. Once alerts exist (#155), a failure, or a
-`last-ok` more than a day old, will raise one.
+a new one has been checked. It also sends one Telegram message, and one more
+when backups work again (#155; set up in `docs/alerts.md`).
 
 Rehearsing a restore every month or so (`accucery-restore`) is the way to know
 the backups are good before you need them.
