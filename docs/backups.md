@@ -87,16 +87,52 @@ Steps (the server ones as root):
    .\rclone.exe authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"
    ```
 
-   A browser opens. Choose the Google account and allow it. PowerShell then
-   prints a token: one line starting `{"access_token":` and ending `}`. Copy
-   that whole line. It works like a password: paste it only into the next step.
-   The long string in the command just asks for the `drive.file` permission.
+   A browser opens. Choose the Google account and allow it. If Google warns
+   that it hasn't verified the app, choose Advanced, then Go to rclone. PowerShell
+   then prints a long line between `Paste the following` and `<---End paste`.
+   Copy that whole line. It works like a password: paste it only into the next
+   step. The long string in the command just asks for the `drive.file` permission.
 
-3. **On the server,** connect Drive, pasting the token between the single quotes:
+3. **On the server,** connect Drive. Put the line from step 2 in place of `PASTE`,
+   keeping the single quotes, and paste the whole block:
 
    ```bash
-   rclone config create gdrive drive scope=drive.file config_refresh_token=false config_change_team_drive=false --non-interactive token='PASTE THE TOKEN HERE'
+   python3 - 'PASTE' <<'PY'
+   import base64, json, subprocess, sys
+   blob = "".join(sys.argv[1].split())
+   blob += "=" * (-len(blob) % 4)
+   settings = json.loads(base64.b64decode(blob))
+   print("found:", ", ".join(sorted(settings)))
+   subprocess.run(["rclone", "config", "create", "gdrive", "drive", "scope=drive.file",
+                   "config_refresh_token=false", "config_change_team_drive=false", "--non-interactive"]
+                  + [f"{k}={v}" for k, v in settings.items()], check=True, stdout=subprocess.DEVNULL)
+   PY
+   rclone lsd gdrive: && echo "Drive connected"
    ```
+
+   It prints `found: client_id, client_secret, token`, then `Drive connected`.
+
+   Why the block: a current rclone on the PC (1.6x and later) doesn't print a
+   bare token. It prints all the settings it signed in with, base64-encoded:
+   the token, plus the client id and secret that token belongs to. The
+   server's rclone (Ubuntu's 1.60) needs all three, or it can't renew the
+   sign-in an hour later. The block unpacks them. If the line is instead a bare
+   `{"access_token":...}` token (an rclone as old as the server's), use
+   `rclone config create gdrive drive scope=drive.file config_refresh_token=false config_change_team_drive=false --non-interactive token='THE LINE'`.
+
+   **If Drive copies start failing** with a sign-in error (the log says
+   `off-site copy FAILED`): rclone has said its shared Google client id will
+   stop working during 2026. The fix is a client id of your own (free;
+   <https://rclone.org/drive/#making-your-own-client-id>). Pack it with the
+   permission into the string step 2 passes, on the server:
+
+   ```bash
+   python3 -c 'import base64,json,sys; print(base64.b64encode(json.dumps({"client_id":sys.argv[1],"client_secret":sys.argv[2],"scope":"drive.file"}).encode()).decode().rstrip("="))' 'YOUR_ID' 'YOUR_SECRET'
+   ```
+
+   Then do steps 2 and 3 again, with what that prints in place of
+   `eyJzY29wZSI6ImRyaXZlLmZpbGUifQ` in step 2. The encrypted folder and its
+   password (step 4) stay as they are.
 
 4. **On the server,** make the encrypted folder. This makes up a strong
    password, shows it once, and stores it (scrambled) in rclone's root-only
