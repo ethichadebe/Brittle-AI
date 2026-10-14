@@ -39,6 +39,11 @@ services:
       PAYSTACK_PLAN_YEARLY: ${PAYSTACK_PLAN_YEARLY:-}
       PAYSTACK_CARD_CHECK_CENTS: ${PAYSTACK_CARD_CHECK_CENTS:-}
       PAYSTACK_BASE_URL: ${PAYSTACK_BASE_URL:-}
+      # #155: the app's own alerts (a store failing, ScraperAPI credits low),
+      # through the same bot as the deploy and site monitor. Without them the
+      # alerts are simply off.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       NODE_ENV: production
     depends_on:

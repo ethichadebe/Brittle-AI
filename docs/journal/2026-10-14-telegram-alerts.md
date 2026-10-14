@@ -1,0 +1,25 @@
+# 2026-10-14 — Alerts through the owner's Telegram bot (#155)
+
+- **Asked for:** alerts, "through the same bot I'm using".
+- **Looked first:** the bot already had two jobs, both in ethichadebe/workflows. `compose-deploy.yml` messages every deploy, and `monitor.yml` checks the live sites every 15 minutes. So "the site is down" and "a deploy failed" were already covered; nothing was built twice. (The 2026-09-17 journal records what happened the last time this wasn't checked.)
+- **What changed:** the alerts only the app and the server can see, through that same bot.
+  - **A store's searches failing:** 5 in a row at one store, quoting the error. The search engine reports every outcome; scattered failures don't count.
+  - **ScraperAPI credits:** checked hourly, using the account endpoint, which is free. Warns at 80%, again at 95%, and once when the month renews.
+  - **A failed night's backup:** `accucery-backup` messages on the first failed night and again when backups work again.
+  - **One message per incident** and one when it's fixed, never one per failure. The app keeps what it has said in `remembered_values`; the backup keeps a file next to the dumps. So a deploy never repeats an alert. If Telegram can't be reached, nothing is counted as sent, and the next check tries again.
+  - **Testing it:** `node dist/alerts/sendTest.js` in the backend sends a test, or says which setting is wrong.
+  - **Secrets:** the token never appears on a command line or in a log. Error text quoted in alerts has the ScraperAPI key and any `api_key=` hidden.
+  - **Docs:** `docs/alerts.md` covers every alert and its setup. `.env.example` no longer says the Telegram values are unread.
+- **Worked first time:** mostly.
+  - Two of the credit tests failed on my side: `toLocaleString("en-ZA")` writes a non-breaking space, which also differs between machines, so amounts now use a plain space as the rest of the app does. The other failure was emojis cut by length in a test.
+  - The secret scan flagged a shell expansion (rewritten as `: "${X:=}"`) and the test's made-up token (`gitleaks:allow`, with the reason).
+  - Each rule was then broken on purpose, and the named test failed each time:
+    - speaking on every change;
+    - saving when Telegram failed;
+    - never resetting a store's streak;
+    - no per-key queue;
+    - the compose line missing;
+    - the backup alerting every night;
+    - the token on curl's command line.
+- **Laptop needed:** no. The owner adds two lines to the server's `.env`, two to its compose file, and sends the test.
+- **Friction / known gap:** `monitor.yml` repeats every 15 minutes while a site is down and sends nothing when it's back. That's a change in ethichadebe/workflows, which this session can read but not push to.

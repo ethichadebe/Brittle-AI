@@ -272,3 +272,20 @@ describe("currentZone", () => {
     expect(await engine.currentZone("checkers")).toBe("none");
   });
 });
+
+// #155: the alerts learn how each store's searches go from here.
+describe("search outcomes are reported", () => {
+  it("tells the observer about each success and each failure, by store", async () => {
+    const seen: [string, unknown][] = [];
+    const ok: Scraper = { search: async () => [milk], currentZone: async () => "none" } as unknown as Scraper;
+    const failing: Scraper = { search: async () => { throw new Error("403"); }, currentZone: async () => "none" } as unknown as Scraper;
+    vi.stubEnv("SCRAPERAPI_KEY", "set, so no browser fallback");
+    const engine = createSearchEngine({ makro: ok, checkers: failing }, (store, error) => seen.push([store, error]));
+    await engine.searchProducts("makro", "milk");
+    await engine.searchProducts("checkers", "milk");
+    vi.unstubAllEnvs();
+    expect(seen[0]).toEqual(["makro", undefined]);
+    expect(seen[1][0]).toBe("checkers");
+    expect((seen[1][1] as Error).message).toBe("403");
+  });
+});

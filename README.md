@@ -149,6 +149,13 @@ A nightly dump of the database, kept for a week, plus the host's own backups.
 Installing them, checking on them and restoring from them:
 [`docs/backups.md`](docs/backups.md).
 
+### 7. Alerts
+
+A deploy failing, the site going down, a store's searches failing, ScraperAPI
+credits running low and a failed backup all message one Telegram bot:
+[`docs/alerts.md`](docs/alerts.md). Server updates and restarts:
+[`docs/server-upkeep.md`](docs/server-upkeep.md).
+
 ### Updating
 
 Nothing — merge the pull request and it deploys itself. A push to `master` runs
