@@ -5,6 +5,7 @@ import { claimAnonymousLists, type ListCollision } from "../claimAnonymousLists.
 import { resolveListCollision, type CollisionResolution } from "../resolveListCollision.js";
 import { LIMITS, limiter, tooMany, takeForIp } from "../rateLimit.js";
 import { issueDeviceId } from "../deviceId.js";
+import { SESSION_COOKIE } from "../accountSession.js";
 import { appUrl, maskEmail, sendMail } from "../mail/mailer.js";
 import { alreadyRegisteredEmail, confirmEmail, resetPasswordEmail } from "../mail/templates.js";
 import { CONFIRM_TTL_MS, hashToken, newToken, RESET_TTL_MS } from "../linkTokens.js";
@@ -228,8 +229,13 @@ export async function accountsRoutes(app: FastifyInstance) {
   });
 
   // POST /accounts/sign-out
-  app.post("/accounts/sign-out", async (_req, reply) => {
+  // #87: a device that was signed in starts afresh, as a new anonymous
+  // identity with no lists. On a shared phone the next person then sees
+  // nothing of the Account, nor any list left behind on the device at sign-in.
+  app.post("/accounts/sign-out", async (req, reply) => {
+    const wasSignedIn = Boolean(req.accountId || req.cookies[SESSION_COOKIE]);
     await reply.signOut();
+    if (wasSignedIn) issueDeviceId(req, reply);
     return reply.status(204).send();
   });
 

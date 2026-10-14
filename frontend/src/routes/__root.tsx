@@ -1,9 +1,11 @@
 import { createRootRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { AppBar } from "../components/AppBar";
 import { useWide } from "../hooks/useWide";
+import { NotFound } from "../components/NotFound";
 
 export const Route = createRootRoute({
   component: Root,
+  notFoundComponent: NotFound,
 });
 
 // On a tablet or PC (2026-10-14) the app gets a top bar, and each screen a

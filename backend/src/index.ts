@@ -8,6 +8,11 @@ import { warmDefaultStore } from "./scraper/pnp.js";
 import { assertMailConfigured } from "./mail/mailer.js";
 import { sweepExpiredLinksHourly } from "./expiredLinks.js";
 import { startAlerts } from "./alerts/start.js";
+import { guardConsole } from "./logRedact.js";
+
+// #88: no email address in a log line, whatever writes it (logRedact.ts).
+// The logger masks its own lines; this covers console.* as well.
+guardConsole();
 
 // #147: no key, no start, in production. A deploy then refuses the new
 // version instead of shipping one that can't send email.

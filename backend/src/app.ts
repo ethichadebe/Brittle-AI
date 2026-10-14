@@ -11,12 +11,18 @@ import { compareRoutes } from "./routes/compare.js";
 import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
 import { recentProductsRoutes } from "./routes/recentProducts.js";
 import { premiumRoutes } from "./routes/premium.js";
+import { crawlerRoutes } from "./routes/crawlers.js";
 import type { HealthResponse } from "@accucery/types";
 import { responded } from "./alerts/serverErrors.js";
+import { redactingStream } from "./logRedact.js";
 
-export async function buildApp(opts: { logger?: boolean; trustProxy?: number | false } = {}) {
+export async function buildApp(
+  opts: { logger?: boolean; logStream?: { write(line: string): unknown }; trustProxy?: number | false } = {}
+) {
   const app = Fastify({
-    logger: opts.logger ?? false,
+    // #88: every line is written through redactingStream, which masks any
+    // email address in it. logStream is for tests; the server logs to stdout.
+    logger: opts.logger || opts.logStream ? { stream: redactingStream(opts.logStream) } : false,
     // The visitor's address, for per-IP limits (rateLimit.ts). In production a
     // request passes two proxies, each adding to X-Forwarded-For: the host's
     // nginx (README, "If this host already uses port 80"), then the frontend
@@ -55,6 +61,7 @@ export async function buildApp(opts: { logger?: boolean; trustProxy?: number | f
   await app.register(substituteDecisionsRoutes);
   await app.register(recentProductsRoutes);
   await app.register(premiumRoutes);
+  await app.register(crawlerRoutes);
 
   return app;
 }
