@@ -143,6 +143,12 @@ Checkers and Shoprite both sit behind the same WAF and both set an
    created, so a restart re-runs the old values and the new cookie never
    arrives. `--force-recreate` makes a new container that reads the new `.env`.
 
+### 6. Backups
+
+A nightly dump of the database, kept for a week, plus the host's own backups.
+Installing them, checking on them and restoring from them:
+[`docs/backups.md`](docs/backups.md).
+
 ### Updating
 
 Nothing — merge the pull request and it deploys itself. A push to `master` runs
