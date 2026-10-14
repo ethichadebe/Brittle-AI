@@ -11,6 +11,7 @@ import { compareRoutes } from "./routes/compare.js";
 import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
 import { recentProductsRoutes } from "./routes/recentProducts.js";
 import { premiumRoutes } from "./routes/premium.js";
+import { crawlerRoutes } from "./routes/crawlers.js";
 import type { HealthResponse } from "@accucery/types";
 import { responded } from "./alerts/serverErrors.js";
 
@@ -55,6 +56,7 @@ export async function buildApp(opts: { logger?: boolean; trustProxy?: number | f
   await app.register(substituteDecisionsRoutes);
   await app.register(recentProductsRoutes);
   await app.register(premiumRoutes);
+  await app.register(crawlerRoutes);
 
   return app;
 }
