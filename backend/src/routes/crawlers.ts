@@ -24,6 +24,23 @@ const PRIVATE = [
   "/api/",
 ];
 
+// The bots that fetch a page to show a shared link's preview. Some obey
+// robots.txt (X's does), so without their own group a shared link to a list
+// would show no preview there. They read only the page's head (index.html),
+// the same card for every page, never anyone's list: lists come from the API,
+// which they can't see.
+export const LINK_PREVIEW_BOTS = [
+  "Twitterbot",
+  "facebookexternalhit",
+  "Facebot",
+  "LinkedInBot",
+  "WhatsApp",
+  "TelegramBot",
+  "Slackbot-LinkExpanding",
+  "Discordbot",
+  "Pinterestbot",
+];
+
 export function robotsTxt(origin: string): string {
   return [
     "User-agent: *",
@@ -31,6 +48,10 @@ export function robotsTxt(origin: string): string {
     "",
     // AdSense's crawler reads the pages ads are on, to choose ads that fit.
     "User-agent: Mediapartners-Google",
+    "Allow: /",
+    "",
+    ...LINK_PREVIEW_BOTS.map((bot) => `User-agent: ${bot}`),
+    "Disallow: /api/",
     "Allow: /",
     "",
     `Sitemap: ${origin}/sitemap.xml`,

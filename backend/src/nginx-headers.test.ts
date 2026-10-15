@@ -55,3 +55,16 @@ describe("the visitor's address", () => {
     expect(readFileSync(join(REPO, "README.md"), "utf8")).toMatch(XFF);
   });
 });
+
+// A shared link's preview (frontend/index.html) needs full addresses. nginx
+// fills in this site's own as it serves the page.
+describe("the page's share card", () => {
+  it("gets this site's address filled in wherever index.html is served", () => {
+    const page = locations(conf).find((l) => l.head === "= /index.html");
+    expect(page?.body).toContain("sub_filter         '__SITE_ORIGIN__' 'https://$host';");
+    expect(page?.body).toContain("sub_filter_once    off;");
+    // Every other page is index.html too, through this location.
+    expect(locations(conf).find((l) => l.head === "/")?.body).toContain("try_files $uri $uri/ /index.html;");
+    expect(readFileSync(join(REPO, "frontend", "index.html"), "utf8")).toContain("__SITE_ORIGIN__/og-image.jpg");
+  });
+});

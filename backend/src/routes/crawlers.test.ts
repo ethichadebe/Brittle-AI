@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import Fastify from "fastify";
-import { crawlerRoutes, PUBLIC_PAGES, robotsTxt, sitemapXml } from "./crawlers.js";
+import { crawlerRoutes, LINK_PREVIEW_BOTS, PUBLIC_PAGES, robotsTxt, sitemapXml } from "./crawlers.js";
 
 const REPO = join(import.meta.dirname, "..", "..", "..");
 const ORIGIN = "https://app.example.com";
@@ -38,6 +38,22 @@ describe("robots.txt and the sitemap", () => {
   it("keep everyone's own lists and account out of search", () => {
     const blocked = disallowed(robotsTxt(ORIGIN));
     for (const p of ["/lists/", "/account", "/settings", "/api/"]) expect(blocked).toContain(p);
+  });
+
+  it("let link-preview bots read any page, so every shared link shows its card", () => {
+    // The rules a bot follows: the group naming it, else the "*" group.
+    const groupFor = (bot: string) => {
+      const groups = robotsTxt(ORIGIN).split(/\n\n+/);
+      return groups.find((g) => g.split("\n").includes(`User-agent: ${bot}`)) ?? groups.find((g) => g.includes("User-agent: *"))!;
+    };
+    for (const bot of ["Twitterbot", "facebookexternalhit", "WhatsApp", "TelegramBot", "LinkedInBot"]) {
+      expect(LINK_PREVIEW_BOTS).toContain(bot);
+      const rules = groupFor(bot);
+      expect(rules, bot).toContain("Allow: /");
+      expect(rules, bot).not.toContain("Disallow: /lists/");
+    }
+    // Everything else still keeps out of people's lists.
+    expect(groupFor("Googlebot")).toContain("Disallow: /lists/");
   });
 
   it("give full addresses, from the server's setting", () => {
