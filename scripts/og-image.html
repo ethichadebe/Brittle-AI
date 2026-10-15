@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  The picture a shared link shows (frontend/public/og-image.jpg), 1200 x 630.
+  To change it: edit this, then from the repo root run
+    node scripts/render-og-image.mjs
+  which writes frontend/public/og-image.jpg. Inter is loaded from node_modules.
+-->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: "Inter"; src: url("INTER_URL") format("woff2"); font-weight: 100 900; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    font-family: "Inter", sans-serif;
+    background: radial-gradient(circle at 85% 15%, #14968a 0, #0d7a70 45%, #0a6159 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 56px;
+    padding: 0 72px;
+    overflow: hidden;
+  }
+  .copy { flex: 1; }
+  .brand { display: flex; align-items: center; gap: 4px; font-weight: 800; font-size: 44px; letter-spacing: -0.02em; margin-bottom: 40px; }
+  .brand svg { height: 40px; width: auto; overflow: visible; }
+  h1 { font-size: 64px; line-height: 1.04; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 26px; }
+  p { font-size: 26px; line-height: 1.35; color: #d6f3ef; font-weight: 500; }
+  .tag { display: inline-block; margin-top: 30px; background: #7fe3d6; color: #08433d; font-weight: 700; font-size: 22px; padding: 10px 20px; border-radius: 999px; }
+  .card {
+    width: 380px; background: #fff; color: #10201e; border-radius: 28px; padding: 26px 26px 22px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.28); transform: rotate(2deg);
+  }
+  .card h2 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+  .card .store { font-size: 15px; color: #0d7a70; font-weight: 700; margin-bottom: 14px; }
+  .row { display: flex; justify-content: space-between; align-items: center; font-size: 17px; padding: 9px 0; border-bottom: 1px solid #e7efee; }
+  .row span:last-child { font-weight: 700; }
+  .row.done span:first-child { color: #8aa09d; text-decoration: line-through; }
+  .total { display: flex; justify-content: space-between; font-size: 21px; font-weight: 800; margin-top: 14px; }
+  .cheaper { margin-top: 12px; background: #dcf3f0; color: #0b5f57; border-radius: 12px; padding: 10px 12px; font-size: 16px; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <div class="brand">
+      <svg viewBox="124 86 264 340"><path d="M150 400L256 112l106 288" stroke="#fff" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>ccucery</span>
+    </div>
+    <h1>The shopping list that knows the prices</h1>
+    <p>Live prices from Checkers, Pick&nbsp;n&nbsp;Pay, Shoprite, Woolworths, Makro and Clicks. Know your total before the till.</p>
+    <span class="tag">Free · No download</span>
+  </div>
+  <div class="card">
+    <h2>Weekly shop</h2>
+    <div class="store">Checkers</div>
+    <div class="row done"><span>Full cream milk 2L</span><span>R33.99</span></div>
+    <div class="row done"><span>White bread 700g</span><span>R17.99</span></div>
+    <div class="row"><span>Large eggs 18</span><span>R59.99</span></div>
+    <div class="row"><span>Bananas per kg</span><span>R24.99</span></div>
+    <div class="row"><span>Long grain rice 2kg</span><span>R39.99</span></div>
+    <div class="total"><span>Total</span><span>R176.95</span></div>
+    <div class="cheaper">R8.55 less at Pick n Pay</div>
+  </div>
+</body>
+</html>
