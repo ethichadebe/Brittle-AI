@@ -93,8 +93,22 @@ writing, and the app with it. So:
    df -h /; cat /etc/docker/daemon.json 2>/dev/null || echo "no daemon.json yet"
    ```
 
-   If it prints `no daemon.json yet`, go on. If it prints a file, stop: the
-   settings below have to be merged into it by hand, not written over it.
+   If it prints `no daemon.json yet`, go on. If it prints a file that already
+   has `"max-size":"10m"` and `"max-file":"3"`, the cap is on: skip to the
+   check below. Any other file, stop: the settings have to be merged into it
+   by hand, not written over it.
+
+   **On this server the cap was already on** (2026-10-15): the file held exactly
+   these settings, and all eight containers, the other apps' included, showed
+   the cap in the check below. Disk: 17% of 96 GB used.
+
+   The check, any time (changes nothing):
+
+   ```bash
+   docker ps -q | xargs docker inspect --format '{{.Name}}: {{.HostConfig.LogConfig.Config}}'
+   ```
+
+   Every line ends `map[max-file:3 max-size:10m]`.
 
 2. **Set the cap and restart Docker.** Every site blinks off for a few
    seconds while Docker restarts, as when Docker updates:
