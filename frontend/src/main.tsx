@@ -7,7 +7,8 @@ import { routeTree } from "./routeTree.gen";
 import { applyAppearance, readAppearance } from "./lib/appearance";
 import { checkForUpdate, fetchServedBuild } from "./lib/appUpdate";
 import { startAnalytics, trackPage } from "./lib/analytics";
-import { startAds } from "./lib/ads";
+import { startAdsUnlessPremium } from "./lib/ads";
+import { api } from "./lib/api";
 
 // Before the first render, so a chosen Appearance never flashes the phone's.
 applyAppearance(document.documentElement, readAppearance(() => window.localStorage));
@@ -42,9 +43,9 @@ if (import.meta.env.PROD && startAnalytics()) {
   router.subscribe("onResolved", ({ toLocation }) => trackPage(toLocation.pathname));
 }
 
-// AdSense: production only, and only once its publisher id is set
-// (src/adsConfig.ts).
-if (import.meta.env.PROD) startAds();
+// AdSense: production only, only once its publisher id is set
+// (src/adsConfig.ts), and never for a Premium account (#172).
+if (import.meta.env.PROD) void startAdsUnlessPremium(async () => (await api.premium.status()).premium);
 
 declare module "@tanstack/react-router" {
   interface Register {
