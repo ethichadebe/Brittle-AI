@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fillSlot, slotFor, startAds, stopAds, AD_SHAPES } from "./ads";
+import { fillSlot, goAdFree, slotFor, startAds, startAdsUnlessPremium, stopAds, AD_SHAPES } from "./ads";
 import { AD_SLOTS, ADSENSE_CLIENT, adsTxt, isPublisherId } from "../adsConfig";
 
 // An invented publisher id: the real one goes in adsConfig.ts.
@@ -60,6 +60,45 @@ describe("which places show an ad", () => {
     expect(slotFor("listFeed", slots)).toBe("2345678901");
     expect(slotFor("homeFeed", slots)).toBeNull();
     expect(slotFor("listBanner", slots)).toBeNull();
+  });
+});
+
+describe("Premium (#172)", () => {
+  const slots = { homeBanner: "1234567890", homeFeed: "", listBanner: "", listFeed: "", compareWait: "" };
+
+  it("a free visitor gets AdSense, as before", async () => {
+    const { w, added } = fakeWindow();
+    expect(await startAdsUnlessPremium(async () => false, CLIENT, w)).toBe(true);
+    expect(added).toHaveLength(1);
+    expect(slotFor("homeBanner", slots)).toBe("1234567890");
+  });
+
+  it("a Premium account never loads it, so Google sets no ad cookies", async () => {
+    const { w, added } = fakeWindow();
+    expect(await startAdsUnlessPremium(async () => true, CLIENT, w)).toBe(false);
+    expect(added).toEqual([]);
+    expect(slotFor("homeBanner", slots)).toBeNull();
+  });
+
+  it("when Premium can't be checked, no ads this visit", async () => {
+    const { w, added } = fakeWindow();
+    expect(await startAdsUnlessPremium(() => Promise.reject(new Error("offline")), CLIENT, w)).toBe(false);
+    expect(added).toEqual([]);
+  });
+
+  it("isn't even asked about until a publisher id is set", async () => {
+    const { w } = fakeWindow();
+    const isPremium = vi.fn(async () => false);
+    expect(await startAdsUnlessPremium(isPremium, "", w)).toBe(false);
+    expect(isPremium).not.toHaveBeenCalled();
+  });
+
+  it("found mid-visit (signing in, subscribing): no ad shows from then on", async () => {
+    const { w } = fakeWindow();
+    await startAdsUnlessPremium(async () => false, CLIENT, w);
+    expect(slotFor("homeBanner", slots)).toBe("1234567890");
+    goAdFree();
+    expect(slotFor("homeBanner", slots)).toBeNull();
   });
 });
 

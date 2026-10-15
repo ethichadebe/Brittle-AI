@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type ListCollision } from "../lib/api";
 import { safeReturnPath } from "../lib/returnPath";
+import { goAdFree } from "../lib/ads";
 
 interface SignInSearch {
   then?: string;
@@ -70,6 +71,11 @@ function SignInPage() {
         return;
       }
       const result = await api.account.signIn(email.trim(), password);
+      // #172: a Premium account sees no more ads from here on.
+      void api.premium
+        .status()
+        .then((s) => s.premium && goAdFree())
+        .catch(() => {});
       setCollisions(result.collisions);
       setSignedIn(true);
     } catch (e) {

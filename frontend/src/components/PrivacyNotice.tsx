@@ -13,7 +13,7 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
   return (
     <article className="privacy-body">
-      <p className="privacy-updated">Last updated {adsOn ? "13 October 2026" : "3 October 2026"}</p>
+      <p className="privacy-updated">Last updated {adsOn ? "15 October 2026" : "3 October 2026"}</p>
 
       <h3>Who is responsible</h3>
       <p>
@@ -92,7 +92,8 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
             ones that might interest you. We don't give it your email, your lists or what you search for. It sees the page you're
             on, your device, browser and rough area. You can turn personalised ads off at{" "}
             <a href="https://myadcenter.google.com" target="_blank" rel="noreferrer">myadcenter.google.com</a>, and your
-            browser's tracking protection or an ad blocker hides them; the app works the same.
+            browser's tracking protection or an ad blocker hides them; the app works the same. With Premium, the app doesn't
+            load AdSense at all.
           </li>
         )}
         <li>

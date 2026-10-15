@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { PremiumOutcome, PremiumStatus } from "@accucery/types";
 import { api, ApiError } from "../lib/api";
 import { outcomeMessage } from "../lib/premium";
+import { goAdFree } from "../lib/ads";
 
 // #171: where Paystack sends the shopper back, with ?reference=... (and
 // ?trxref=, the same value). The server checks the payment with Paystack
@@ -33,6 +34,8 @@ function PremiumReturn() {
           const r = await api.premium.confirm(reference);
           if (stopped) return;
           setResult(r);
+          // #172: Premium starts now, and with it no ads.
+          if (r.status.premium) goAdFree();
           if (r.outcome !== "pending") return;
         } catch (e) {
           if (!stopped) setError(e instanceof ApiError ? e.message : "Couldn't check your payment. Check your connection.");

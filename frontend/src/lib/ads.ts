@@ -11,6 +11,8 @@ interface AdsWindow {
 }
 
 let running = false;
+// #172: a Premium account sees no ads, wherever it is in the app.
+let adFree = false;
 
 /** Loads adsbygoogle.js. Does nothing without a real publisher id. */
 export function startAds(client: string = ADSENSE_CLIENT, w: AdsWindow = window as unknown as AdsWindow): boolean {
@@ -25,15 +27,45 @@ export function startAds(client: string = ADSENSE_CLIENT, w: AdsWindow = window 
   return true;
 }
 
+/**
+ * #172: what the app runs at startup. A Premium account never loads
+ * AdSense, so Google sets no ad cookies for it. When Premium can't be checked
+ * (offline, or the server busy), no ads this visit: a paying shopper must
+ * never see one, and a free one misses only a visit's ads.
+ */
+export async function startAdsUnlessPremium(
+  isPremium: () => Promise<boolean>,
+  client: string = ADSENSE_CLIENT,
+  w: AdsWindow = window as unknown as AdsWindow
+): Promise<boolean> {
+  if (!isPublisherId(client)) return false;
+  const premium = await isPremium().catch(() => true);
+  if (premium) {
+    adFree = true;
+    return false;
+  }
+  return startAds(client, w);
+}
+
+/**
+ * For Premium found mid-visit (signing in, or just subscribed): no ad shows
+ * from here on. AdSense, if loaded already, can't be unloaded, but no slot
+ * asks it for an ad, and the next visit doesn't load it at all.
+ */
+export function goAdFree(): void {
+  adFree = true;
+}
+
 /** Tests only. */
 export function stopAds(): void {
   running = false;
+  adFree = false;
 }
 
 /** The slot id for a place, or null when that place shows nothing. */
 export function slotFor(place: AdPlace, slots: Record<AdPlace, string> = AD_SLOTS): string | null {
   const slot = slots[place];
-  return running && isSlotId(slot) ? slot : null;
+  return running && !adFree && isSlotId(slot) ? slot : null;
 }
 
 /** Asks AdSense to fill the newest empty slot. */
