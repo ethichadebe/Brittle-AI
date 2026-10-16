@@ -14,7 +14,6 @@ export interface Limit {
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
 
 // Generous for a person, tight for a script: a shopping session of a few
 // dozen searches never comes near these.
@@ -51,16 +50,7 @@ export const LIMITS = {
   signUpPerIp: [{ max: 20, windowMs: HOUR }],
   signInPerIp: [{ max: 100, windowMs: 15 * MINUTE }],
   resetsPerIp: [{ max: 30, windowMs: HOUR }],
-  // Photo search (2026-10-16): each photo is read by Claude, at a cost.
-  // A shopping trip is a handful of photos; this many is a script.
-  photoSearchesPerAccount: [
-    { max: 15, windowMs: HOUR },
-    { max: 60, windowMs: DAY },
-  ],
 } satisfies Record<string, Limit[]>;
-
-/** The longest window any limit counts over: a key is kept at least this long. */
-export const LONGEST_WINDOW_MS = Math.max(...Object.values(LIMITS).flatMap((ls: Limit[]) => ls.map((l) => l.windowMs)));
 
 // A private or loopback address is never a visitor's own: it's this server,
 // Docker's network, or a test. Seeing one means the proxies didn't pass the
@@ -100,7 +90,7 @@ export class RateLimiter {
   }
 
   /** Forgets keys with nothing recent, so the map doesn't grow for ever. */
-  sweep(olderThanMs: number = LONGEST_WINDOW_MS): void {
+  sweep(olderThanMs: number = 2 * HOUR): void {
     const now = this.now();
     for (const [key, times] of this.hits) {
       if (!times.some((t) => now - t < olderThanMs)) this.hits.delete(key);

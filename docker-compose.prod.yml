@@ -58,8 +58,6 @@ services:
       # The Owner's dashboard (/admin): the one Account allowed to open it.
       # Without it, nobody can.
       OWNER_EMAIL: ${OWNER_EMAIL:-}
-      # Photo search: Claude reads the photo. Without it, the camera is hidden.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       NODE_ENV: production
     depends_on:

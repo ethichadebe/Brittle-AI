@@ -1,12 +1,9 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { track } from "../lib/analytics";
 import { formatRand } from "../lib/format";
-import { CameraIcon, CheckIcon, CloseIcon, PlusIcon } from "./icons";
-import { useAccountSession } from "../hooks/useAccountSession";
-import { shrinkPhoto } from "../lib/photo";
+import { CheckIcon, CloseIcon, PlusIcon } from "./icons";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
 // The backend runs one scrape at a time per store, so a request per keystroke
@@ -65,56 +62,10 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Photo search (2026-10-16): offered once Claude is set up on the server;
-  // for signed-in shoppers, since each photo costs a little to read.
-  const { account } = useAccountSession();
-  const [photoOn, setPhotoOn] = useState(false);
-  const [reading, setReading] = useState(false);
-  // What the last photo read as: several make chips to tap.
-  const [photoQueries, setPhotoQueries] = useState<string[]>([]);
-  const [photoNote, setPhotoNote] = useState<string | null>(null);
-  const [askSignIn, setAskSignIn] = useState(false);
-  const cameraRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     inputRef.current?.focus();
     api.recentProducts(storeSlug).then(setRecent).catch(() => setRecent([]));
-    api.photoSearch.available().then(setPhotoOn).catch(() => setPhotoOn(false));
   }, [storeSlug]);
-
-  const openCamera = () => {
-    setPhotoNote(null);
-    if (!account) {
-      setAskSignIn(true);
-      return;
-    }
-    setAskSignIn(false);
-    cameraRef.current?.click();
-  };
-
-  const readPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // The same photo can be picked again next time.
-    e.target.value = "";
-    if (!file) return;
-    setReading(true);
-    setPhotoNote(null);
-    setPhotoQueries([]);
-    try {
-      const queries = await api.photoSearch.read(storeSlug, await shrinkPhoto(file));
-      track("photo_search", { store: storeSlug });
-      if (queries.length === 0) setPhotoNote("Couldn't find a product or a list in that photo. Try a closer, sharper one.");
-      else if (queries.length === 1) setQuery(queries[0]);
-      else {
-        setPhotoQueries(queries);
-        setQuery(queries[0]);
-      }
-    } catch (err) {
-      setPhotoNote(err instanceof ApiError ? err.message : "Couldn't read that photo. Check your connection and try again.");
-    } finally {
-      setReading(false);
-    }
-  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -215,36 +166,10 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        {photoOn && (
-          <>
-            <button className="add-camera" aria-label="Search with a photo" disabled={reading} onClick={openCamera}>
-              <CameraIcon />
-            </button>
-            {/* capture opens the camera on a phone; a computer offers its files. */}
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void readPhoto(e)} />
-          </>
-        )}
         <button className="add-done" onClick={() => onDone(added.size)}>Done</button>
       </header>
 
       {error && <p className="add-error" role="alert">{error}</p>}
-
-      {reading && <p className="add-photo-note" role="status">Reading your photo…</p>}
-      {photoNote && <p className="add-photo-note" role="alert">{photoNote}</p>}
-      {askSignIn && (
-        <p className="add-photo-note" role="alert">
-          <Link to="/sign-in" search={{ then: window.location.pathname }}>Sign in</Link> to search with a photo of a product or a shopping list.
-        </p>
-      )}
-      {photoQueries.length > 1 && (
-        <div className="add-photo-chips" role="group" aria-label="From your photo">
-          {photoQueries.map((q) => (
-            <button key={q} className={`name-chip${query.trim() === q ? " name-chip--on" : ""}`} aria-pressed={query.trim() === q} onClick={() => setQuery(q)}>
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
 
       {!typed && recent && recent.length > 0 && <h2 className="add-section">Recent at {storeName}</h2>}
 

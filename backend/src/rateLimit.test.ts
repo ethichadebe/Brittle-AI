@@ -60,15 +60,6 @@ describe("a rate limit", () => {
     limiter.sweep();
     expect(limiter.take("k", limit)).toBe(0);
   });
-
-  it("keeps a daily limit's count through the sweep", () => {
-    const { limiter, advance } = at();
-    const daily = [{ max: 1, windowMs: 24 * 60 * 60 * 1000 }];
-    limiter.take("k", daily);
-    advance(5 * 60 * 60 * 1000);
-    limiter.sweep();
-    expect(limiter.take("k", daily)).toBeGreaterThan(0);
-  });
 });
 
 describe("a visitor's address", () => {

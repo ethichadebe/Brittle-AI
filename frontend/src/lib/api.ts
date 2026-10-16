@@ -7,8 +7,6 @@ import type {
   PremiumPlan,
   PremiumStatus,
   OwnerDashboard,
-  PhotoSearchRequest,
-  PhotoSearchResponse,
   Product,
   RecentProductsResponse,
   SearchResponse,
@@ -150,13 +148,6 @@ export const api = {
   // #114: products this Shopper has had on their lists at a store.
   recentProducts: (store: StoreSlug) =>
     request<RecentProductsResponse>(`/recent-products?store=${store}`).then((r) => r.products),
-
-  // Photo search: Claude reads a photo into what to search for.
-  photoSearch: {
-    available: () => request<{ available: boolean }>("/search/photo").then((r) => r.available),
-    read: (store: StoreSlug, photo: PhotoSearchRequest) =>
-      request<PhotoSearchResponse>("/search/photo", { method: "POST", body: JSON.stringify({ store, ...photo }) }).then((r) => r.queries),
-  },
 
   // The Owner's dashboard (/admin). Both answer 404 to anyone else.
   owner: {
