@@ -13,7 +13,7 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
   return (
     <article className="privacy-body">
-      <p className="privacy-updated">Last updated {adsOn ? "15 October 2026" : "3 October 2026"}</p>
+      <p className="privacy-updated">Last updated 16 October 2026</p>
 
       <h3>Who is responsible</h3>
       <p>
@@ -73,6 +73,11 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
         <li>
           <strong>ScraperAPI</strong>, in the United States, which fetches some stores' web pages for us. It sees what is searched
           for and, when you ask for local prices, your position. It isn't told who you are.
+        </li>
+        <li>
+          <strong>Anthropic</strong>, in the United States, which reads a photo when you search with one, to tell which
+          products or list items are in it. We don't keep the photo, and Anthropic doesn't use it to train its AI. Only
+          signed-in shoppers can search with a photo, and only when they choose to.
         </li>
         <li>
           <strong>Resend</strong>, in the United States, which sends the app's emails. It sees your email address and what we

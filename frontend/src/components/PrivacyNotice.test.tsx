@@ -38,11 +38,23 @@ describe("the privacy notice and ads", () => {
   });
 
   it("dates the change", () => {
-    expect(text(false)).toContain("Last updated 3 October 2026");
-    expect(text(true)).toContain("Last updated 15 October 2026");
+    expect(text(false)).toContain("Last updated 16 October 2026");
+    expect(text(true)).toContain("Last updated 16 October 2026");
   });
 
   it("still says Google Analytics isn't used for advertising, which stays true", () => {
     expect(text(true)).toContain("it isn't used for advertising");
+  });
+});
+
+describe("the privacy notice and photo search", () => {
+  it("names Anthropic, says the photo isn't kept or trained on, and that it's only on request", () => {
+    for (const adsOn of [false, true]) {
+      const notice = text(adsOn);
+      expect(notice).toContain("Anthropic");
+      expect(notice).toContain("We don't keep the photo");
+      expect(notice).toContain("doesn't use it to train its AI");
+      expect(notice).toContain("only when they choose to");
+    }
   });
 });
