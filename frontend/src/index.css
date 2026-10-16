@@ -2481,6 +2481,5 @@ html.on-landing #root { max-width: none; }
 }
 .add-camera:disabled { opacity: 0.5; }
 .add-photo-note { margin: 0 1rem 0.5rem; color: var(--text-2); font-size: 0.9rem; }
-.add-photo-note a { color: var(--primary); font-weight: 600; }
 .add-photo-chips { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.6rem 1rem; scrollbar-width: none; }
 .add-photo-chips::-webkit-scrollbar { display: none; }

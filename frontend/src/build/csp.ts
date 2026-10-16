@@ -36,6 +36,11 @@ export interface CspOptions {
   ads?: boolean;
 }
 
+// Photo search (2026-10-16) reads barcodes with ZXing, compiled to
+// WebAssembly, on iPhones and computers. This lets the page compile
+// WebAssembly and nothing more: it doesn't allow eval() or any other script.
+const WASM = "'wasm-unsafe-eval'";
+
 export function contentSecurityPolicy(html: string, { analytics = false, ads = false }: CspOptions = {}): string {
   const { scripts, styles } = inlineHashes(html);
   if (ads) {
@@ -43,7 +48,7 @@ export function contentSecurityPolicy(html: string, { analytics = false, ads = f
       "default-src 'self'",
       // https: and 'unsafe-inline' are for browsers too old to know
       // 'strict-dynamic'; every current one ignores both once it sees it.
-      ["script-src", ...scripts, "'strict-dynamic' https: 'unsafe-inline'"].join(" "),
+      ["script-src", ...scripts, "'strict-dynamic' https: 'unsafe-inline'", WASM].join(" "),
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
@@ -59,7 +64,7 @@ export function contentSecurityPolicy(html: string, { analytics = false, ads = f
   const ga = (...sources: string[]) => (analytics ? sources : []);
   return [
     "default-src 'self'",
-    ["script-src 'self'", ...scripts, ...ga(GA_SCRIPT_ORIGIN)].join(" "),
+    ["script-src 'self'", ...scripts, ...ga(GA_SCRIPT_ORIGIN), WASM].join(" "),
     `style-src 'self' ${styles.join(" ")}`.trim(),
     // Product pictures come through /api/image-proxy, so they're the site's own.
     ["img-src 'self' data: blob:", ...ga(...GA_COLLECT_ORIGINS)].join(" "),

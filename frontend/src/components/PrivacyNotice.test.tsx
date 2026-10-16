@@ -48,13 +48,11 @@ describe("the privacy notice and ads", () => {
 });
 
 describe("the privacy notice and photo search", () => {
-  it("names Anthropic, says the photo isn't kept or trained on, and that it's only on request", () => {
+  it("says a photo stays on the phone, and only a barcode's number goes to Open Food Facts", () => {
     for (const adsOn of [false, true]) {
-      const notice = text(adsOn);
-      expect(notice).toContain("Anthropic");
-      expect(notice).toContain("We don't keep the photo");
-      expect(notice).toContain("doesn't use it to train its AI");
-      expect(notice).toContain("only when they choose to");
+      expect(text(adsOn)).toContain("the photo never leaves your phone");
+      expect(text(adsOn)).toContain("only the barcode's number is sent, through our server, to Open Food Facts");
+      expect(text(adsOn)).toMatch(/Open Food Facts , a free, open database .* never sees you or your device/);
     }
   });
 });

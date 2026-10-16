@@ -339,16 +339,9 @@ export interface OwnerDashboard {
   activity: OwnerActivity[];
 }
 
-// Photo search (2026-10-16): a photo of a product or a shopping list, read
-// into what to search for.
-
-export interface PhotoSearchRequest {
-  /** The photo, base64, without a data: prefix. */
-  image: string;
-  mediaType: "image/jpeg" | "image/png" | "image/webp";
-}
-
-export interface PhotoSearchResponse {
-  /** What to search for, one per product or list line, in the photo's order. Empty when nothing was readable. */
-  queries: string[];
+// Photo search (2026-10-16): a barcode read on the phone, as a product name.
+export interface BarcodeLookupResponse {
+  code: string;
+  /** What to search for, or null when Open Food Facts doesn't know the barcode. */
+  name: string | null;
 }

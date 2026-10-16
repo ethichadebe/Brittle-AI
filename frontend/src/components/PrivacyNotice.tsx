@@ -50,6 +50,13 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
         branch, then forgotten. We never store it: only the branch's name is kept.
       </p>
 
+      <h3>Photos</h3>
+      <p>
+        When you search with a photo, your phone reads it and the photo never leaves your phone: not to us, not to anyone. If
+        it shows a barcode, only the barcode's number is sent, through our server, to Open Food Facts to find the product's
+        name. The words read from a photo are searched for like anything you type.
+      </p>
+
       <h3>Cookies</h3>
       {adsOn ? (
         <p>
@@ -75,11 +82,6 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
           for and, when you ask for local prices, your position. It isn't told who you are.
         </li>
         <li>
-          <strong>Anthropic</strong>, in the United States, which reads a photo when you search with one, to tell which
-          products or list items are in it. We don't keep the photo, and Anthropic doesn't use it to train its AI. Only
-          signed-in shoppers can search with a photo, and only when they choose to.
-        </li>
-        <li>
           <strong>Resend</strong>, in the United States, which sends the app's emails. It sees your email address and what we
           send you.
         </li>
@@ -101,6 +103,10 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
             load AdSense at all.
           </li>
         )}
+        <li>
+          <strong>Open Food Facts</strong>, a free, open database of food products run by a non-profit in France, which gets the
+          number of a barcode you photograph. Our server asks it, so it never sees you or your device.
+        </li>
         <li>
           <strong>Paystack</strong>, a payment company owned by Stripe, which takes Premium payments if you subscribe. Your card details
           go to Paystack, never to us. We keep your plan, when it renews or ends, and Paystack's references for your

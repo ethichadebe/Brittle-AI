@@ -1,4 +1,5 @@
 import type {
+  BarcodeLookupResponse,
   BranchLookup,
   ComparisonResult,
   GroceryList,
@@ -7,8 +8,6 @@ import type {
   PremiumPlan,
   PremiumStatus,
   OwnerDashboard,
-  PhotoSearchRequest,
-  PhotoSearchResponse,
   Product,
   RecentProductsResponse,
   SearchResponse,
@@ -151,12 +150,8 @@ export const api = {
   recentProducts: (store: StoreSlug) =>
     request<RecentProductsResponse>(`/recent-products?store=${store}`).then((r) => r.products),
 
-  // Photo search: Claude reads a photo into what to search for.
-  photoSearch: {
-    available: () => request<{ available: boolean }>("/search/photo").then((r) => r.available),
-    read: (store: StoreSlug, photo: PhotoSearchRequest) =>
-      request<PhotoSearchResponse>("/search/photo", { method: "POST", body: JSON.stringify({ store, ...photo }) }).then((r) => r.queries),
-  },
+  // Photo search: the product name for a barcode read on the phone, or null.
+  barcode: (code: string) => request<BarcodeLookupResponse>(`/products/barcode/${code}`).then((r) => r.name),
 
   // The Owner's dashboard (/admin). Both answer 404 to anyone else.
   owner: {

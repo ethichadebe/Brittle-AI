@@ -1,5 +1,7 @@
 # 2026-10-16 — Search with a photo
 
+> Replaced the same day by a free version that reads photos on the phone: see [2026-10-16-free-photo-search.md](2026-10-16-free-photo-search.md).
+
 - **Asked for:** "take pictures of text or products and do a search from there".
 - **Decided with the owner:**
   - **Claude reads the photo,** rather than text recognition on the phone, which can't read packaging or handwriting.
