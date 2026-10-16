@@ -258,7 +258,8 @@ export interface PremiumStatus {
 export type PremiumOutcome = "trial-started" | "trial-used" | "card-not-reusable" | "subscribed" | "pending";
 
 // The Owner's dashboard (2026-10-16): how the whole app is doing, from what
-// the database already holds. Totals and trends only: emails come masked,
+// the database already holds. Totals and trends only: shoppers are named by
+// the part of their email before the @, never the whole address,
 // and nothing on anyone's lists is ever included.
 
 /** One South African day ("2026-10-16") and what happened on it. */
@@ -291,7 +292,7 @@ export type OwnerActivityKind = "account" | "signup" | "list" | "checkout" | "pr
 export interface OwnerActivity {
   at: string;
   kind: OwnerActivityKind;
-  /** Plain words, with any email masked ("t***@gmail.com"). */
+  /** Plain words, naming a shopper by their email before the @ ("thandi.m"). */
   text: string;
 }
 

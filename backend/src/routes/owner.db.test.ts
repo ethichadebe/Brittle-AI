@@ -81,9 +81,10 @@ describe("who can open it", () => {
 });
 
 describe("what it shows", () => {
-  it("counts shoppers, lists and stores, and never shows a full email or a list's name", async () => {
+  it("counts shoppers, lists and stores, names shoppers without their whole email, and never shows a list's name", async () => {
     const owner = await signedIn(OWNER);
-    const shopper = await signedIn(`thandi-${randomUUID()}@example.com`);
+    const thandi = `thandi-${randomUUID()}`;
+    const shopper = await signedIn(`${thandi}@example.com`);
     await shopper.send({ method: "POST", url: "/lists", payload: { storeSlug: "checkers", name: "Secret braai list" } });
     const anon = browser();
     await anon.send({ method: "POST", url: "/lists", payload: { storeSlug: "woolworths", name: "Private things" } });
@@ -102,11 +103,12 @@ describe("what it shows", () => {
     expect(d.stores.find((s) => s.store === "woolworths")?.lists).toBe(1);
 
     expect(d.activity.map((a) => a.kind)).toEqual(expect.arrayContaining(["account", "signup", "list"]));
-    expect(d.activity.some((a) => /^t\*\*\*@example\.com created an account$/.test(a.text))).toBe(true);
+    // Named like a username: the email before the @.
+    expect(d.activity.some((a) => a.text === `${thandi} created an account`)).toBe(true);
     expect(d.activity.some((a) => a.text === "A list at Checkers, on an account")).toBe(true);
     expect(d.activity.some((a) => a.text === "A list at Woolworths, without an account")).toBe(true);
     // Nothing personal in the whole answer.
-    expect(res.body).not.toMatch(/[a-z0-9-]+@example\.com/);
+    expect(res.body).not.toContain("@");
     expect(res.body).not.toMatch(/braai|Private things/);
   });
 

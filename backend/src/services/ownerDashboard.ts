@@ -1,13 +1,13 @@
 import type { OwnerActivity, OwnerCreditDay, OwnerDashboard, OwnerDay, OwnerStore } from "@accucery/types";
 import { STORE_CONFIGS } from "@accucery/types";
 import { prisma } from "../db.js";
-import { maskEmail } from "../mail/mailer.js";
 import { DAILY_GUIDE, joburgDay } from "../scraper/credits.js";
 import { PRICES_CENTS, type Plan } from "../payments/paystack.js";
 
 // The Owner's dashboard: everything from what the database already holds.
-// Nothing here is recorded for it. Emails are masked, and no list's name or
-// contents is ever read.
+// Nothing here is recorded for it. A shopper is named by the part of their
+// email before the @ (the Owner's choice, 2026-10-16), never the whole
+// address, and no list's name or contents is ever read.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAYS = 30;
@@ -17,6 +17,12 @@ const ACTIVITY = 50;
 const sastMidnight = (day: string) => new Date(`${day}T00:00:00+02:00`);
 const storeName = (slug: string) => STORE_CONFIGS.find((s) => s.slug === slug)?.name ?? slug;
 const planPrice = (plan: string) => PRICES_CENTS[plan as Plan] ?? 0;
+
+/** "thandi.m@gmail.com" -> "thandi.m": who it is, like a username, without the address to write to. */
+export function username(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at > 0 ? email.slice(0, at) : email;
+}
 
 /** The last `count` South African days, oldest first, ending today. */
 export function lastDays(now: Date, count: number): string[] {
@@ -185,8 +191,8 @@ export async function recentActivity(limit = ACTIVITY): Promise<OwnerActivity[]>
   };
 
   const events: OwnerActivity[] = [
-    ...accounts.map((a) => ({ at: a.createdAt.toISOString(), kind: "account" as const, text: `${maskEmail(a.email)} created an account` })),
-    ...signups.map((s) => ({ at: s.createdAt.toISOString(), kind: "signup" as const, text: `${maskEmail(s.email)} signed up, waiting to confirm` })),
+    ...accounts.map((a) => ({ at: a.createdAt.toISOString(), kind: "account" as const, text: `${username(a.email)} created an account` })),
+    ...signups.map((s) => ({ at: s.createdAt.toISOString(), kind: "signup" as const, text: `${username(s.email)} signed up, waiting to confirm` })),
     ...lists.map((l) => ({
       at: l.createdAt.toISOString(),
       kind: "list" as const,
@@ -195,17 +201,17 @@ export async function recentActivity(limit = ACTIVITY): Promise<OwnerActivity[]>
     ...checkouts.map((c) => ({
       at: c.createdAt.toISOString(),
       kind: "checkout" as const,
-      text: `${maskEmail(c.account.email)} opened Premium checkout (${c.plan}${c.purpose === "trial" ? ", trial" : ""})`,
+      text: `${username(c.account.email)} opened Premium checkout (${c.plan}${c.purpose === "trial" ? ", trial" : ""})`,
     })),
     ...handled.map((c) => ({
       at: c.handledAt!.toISOString(),
       kind: "premium" as const,
-      text: `${maskEmail(c.account.email)} ${outcomeWords[c.outcome ?? ""] ?? "finished checkout"} (${c.plan})`,
+      text: `${username(c.account.email)} ${outcomeWords[c.outcome ?? ""] ?? "finished checkout"} (${c.plan})`,
     })),
     ...renewals.map((r) => ({
       at: r.createdAt.toISOString(),
       kind: "renewal" as const,
-      text: `${maskEmail(r.account.email)} renewed Premium${r.account.subscription ? ` (${r.account.subscription.plan})` : ""}`,
+      text: `${username(r.account.email)} renewed Premium${r.account.subscription ? ` (${r.account.subscription.plan})` : ""}`,
     })),
   ];
   return events.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
