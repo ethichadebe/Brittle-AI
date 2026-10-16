@@ -11,7 +11,8 @@ export const Route = createFileRoute("/admin")({
 });
 
 // The Owner's dashboard (2026-10-16): how the whole app is doing, from what
-// the database holds. Read-only, totals only, emails masked. To anyone but the
+// the database holds. Read-only, totals only, shoppers named by their email
+// before the @. To anyone but the
 // Owner the server says this isn't here, and so does this page.
 function AdminPage() {
   const navigate = useNavigate();
