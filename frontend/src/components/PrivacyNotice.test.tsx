@@ -38,11 +38,21 @@ describe("the privacy notice and ads", () => {
   });
 
   it("dates the change", () => {
-    expect(text(false)).toContain("Last updated 3 October 2026");
-    expect(text(true)).toContain("Last updated 15 October 2026");
+    expect(text(false)).toContain("Last updated 16 October 2026");
+    expect(text(true)).toContain("Last updated 16 October 2026");
   });
 
   it("still says Google Analytics isn't used for advertising, which stays true", () => {
     expect(text(true)).toContain("it isn't used for advertising");
+  });
+});
+
+describe("the privacy notice and photo search", () => {
+  it("says a photo stays on the phone, and only a barcode's number goes to Open Food Facts", () => {
+    for (const adsOn of [false, true]) {
+      expect(text(adsOn)).toContain("the photo never leaves your phone");
+      expect(text(adsOn)).toContain("only the barcode's number is sent, through our server, to Open Food Facts");
+      expect(text(adsOn)).toMatch(/Open Food Facts , a free, open database .* never sees you or your device/);
+    }
   });
 });

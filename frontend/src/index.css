@@ -2464,3 +2464,22 @@ html.on-landing #root { max-width: none; }
 .owner-count { margin: 8px 0; font-size: 13px; }
 .owner-clear { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
 .owner-who { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+
+/* Photo search (2026-10-16): the camera beside the search box, and what the
+   photo read as. */
+.add-camera {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.add-camera:disabled { opacity: 0.5; }
+.add-photo-note { margin: 0 1rem 0.5rem; color: var(--text-2); font-size: 0.9rem; }
+.add-photo-chips { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.6rem 1rem; scrollbar-width: none; }
+.add-photo-chips::-webkit-scrollbar { display: none; }

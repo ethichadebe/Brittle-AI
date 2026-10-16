@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { track } from "../lib/analytics";
 import { formatRand } from "../lib/format";
-import { CheckIcon, CloseIcon, PlusIcon } from "./icons";
+import { CameraIcon, CheckIcon, CloseIcon, PlusIcon } from "./icons";
+import { photoCanvas } from "../lib/photo";
+import { closeTextReader, findBarcode, readSearches, textReaderLoaded } from "../lib/photoReader";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
 // The backend runs one scrape at a time per store, so a request per keystroke
@@ -62,10 +64,66 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Photo search (2026-10-16): a photo of a product or a shopping list, read
+  // on the phone. The photo itself goes nowhere.
+  const [reading, setReading] = useState<string | null>(null);
+  // What the last photo read as: several make chips to tap.
+  const [photoQueries, setPhotoQueries] = useState<string[]>([]);
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     inputRef.current?.focus();
     api.recentProducts(storeSlug).then(setRecent).catch(() => setRecent([]));
   }, [storeSlug]);
+
+  useEffect(() => closeTextReader, []);
+
+  const readPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // The same photo can be picked again next time.
+    e.target.value = "";
+    if (!file) return;
+    setPhotoNote(null);
+    setPhotoQueries([]);
+    setReading("Looking for a barcode…");
+    let unknownBarcode = false;
+    try {
+      const canvas = await photoCanvas(file);
+
+      // A barcode names the exact product, so it's tried first.
+      const code = await findBarcode(canvas).catch(() => null);
+      if (code) {
+        const name = await api.barcode(code).catch(() => null);
+        if (name) {
+          track("photo_search", { store: storeSlug });
+          setQuery(name);
+          return;
+        }
+        unknownBarcode = true;
+      }
+
+      setReading(textReaderLoaded() ? "Reading the words…" : "Getting the reader ready, then reading the words…");
+      const queries = await readSearches(canvas);
+      track("photo_search", { store: storeSlug });
+      if (queries.length === 0) {
+        setPhotoNote(
+          unknownBarcode
+            ? "We don't know that barcode yet, and couldn't read the name. Try a photo of the front of the pack."
+            : "Couldn't find a barcode or any words in that photo. Try a closer, sharper one, in good light."
+        );
+      } else {
+        if (unknownBarcode) setPhotoNote("We don't know that barcode yet, so here's what the pack says.");
+        if (queries.length > 1) setPhotoQueries(queries);
+        setQuery(queries[0]);
+      }
+    } catch (err) {
+      console.error(err);
+      setPhotoNote("Couldn't read that photo. Check your connection and try again.");
+    } finally {
+      setReading(null);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -166,10 +224,27 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <button className="add-camera" aria-label="Search with a photo" disabled={reading !== null} onClick={() => cameraRef.current?.click()}>
+          <CameraIcon />
+        </button>
+        {/* capture opens the camera on a phone; a computer offers its files. */}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void readPhoto(e)} />
         <button className="add-done" onClick={() => onDone(added.size)}>Done</button>
       </header>
 
       {error && <p className="add-error" role="alert">{error}</p>}
+
+      {reading && <p className="add-photo-note" role="status">{reading}</p>}
+      {photoNote && <p className="add-photo-note" role="alert">{photoNote}</p>}
+      {photoQueries.length > 1 && (
+        <div className="add-photo-chips" role="group" aria-label="From your photo">
+          {photoQueries.map((q) => (
+            <button key={q} className={`name-chip${query.trim() === q ? " name-chip--on" : ""}`} aria-pressed={query.trim() === q} onClick={() => setQuery(q)}>
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!typed && recent && recent.length > 0 && <h2 className="add-section">Recent at {storeName}</h2>}
 

@@ -3,6 +3,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { forAds, withCsp } from "./src/build/csp";
+import { reader } from "./src/build/reader";
 import { GA_MEASUREMENT_ID, isMeasurementId } from "./src/analyticsConfig";
 import { ADSENSE_CLIENT, adsTxt, isPublisherId } from "./src/adsConfig";
 
@@ -49,6 +50,7 @@ export default defineConfig({
     react(),
     buildId(),
     csp(),
+    reader(import.meta.dirname),
   ],
   server: {
     port: 5173,

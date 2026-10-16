@@ -13,7 +13,7 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
   return (
     <article className="privacy-body">
-      <p className="privacy-updated">Last updated {adsOn ? "15 October 2026" : "3 October 2026"}</p>
+      <p className="privacy-updated">Last updated 16 October 2026</p>
 
       <h3>Who is responsible</h3>
       <p>
@@ -48,6 +48,13 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
       <p>
         Only used when you ask for a list's nearest branch. Your position is sent once to the store's own website to find that
         branch, then forgotten. We never store it: only the branch's name is kept.
+      </p>
+
+      <h3>Photos</h3>
+      <p>
+        When you search with a photo, your phone reads it and the photo never leaves your phone: not to us, not to anyone. If
+        it shows a barcode, only the barcode's number is sent, through our server, to Open Food Facts to find the product's
+        name. The words read from a photo are searched for like anything you type.
       </p>
 
       <h3>Cookies</h3>
@@ -96,6 +103,10 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
             load AdSense at all.
           </li>
         )}
+        <li>
+          <strong>Open Food Facts</strong>, a free, open database of food products run by a non-profit in France, which gets the
+          number of a barcode you photograph. Our server asks it, so it never sees you or your device.
+        </li>
         <li>
           <strong>Paystack</strong>, a payment company owned by Stripe, which takes Premium payments if you subscribe. Your card details
           go to Paystack, never to us. We keep your plan, when it renews or ends, and Paystack's references for your

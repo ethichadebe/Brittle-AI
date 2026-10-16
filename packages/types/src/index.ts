@@ -338,3 +338,10 @@ export interface OwnerDashboard {
   /** What happened lately, newest first: up to 50 of each kind, for the page to filter. */
   activity: OwnerActivity[];
 }
+
+// Photo search (2026-10-16): a barcode read on the phone, as a product name.
+export interface BarcodeLookupResponse {
+  code: string;
+  /** What to search for, or null when Open Food Facts doesn't know the barcode. */
+  name: string | null;
+}

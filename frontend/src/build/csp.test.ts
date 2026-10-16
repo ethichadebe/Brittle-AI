@@ -17,7 +17,14 @@ describe("the content security policy", () => {
     expect(policy).toContain(`script-src 'self' ${sha("window.splash = 1;")}`);
     expect(policy).toContain(`style-src 'self' ${sha(".splash{opacity:1}")}`);
     expect(policy).not.toContain("unsafe-inline");
-    expect(policy).not.toContain("unsafe-eval");
+    expect(policy).not.toContain("'unsafe-eval'");
+  });
+
+  it("lets WebAssembly compile, for reading barcodes, in both kinds of policy, but not eval()", () => {
+    for (const policy of [contentSecurityPolicy(page), contentSecurityPolicy(page, { ads: true })]) {
+      expect(policy).toMatch(/script-src [^;]*'wasm-unsafe-eval'/);
+      expect(policy).not.toContain("'unsafe-eval'");
+    }
   });
 
   it("changes when the inline script does, so it can't go stale", () => {
@@ -50,7 +57,7 @@ describe("with Google Analytics on", () => {
     expect(on).toMatch(/connect-src 'self' https:\/\/\*\.google-analytics\.com https:\/\/\*\.analytics\.google\.com https:\/\/www\.googletagmanager\.com/);
     // Still no inline script without a fingerprint, and no eval.
     expect(on).not.toContain("unsafe-inline");
-    expect(on).not.toContain("unsafe-eval");
+    expect(on).not.toContain("'unsafe-eval'");
   });
 });
 
@@ -87,7 +94,7 @@ describe("with AdSense on", () => {
     expect(policy).toContain(`script-src ${sha("window.splash = 1;")} ${sha(loader)} 'strict-dynamic'`);
     // No host is trusted to run scripts by name: that's what strict means.
     expect(policy).not.toMatch(/script-src[^;]*googletagmanager/);
-    expect(policy).not.toContain("unsafe-eval");
+    expect(policy).not.toContain("'unsafe-eval'");
     for (const d of ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-src https:", "img-src 'self' data: blob: https:"]) {
       expect(policy).toContain(d);
     }

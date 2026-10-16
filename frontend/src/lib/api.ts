@@ -1,4 +1,5 @@
 import type {
+  BarcodeLookupResponse,
   BranchLookup,
   ComparisonResult,
   GroceryList,
@@ -148,6 +149,9 @@ export const api = {
   // #114: products this Shopper has had on their lists at a store.
   recentProducts: (store: StoreSlug) =>
     request<RecentProductsResponse>(`/recent-products?store=${store}`).then((r) => r.products),
+
+  // Photo search: the product name for a barcode read on the phone, or null.
+  barcode: (code: string) => request<BarcodeLookupResponse>(`/products/barcode/${code}`).then((r) => r.name),
 
   // The Owner's dashboard (/admin). Both answer 404 to anyone else.
   owner: {

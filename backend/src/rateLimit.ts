@@ -50,6 +50,10 @@ export const LIMITS = {
   signUpPerIp: [{ max: 20, windowMs: HOUR }],
   signInPerIp: [{ max: 100, windowMs: 15 * MINUTE }],
   resetsPerIp: [{ max: 30, windowMs: HOUR }],
+  // Barcode lookups (2026-10-16), from a photo: free, but Open Food Facts is
+  // a shared, volunteer-run service, so a script mustn't lean on it through us.
+  barcodesPerDevice: [{ max: 60, windowMs: HOUR }],
+  barcodesPerIp: [{ max: 300, windowMs: HOUR }],
 } satisfies Record<string, Limit[]>;
 
 // A private or loopback address is never a visitor's own: it's this server,
