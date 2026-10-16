@@ -48,9 +48,10 @@ describe("the privacy notice and ads", () => {
 });
 
 describe("the privacy notice and photo search", () => {
-  it("says a photo stays on the phone, and only a barcode's number goes to Open Food Facts", () => {
+  it("says a photo stays on the phone, the camera records nothing, and only a barcode's number goes to Open Food Facts", () => {
     for (const adsOn of [false, true]) {
       expect(text(adsOn)).toContain("the photo never leaves your phone");
+      expect(text(adsOn)).toContain("The camera is on only while it's open on the screen, and nothing is recorded");
       expect(text(adsOn)).toContain("only the barcode's number is sent, through our server, to Open Food Facts");
       expect(text(adsOn)).toMatch(/Open Food Facts , a free, open database .* never sees you or your device/);
     }

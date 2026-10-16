@@ -35,6 +35,16 @@ describe("security headers", () => {
     expect(snippet).toContain("frame-ancestors 'none'");
   });
 
+  // Photo search's scanner (CameraScan.tsx) needs the camera; without it the
+  // browser refuses and only "Choose a photo" works. This site only, and the
+  // microphone never.
+  it("let this site, and only this site, use the camera and location", () => {
+    const policy = snippet.match(/add_header Permissions-Policy "([^"]+)"/)?.[1] ?? "";
+    expect(policy).toContain("camera=(self)");
+    expect(policy).toContain("geolocation=(self)");
+    expect(policy).toContain("microphone=()");
+  });
+
   it("reach the image the frontend image is built from", () => {
     const dockerfile = readFileSync(join(REPO, "frontend", "Dockerfile"), "utf8");
     expect(dockerfile).toContain("COPY nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf");

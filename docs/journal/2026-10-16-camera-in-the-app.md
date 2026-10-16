@@ -1,0 +1,26 @@
+# 2026-10-16 — The camera opens inside the app
+
+- **Asked for:** the owner tried photo search on their phone and got "Unable to complete previous operation due to low memory". They were back on the list with nothing searched.
+- **Why:** the camera button opened the phone's own camera app (`capture` on a file input). While that app is open, Android may close Chrome's page to free memory; that's more likely with many tabs open, and the owner had 10. When the photo comes back, the page it was for is gone. Chrome shows that message and the photo is lost. Accucery's code never got it. Others report the same with Chrome.
+- **What changed:**
+  - **The camera opens inside the page** (`CameraScan.tsx`), so Chrome never leaves the screen.
+    - **Barcodes:** it looks for one every 0.4 s while you point, and fills the search as soon as it's named.
+    - **Words:** "Read the words" reads what the camera sees then. Several lines become chips, as before.
+    - **Unknown barcode:** it says so and asks you to point at the name on the pack.
+    - The camera stops the moment the scanner closes.
+  - **"Choose a photo"** picks one from the phone, for when the camera isn't allowed or the photo was taken earlier. The file input no longer has `capture`.
+  - **Camera not allowed** (refused, or an old browser): it says so, and "Choose a photo" still works.
+  - **nginx:** `Permissions-Policy` now allows the camera for this site (`camera=(self)`); it was `camera=()`, which blocks it everywhere. The microphone is still blocked. A test checks both.
+  - **Privacy notice:** adds that the camera is on only while it's on screen, and nothing is recorded.
+- **Worked first time:** mostly.
+  - Checked in a real browser, with fake camera feeds made from test pictures, against the built app behind the real nginx config:
+    - a barcode in view filled "Coca-Cola 330 ml" in about 2 s, using ZXing (the iPhone path);
+    - a printed list became six chips in under 3 s;
+    - with the camera refused, the message showed and "Choose a photo" found the barcode.
+  - The camera's track ended on Close, and also when the add screen closed under it.
+  - Broken on purpose: with `camera=()` back in nginx, the scanner showed "isn't available".
+  - First run failed only because the local database had stopped.
+- **Laptop needed:** no.
+- **Friction:**
+  - A real Android phone can't be driven from a cloud session, so the original fault was diagnosed from the owner's screenshot and Chrome's message, not reproduced.
+  - The owner's photo also shows a limit of the free reader: words at an angle, with glare, read poorly. The scanner asks for words held level.

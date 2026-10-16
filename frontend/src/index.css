@@ -2483,3 +2483,51 @@ html.on-landing #root { max-width: none; }
 .add-photo-note { margin: 0 1rem 0.5rem; color: var(--text-2); font-size: 0.9rem; }
 .add-photo-chips { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.6rem 1rem; scrollbar-width: none; }
 .add-photo-chips::-webkit-scrollbar { display: none; }
+
+/* The camera inside the app (CameraScan.tsx): the picture fills the screen,
+   with a frame to aim with and the buttons at the bottom. */
+.scan {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: #000;
+  color: #fff;
+}
+.scan-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 12px);
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  cursor: pointer;
+}
+.scan-frame {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: min(80vw, 420px);
+  aspect-ratio: 3 / 2;
+  transform: translate(-50%, -50%);
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.scan-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 16px calc(env(safe-area-inset-bottom) + 20px);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75) 30%);
+}
+.scan-note { margin: 0 0 14px; text-align: center; font-size: 0.95rem; line-height: 1.4; }
+.scan-actions { display: flex; gap: 10px; }
+.scan-actions .btn { flex: 1; }
