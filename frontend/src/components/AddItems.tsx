@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { ListItem, StoreSlug } from "@accucery/types";
 import { api, ApiError, imgSrc } from "../lib/api";
 import { track } from "../lib/analytics";
 import { formatRand } from "../lib/format";
 import { CameraIcon, CheckIcon, CloseIcon, PlusIcon } from "./icons";
+import { CameraScan } from "./CameraScan";
 import { photoCanvas } from "../lib/photo";
 import { closeTextReader, findBarcode, readSearches, textReaderLoaded } from "../lib/photoReader";
 
@@ -70,7 +71,37 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
   // What the last photo read as: several make chips to tap.
   const [photoQueries, setPhotoQueries] = useState<string[]>([]);
   const [photoNote, setPhotoNote] = useState<string | null>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  const openCamera = () => {
+    setPhotoNote(null);
+    setPhotoQueries([]);
+    setScanning(true);
+  };
+
+  const scannedName = useCallback(
+    (name: string) => {
+      setScanning(false);
+      track("photo_search", { store: storeSlug });
+      setQuery(name);
+    },
+    [storeSlug]
+  );
+
+  const scannedSearches = (searches: string[]) => {
+    setScanning(false);
+    track("photo_search", { store: storeSlug });
+    setPhotoQueries(searches.length > 1 ? searches : []);
+    setQuery(searches[0]);
+  };
+
+  // Picking a photo from the phone: for when the camera isn't allowed, or
+  // the photo was taken earlier.
+  const choosePhoto = () => {
+    setScanning(false);
+    photoRef.current?.click();
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -224,15 +255,20 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="add-camera" aria-label="Search with a photo" disabled={reading !== null} onClick={() => cameraRef.current?.click()}>
+        <button className="add-camera" aria-label="Search with the camera" disabled={reading !== null} onClick={openCamera}>
           <CameraIcon />
         </button>
-        {/* capture opens the camera on a phone; a computer offers its files. */}
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void readPhoto(e)} />
+        {/* No capture attribute: that opens the phone's camera app, and
+            Android may close this page while it's open (CameraScan.tsx). */}
+        <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => void readPhoto(e)} />
         <button className="add-done" onClick={() => onDone(added.size)}>Done</button>
       </header>
 
       {error && <p className="add-error" role="alert">{error}</p>}
+
+      {scanning && (
+        <CameraScan onName={scannedName} onSearches={scannedSearches} onChoosePhoto={choosePhoto} onClose={() => setScanning(false)} />
+      )}
 
       {reading && <p className="add-photo-note" role="status">{reading}</p>}
       {photoNote && <p className="add-photo-note" role="alert">{photoNote}</p>}

@@ -12,17 +12,27 @@ export function fitWithin(width: number, height: number, max: number = MAX_SIDE)
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
+function drawn(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, max: number): HTMLCanvasElement {
+  const { width, height } = fitWithin(sourceWidth, sourceHeight, max);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d")!.drawImage(source, 0, 0, width, height);
+  return canvas;
+}
+
 /** The photo drawn upright on a canvas, at most MAX_SIDE across, for both readers to look at. */
 export async function photoCanvas(file: Blob): Promise<HTMLCanvasElement> {
   // Applies the photo's own rotation, so a portrait shot isn't read sideways.
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const { width, height } = fitWithin(bitmap.width, bitmap.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, width, height);
+  const canvas = drawn(bitmap, bitmap.width, bitmap.height, MAX_SIDE);
   bitmap.close();
   return canvas;
+}
+
+/** What the camera sees right now, on a canvas at most `max` across. */
+export function frameCanvas(video: HTMLVideoElement, max: number = MAX_SIDE): HTMLCanvasElement {
+  return drawn(video, video.videoWidth, video.videoHeight, max);
 }
 
 /** A line the reader read, and how sure it was of it (0–100). */

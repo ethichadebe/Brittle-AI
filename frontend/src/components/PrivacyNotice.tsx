@@ -52,9 +52,10 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
       <h3>Photos</h3>
       <p>
-        When you search with a photo, your phone reads it and the photo never leaves your phone: not to us, not to anyone. If
-        it shows a barcode, only the barcode's number is sent, through our server, to Open Food Facts to find the product's
-        name. The words read from a photo are searched for like anything you type.
+        When you search with the camera or a photo, your phone reads it and the photo never leaves your phone: not to us, not
+        to anyone. The camera is on only while it's open on the screen, and nothing is recorded. If it sees a barcode, only
+        the barcode's number is sent, through our server, to Open Food Facts to find the product's name. The words read from
+        a photo are searched for like anything you type.
       </p>
 
       <h3>Cookies</h3>
