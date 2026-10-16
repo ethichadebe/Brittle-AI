@@ -256,3 +256,82 @@ export interface PremiumStatus {
 }
 
 export type PremiumOutcome = "trial-started" | "trial-used" | "card-not-reusable" | "subscribed" | "pending";
+
+// The Owner's dashboard (2026-10-16): how the whole app is doing, from what
+// the database already holds. Totals and trends only: emails come masked,
+// and nothing on anyone's lists is ever included.
+
+/** One South African day ("2026-10-16") and what happened on it. */
+export interface OwnerDay {
+  day: string;
+  accounts: number;
+  lists: number;
+}
+
+export interface OwnerCreditDay {
+  day: string;
+  total: number;
+  /** Credits by what they were spent on: "search", "branch". */
+  byPurpose: Record<string, number>;
+}
+
+export interface OwnerStore {
+  store: string;
+  lists: number;
+  /** Searches remembered for this store (each one answered from the cache until it's stale). */
+  searches: number;
+  /** Products with a remembered price. */
+  prices: number;
+  /** When a search last read this store's website. */
+  lastRead: string | null;
+}
+
+export type OwnerActivityKind = "account" | "signup" | "list" | "checkout" | "premium" | "renewal";
+
+export interface OwnerActivity {
+  at: string;
+  kind: OwnerActivityKind;
+  /** Plain words, with any email masked ("t***@gmail.com"). */
+  text: string;
+}
+
+export interface OwnerDashboard {
+  asOf: string;
+  shoppers: {
+    accounts: number;
+    newToday: number;
+    newThisWeek: number;
+    newThisMonth: number;
+    /** Sign-ups waiting for their email to be confirmed. */
+    pendingSignups: number;
+    /** Browsers signed in to an Account right now. */
+    signedInDevices: number;
+    /** Browsers with lists but no Account. */
+    devicesWithoutAccount: number;
+  };
+  lists: { lists: number; items: number; newThisWeek: number };
+  /** The last 30 South African days, oldest first. */
+  daily: OwnerDay[];
+  premium: {
+    /** Paid and running, trials not included. */
+    active: number;
+    trialing: number;
+    /** Won't renew, but still running. */
+    cancelledRunning: number;
+    ended: number;
+    checkoutsStarted30d: number;
+    checkoutsFinished30d: number;
+    paymentsThisMonth: number;
+    /** Payments this month at their plan's price: an estimate, as refunds aren't known here. */
+    estimatedIncomeCentsThisMonth: number;
+  };
+  credits: { dailyGuide: number; thisMonth: number; days: OwnerCreditDay[] };
+  stores: OwnerStore[];
+  /** Alerts open now ("store:checkers", "credits", "disk", "server-errors"), with how bad: 1 or 2. */
+  alerts: { key: string; level: number }[];
+  /** Rows are Postgres's own estimate, so cheap to ask for on a big table. */
+  tables: { table: string; rows: number; bytes: number }[];
+  databaseBytes: number;
+  /** The latest 50 things that happened, newest first. */
+  activity: OwnerActivity[];
+}

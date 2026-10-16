@@ -12,6 +12,7 @@ import { substituteDecisionsRoutes } from "./routes/substituteDecisions.js";
 import { recentProductsRoutes } from "./routes/recentProducts.js";
 import { premiumRoutes } from "./routes/premium.js";
 import { crawlerRoutes } from "./routes/crawlers.js";
+import { ownerRoutes } from "./routes/owner.js";
 import type { HealthResponse } from "@accucery/types";
 import { responded } from "./alerts/serverErrors.js";
 import { redactingStream } from "./logRedact.js";
@@ -62,6 +63,7 @@ export async function buildApp(
   await app.register(recentProductsRoutes);
   await app.register(premiumRoutes);
   await app.register(crawlerRoutes);
+  await app.register(ownerRoutes);
 
   return app;
 }

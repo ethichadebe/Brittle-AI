@@ -29,6 +29,8 @@
   --primary: #0d7a70;
   --on-primary: #ffffff;
   --primary-soft: #dcf3f0;
+  /* The Owner's dashboard bars: a teal step checked against this surface. */
+  --chart: #00897b;
   --logo-tick: #22a896;
   --danger: #dc2626;
   --on-danger: #ffffff;
@@ -65,6 +67,7 @@
     --primary: #3ccfbc;
     --on-primary: #06231f;
     --primary-soft: #173431;
+    --chart: #17a491;
     --logo-tick: #7fe3d6;
     --danger: #f87171;
     --on-danger: #1f0606;
@@ -99,6 +102,7 @@
   --primary: #3ccfbc;
   --on-primary: #06231f;
   --primary-soft: #173431;
+  --chart: #17a491;
   --logo-tick: #7fe3d6;
   --danger: #f87171;
   --on-danger: #1f0606;
@@ -2391,3 +2395,55 @@ html.on-landing #root { max-width: none; }
   .profile-card, .premium-card { margin-inline: 0; }
   .settings-section, .profile-legal, .privacy-body { padding-inline: 0; }
 }
+
+/* ── The Owner's dashboard (/admin, 2026-10-16) ── */
+.owner { padding-bottom: 32px; max-width: 1040px; margin: 0 auto; }
+.owner-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px 8px; }
+.owner-asof { color: var(--muted); font-size: 14px; }
+.owner-refresh { padding: 8px 16px; font-size: 14px; }
+.owner-section { padding: 8px 16px 16px; }
+.owner-section .settings-section-title { padding-left: 0; }
+.owner-ok { display: flex; gap: 8px; align-items: center; color: var(--text-2); background: var(--surface); border-radius: 12px; padding: 12px 14px; margin: 0; }
+.owner-ok span { color: var(--primary); font-weight: 700; }
+.owner-alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.owner-alert { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; color: var(--text); }
+.owner-alert--warning { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+.owner-alert--critical { background: var(--danger-soft); border: 1px solid var(--danger); }
+.owner-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.owner-tile { background: var(--surface); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.owner-tile--hero { grid-column: 1 / -1; }
+.owner-tile-label { color: var(--muted); font-size: 13px; }
+.owner-tile-value { color: var(--text); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.owner-tile--hero .owner-tile-value { font-size: 40px; line-height: 1.1; }
+.owner-tile-sub { color: var(--text-2); font-size: 13px; }
+.owner-chart { margin: 0; background: var(--surface); border-radius: 12px; padding: 12px 14px; }
+.owner-chart figcaption { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.owner-chart-title { font-weight: 600; color: var(--text); font-size: 15px; }
+.owner-chart-readout { color: var(--text-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.owner-chart-plot { position: relative; padding-top: 16px; }
+.owner-chart-plot svg { display: block; width: 100%; height: 110px; touch-action: pan-y; }
+/* The axis's top value, just above its gridline, clear of the caption. */
+.owner-chart-tick { position: absolute; top: 0; left: 0; line-height: 14px; color: var(--muted); font-size: 11px; }
+.owner-chart-grid, .owner-chart-axis { stroke: var(--line); stroke-width: 1; }
+.owner-chart-guide { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.owner-chart-bar { fill: var(--chart); }
+.owner-chart-bar--on { fill: var(--text); }
+.owner-chart-hit { fill: transparent; cursor: pointer; }
+.owner-chart-days { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.owner-chart-guide-label { color: var(--muted); }
+.owner-chart-table { margin-top: 8px; font-size: 14px; color: var(--text-2); }
+.owner-chart-table summary { cursor: pointer; color: var(--primary); }
+.owner-chart-table table, .owner-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.owner-chart-table td, .owner-chart-table th { padding: 4px 0; text-align: left; border-bottom: 1px solid var(--line-soft); }
+.owner-table-wrap { background: var(--surface); border-radius: 12px; padding: 4px 14px; overflow-x: auto; }
+.owner-table th, .owner-table td { padding: 10px 8px 10px 0; text-align: right; border-bottom: 1px solid var(--line-soft); white-space: nowrap; font-size: 14px; color: var(--text-2); }
+.owner-table th:first-child { text-align: left; color: var(--text); font-weight: 600; }
+/* Headers may wrap, so the table fits a phone; the numbers never do. */
+.owner-table thead th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: normal; vertical-align: bottom; }
+.owner-table tr:last-child th, .owner-table tr:last-child td { border-bottom: 0; }
+.owner-activity { list-style: none; margin: 0; padding: 4px 14px; background: var(--surface); border-radius: 12px; }
+.owner-activity li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
+.owner-activity li:last-child { border-bottom: 0; }
+.owner-activity-text { color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.owner-activity-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.owner-muted { color: var(--muted); }

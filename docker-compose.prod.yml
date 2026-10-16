@@ -55,6 +55,9 @@ services:
       # alerts are simply off.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      # The Owner's dashboard (/admin): the one Account allowed to open it.
+      # Without it, nobody can.
+      OWNER_EMAIL: ${OWNER_EMAIL:-}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       NODE_ENV: production
     depends_on:
