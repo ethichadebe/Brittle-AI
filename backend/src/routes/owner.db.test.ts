@@ -105,8 +105,8 @@ describe("what it shows", () => {
     expect(d.activity.map((a) => a.kind)).toEqual(expect.arrayContaining(["account", "signup", "list"]));
     // Named like a username: the email before the @.
     expect(d.activity.some((a) => a.text === `${thandi} created an account`)).toBe(true);
-    expect(d.activity.some((a) => a.text === "A list at Checkers, on an account")).toBe(true);
-    expect(d.activity.some((a) => a.text === "A list at Woolworths, without an account")).toBe(true);
+    expect(d.activity.some((a) => a.text === `${thandi} made a list at Checkers` && a.who === thandi)).toBe(true);
+    expect(d.activity.some((a) => a.text === "A list at Woolworths, without an account" && a.who === undefined)).toBe(true);
     // Nothing personal in the whole answer.
     expect(res.body).not.toContain("@");
     expect(res.body).not.toMatch(/braai|Private things/);
@@ -170,6 +170,20 @@ describe("what it shows", () => {
     expect(d.tables.map((t) => t.table)).toEqual(expect.arrayContaining(["accounts", "lists", "price_cache"]));
     expect(d.tables.map((t) => t.table)).not.toContain("_prisma_migrations");
     expect(d.databaseBytes).toBeGreaterThan(0);
+  });
+
+  it("keeps a history of each kind for the page to filter, not just the busiest", async () => {
+    const owner = await testPrisma.account.create({ data: { email: `deep-${randomUUID()}@example.com`, passwordHash: "x" } });
+    // 60 lists, then one Premium checkout older than all of them.
+    await testPrisma.premiumCheckout.create({
+      data: { reference: randomUUID(), accountId: owner.id, plan: "monthly", purpose: "subscribe", createdAt: new Date(Date.now() - 86_400_000) },
+    });
+    await testPrisma.list.createMany({ data: Array.from({ length: 60 }, () => ({ storeSlug: "makro", name: "x", userId: owner.id })) });
+    const d = await ownerDashboard();
+    expect(d.activity.filter((a) => a.kind === "list")).toHaveLength(50);
+    expect(d.activity.some((a) => a.kind === "checkout")).toBe(true);
+    // Newest first.
+    expect([...d.activity].sort((a, b) => b.at.localeCompare(a.at))).toEqual(d.activity);
   });
 
   it("counts days in South African time", async () => {

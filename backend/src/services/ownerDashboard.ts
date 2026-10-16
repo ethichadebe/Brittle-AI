@@ -162,7 +162,7 @@ export async function ownerDashboard(now: Date = new Date()): Promise<OwnerDashb
   };
 }
 
-/** The latest things that happened, from each table's own dates. Deleted things are gone from here too. */
+/** The latest things that happened, from each table's own dates, newest first: up to `limit` of each kind. Deleted things are gone from here too. */
 export async function recentActivity(limit = ACTIVITY): Promise<OwnerActivity[]> {
   const take = limit;
   const desc = "desc" as const;
@@ -180,8 +180,11 @@ export async function recentActivity(limit = ACTIVITY): Promise<OwnerActivity[]>
     prisma.premiumCharge.findMany({ take, orderBy: { createdAt: desc }, select: { createdAt: true, account: { select: { email: true, subscription: { select: { plan: true } } } } } }),
   ]);
 
-  const accountIds = new Set(
-    (await prisma.account.findMany({ where: { id: { in: lists.map((l) => l.userId ?? "") } }, select: { id: true } })).map((a) => a.id)
+  // Whose each list is, when it's on an Account: a browser without one has no name.
+  const listOwners = new Map(
+    (await prisma.account.findMany({ where: { id: { in: lists.map((l) => l.userId ?? "") } }, select: { id: true, email: true } })).map(
+      (a) => [a.id, username(a.email)]
+    )
   );
   const outcomeWords: Record<string, string> = {
     "trial-started": "started a Premium trial",
@@ -191,28 +194,36 @@ export async function recentActivity(limit = ACTIVITY): Promise<OwnerActivity[]>
   };
 
   const events: OwnerActivity[] = [
-    ...accounts.map((a) => ({ at: a.createdAt.toISOString(), kind: "account" as const, text: `${username(a.email)} created an account` })),
-    ...signups.map((s) => ({ at: s.createdAt.toISOString(), kind: "signup" as const, text: `${username(s.email)} signed up, waiting to confirm` })),
-    ...lists.map((l) => ({
-      at: l.createdAt.toISOString(),
-      kind: "list" as const,
-      text: `A list at ${storeName(l.storeSlug)}, ${l.userId && accountIds.has(l.userId) ? "on an account" : "without an account"}`,
-    })),
-    ...checkouts.map((c) => ({
-      at: c.createdAt.toISOString(),
-      kind: "checkout" as const,
-      text: `${username(c.account.email)} opened Premium checkout (${c.plan}${c.purpose === "trial" ? ", trial" : ""})`,
-    })),
-    ...handled.map((c) => ({
-      at: c.handledAt!.toISOString(),
-      kind: "premium" as const,
-      text: `${username(c.account.email)} ${outcomeWords[c.outcome ?? ""] ?? "finished checkout"} (${c.plan})`,
-    })),
-    ...renewals.map((r) => ({
-      at: r.createdAt.toISOString(),
-      kind: "renewal" as const,
-      text: `${username(r.account.email)} renewed Premium${r.account.subscription ? ` (${r.account.subscription.plan})` : ""}`,
-    })),
+    ...accounts.map((a) => {
+      const who = username(a.email);
+      return { at: a.createdAt.toISOString(), kind: "account" as const, who, text: `${who} created an account` };
+    }),
+    ...signups.map((s) => {
+      const who = username(s.email);
+      return { at: s.createdAt.toISOString(), kind: "signup" as const, who, text: `${who} signed up, waiting to confirm` };
+    }),
+    ...lists.map((l) => {
+      const who = l.userId ? listOwners.get(l.userId) : undefined;
+      const at = l.createdAt.toISOString();
+      const store = storeName(l.storeSlug);
+      return who
+        ? { at, kind: "list" as const, who, text: `${who} made a list at ${store}` }
+        : { at, kind: "list" as const, text: `A list at ${store}, without an account` };
+    }),
+    ...checkouts.map((c) => {
+      const who = username(c.account.email);
+      return { at: c.createdAt.toISOString(), kind: "checkout" as const, who, text: `${who} opened Premium checkout (${c.plan}${c.purpose === "trial" ? ", trial" : ""})` };
+    }),
+    ...handled.map((c) => {
+      const who = username(c.account.email);
+      return { at: c.handledAt!.toISOString(), kind: "premium" as const, who, text: `${who} ${outcomeWords[c.outcome ?? ""] ?? "finished checkout"} (${c.plan})` };
+    }),
+    ...renewals.map((r) => {
+      const who = username(r.account.email);
+      return { at: r.createdAt.toISOString(), kind: "renewal" as const, who, text: `${who} renewed Premium${r.account.subscription ? ` (${r.account.subscription.plan})` : ""}` };
+    }),
   ];
-  return events.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+  // Up to `limit` of each kind, so the page's filters (Premium, one shopper)
+  // still have a history to show when other kinds are busier.
+  return events.sort((a, b) => b.at.localeCompare(a.at));
 }
