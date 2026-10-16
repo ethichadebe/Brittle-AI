@@ -1,0 +1,30 @@
+# 2026-10-16 — The Owner's dashboard
+
+- **Asked for:** "grill and build an admin dashboard to keep track of anything happening on the database".
+- **Decided in the grilling (owner's picks, all the recommended ones):**
+  - **Who:** only the Owner's own Account, named by `OWNER_EMAIL` in the server's `.env`. To anyone else `/admin`, `/api/owner` and `/api/owner/dashboard` answer exactly like an address that doesn't exist.
+  - **What:** what the database already holds, as totals and 30-day trends. Nothing new is recorded for it, so the privacy notice doesn't change.
+  - **Privacy:** read-only and totals only. Emails are masked (`t***@gmail.com`) and no list's name or contents is ever read.
+  - **Sections:**
+    - shoppers and lists;
+    - Premium (paying, trials, cancelled, ended, checkouts, payments and an income estimate);
+    - ScraperAPI credits per day against the guide;
+    - each store's lists, kept searches and prices;
+    - open alerts;
+    - table sizes;
+    - the latest 50 events.
+  - **Use:** a Dashboard link on Profile that only the Owner sees, and a Refresh button rather than polling. Phone first.
+  - **Glossary:** "Owner" added to `CONTEXT.md`. No ADR: it's easy to undo.
+- **How:**
+  - **Server:** `backend/src/owner.ts` decides who the Owner is, and `services/ownerDashboard.ts` builds the numbers. Days are counted in South African time, so an account made at 23:30 UTC counts on the next SA day.
+  - **Page:** `routes/admin.tsx`, with a small column chart (`components/DayColumns.tsx`). It has a tap or hover readout and a "Show as a table" view.
+  - **Chart colour:** the chart teal was run through the palette checker for both light and dark: `#00897b` and `#17a491`. The app's own teal read slightly grey on light and slightly too pale on dark.
+- **Worked first time:** mostly.
+  - Tests cover who can get in, every number, South African days, and that the whole answer holds no email and no list name. Letting any Account in, and showing an unmasked email, were each broken on purpose, and a test failed each time.
+  - Ran the real app with sample data and looked at it on a phone, in dark mode and on a PC. Three fixes came from that:
+    - the axis number overlapped the chart's summary line;
+    - the stores table was cut off on a phone;
+    - the page stretched too wide on a PC.
+  - Lint caught two state updates made straight inside effects; both were restructured rather than silenced.
+- **Laptop needed:** no. The owner adds one line to the server's `.env` and one to its compose file, then recreates the backend.
+- **Friction:** none.

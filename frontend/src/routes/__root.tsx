@@ -14,7 +14,7 @@ export const Route = createRootRoute({
 function Root() {
   const wide = useWide();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const roomy = pathname === "/" || (pathname.startsWith("/lists/") && pathname !== "/lists/new");
+  const roomy = pathname === "/" || pathname === "/admin" || (pathname.startsWith("/lists/") && pathname !== "/lists/new");
   return (
     <>
       {wide && <AppBar />}

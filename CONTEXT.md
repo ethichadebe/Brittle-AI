@@ -53,6 +53,11 @@ The credential that identifies a **Shopper** across devices, and the only way
 their lists survive a cleared browser or a new phone.
 _Avoid_: profile, login, sign-up
 
+**Owner**:
+The person who runs Accucery. The **Owner** signs in with an ordinary
+**Account**, and is the only one who can see how the whole app is doing.
+_Avoid_: admin, superuser, operator
+
 ### Comparing
 
 **Comparison**:

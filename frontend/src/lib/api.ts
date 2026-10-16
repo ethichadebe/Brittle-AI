@@ -6,6 +6,7 @@ import type {
   PremiumOutcome,
   PremiumPlan,
   PremiumStatus,
+  OwnerDashboard,
   Product,
   RecentProductsResponse,
   SearchResponse,
@@ -147,6 +148,13 @@ export const api = {
   // #114: products this Shopper has had on their lists at a store.
   recentProducts: (store: StoreSlug) =>
     request<RecentProductsResponse>(`/recent-products?store=${store}`).then((r) => r.products),
+
+  // The Owner's dashboard (/admin). Both answer 404 to anyone else.
+  owner: {
+    /** Resolves only for the Owner's Account. */
+    check: () => request<void>("/owner"),
+    dashboard: () => request<OwnerDashboard>("/owner/dashboard"),
+  },
 
   // #171: Premium, paid through Paystack.
   premium: {

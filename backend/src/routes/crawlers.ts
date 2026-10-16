@@ -21,6 +21,7 @@ const PRIVATE = [
   "/reset-password",
   "/confirm-email",
   "/premium",
+  "/admin",
   "/api/",
 ];
 

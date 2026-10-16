@@ -33,6 +33,13 @@ function ProfilePage() {
     if (account) api.premium.status().then(setPremium).catch(() => setPremium(null));
   }, [account]);
   const premium = account ? premiumStatus : null;
+  // The Owner's dashboard link, for the Owner's Account only (the server
+  // decides). Remembered per Account, so signing out hides it at once.
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  useEffect(() => {
+    if (account) api.owner.check().then(() => setOwnerId(account.id)).catch(() => {});
+  }, [account]);
+  const owner = Boolean(account && ownerId === account.id);
   const { isEnabled, toggle } = useLoyaltySettings();
   const { appearance, setAppearance } = useAppearance();
   const [signingOut, setSigningOut] = useState(false);
@@ -111,6 +118,19 @@ function ProfilePage() {
               <span className="settings-row-sub">
                 {premium?.premium ? statusLine(premium) : "No ads, compare every store at once, family lists"}
               </span>
+            </div>
+            <span aria-hidden="true">›</span>
+          </Link>
+        </div>
+      )}
+
+      {owner && (
+        <div className="settings-section">
+          <h3 className="settings-section-title">Owner</h3>
+          <Link to="/admin" className="settings-row settings-row--link">
+            <div className="settings-row-info">
+              <span className="settings-row-label">Dashboard</span>
+              <span className="settings-row-sub">Shoppers, lists, Premium, credits and alerts</span>
             </div>
             <span aria-hidden="true">›</span>
           </Link>
