@@ -62,7 +62,7 @@ export function trackPage(pathname: string): void {
   gtag?.("event", "page_view", { page_location: origin + currentPath, page_path: currentPath, page_title: "Accucery" });
 }
 
-export type AnalyticsEvent = "list_created" | "item_added" | "compare_run" | "location_used" | "sign_up_confirmed";
+export type AnalyticsEvent = "list_created" | "item_added" | "compare_run" | "location_used" | "sign_up_confirmed" | "photo_search";
 
 /** One of the actions worth counting, with at most the stores involved. */
 export function track(name: AnalyticsEvent, params: { store?: StoreSlug; target?: StoreSlug } = {}): void {

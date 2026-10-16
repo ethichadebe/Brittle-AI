@@ -338,3 +338,17 @@ export interface OwnerDashboard {
   /** What happened lately, newest first: up to 50 of each kind, for the page to filter. */
   activity: OwnerActivity[];
 }
+
+// Photo search (2026-10-16): a photo of a product or a shopping list, read
+// into what to search for.
+
+export interface PhotoSearchRequest {
+  /** The photo, base64, without a data: prefix. */
+  image: string;
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
+}
+
+export interface PhotoSearchResponse {
+  /** What to search for, one per product or list line, in the photo's order. Empty when nothing was readable. */
+  queries: string[];
+}
