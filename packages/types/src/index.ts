@@ -292,6 +292,8 @@ export type OwnerActivityKind = "account" | "signup" | "list" | "checkout" | "pr
 export interface OwnerActivity {
   at: string;
   kind: OwnerActivityKind;
+  /** Who, by their email before the @ ("thandi.m"); absent for a browser without an Account. */
+  who?: string;
   /** Plain words, naming a shopper by their email before the @ ("thandi.m"). */
   text: string;
 }
@@ -333,6 +335,6 @@ export interface OwnerDashboard {
   /** Rows are Postgres's own estimate, so cheap to ask for on a big table. */
   tables: { table: string; rows: number; bytes: number }[];
   databaseBytes: number;
-  /** The latest 50 things that happened, newest first. */
+  /** What happened lately, newest first: up to 50 of each kind, for the page to filter. */
   activity: OwnerActivity[];
 }

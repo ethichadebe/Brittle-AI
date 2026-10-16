@@ -2447,3 +2447,20 @@ html.on-landing #root { max-width: none; }
 .owner-activity-text { color: var(--text); min-width: 0; overflow-wrap: anywhere; }
 .owner-activity-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .owner-muted { color: var(--muted); }
+.owner-filters { display: flex; gap: 0.5rem; overflow-x: auto; margin: 0 -16px 10px; padding: 0 16px 2px; scrollbar-width: none; }
+.owner-filters::-webkit-scrollbar { display: none; }
+.owner-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* 16px or more, so phones don't zoom in on it */
+}
+.owner-search input:focus { outline: none; border-color: var(--primary); }
+.owner-count { margin: 8px 0; font-size: 13px; }
+.owner-clear { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
+.owner-who { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }

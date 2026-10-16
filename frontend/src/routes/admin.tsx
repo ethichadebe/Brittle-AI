@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import type { OwnerActivityKind, OwnerDashboard } from "@accucery/types";
+import type { OwnerActivity, OwnerActivityKind, OwnerDashboard } from "@accucery/types";
 import { api, ApiError } from "../lib/api";
 import { NotFound } from "../components/NotFound";
 import { DayColumns } from "../components/DayColumns";
-import { ago, alertLabel, bytes, count, rands, storeName } from "../lib/owner";
+import { ACTIVITY_FILTERS, ago, alertLabel, bytes, count, filterActivity, rands, storeName, type ActivityFilter } from "../lib/owner";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -197,23 +197,95 @@ function Dashboard({ d }: { d: OwnerDashboard }) {
         </div>
       </section>
 
-      <section className="owner-section" aria-labelledby="owner-activity">
-        <h3 id="owner-activity" className="settings-section-title">Latest activity</h3>
-        {d.activity.length === 0 ? (
-          <p className="owner-muted">Nothing yet.</p>
-        ) : (
-          <ol className="owner-activity">
-            {d.activity.map((a, i) => (
-              <li key={`${a.at}-${i}`}>
-                <span className="owner-activity-icon" aria-hidden="true">{ICONS[a.kind]}</span>
-                <span className="owner-activity-text">{a.text}</span>
-                <time className="owner-activity-time" dateTime={a.at}>{ago(a.at, now)}</time>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+      <ActivityFeed events={d.activity} now={now} />
     </>
+  );
+}
+
+// How many events the feed shows at once, however many match.
+const SHOWN = 50;
+
+// The latest activity, narrowed by kind and by username (2026-10-16).
+function ActivityFeed({ events, now }: { events: OwnerActivity[]; now: number }) {
+  const [kind, setKind] = useState<ActivityFilter>("all");
+  const [who, setWho] = useState("");
+  const matching = filterActivity(events, kind, who);
+  const shown = matching.slice(0, SHOWN);
+  const narrowed = kind !== "all" || who.trim() !== "";
+
+  return (
+    <section className="owner-section" aria-labelledby="owner-activity">
+      <h3 id="owner-activity" className="settings-section-title">Latest activity</h3>
+      <div className="owner-filters" role="group" aria-label="Show">
+        {ACTIVITY_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            className={`name-chip${kind === f.key ? " name-chip--on" : ""}`}
+            aria-pressed={kind === f.key}
+            onClick={() => setKind(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <div className="owner-search">
+        <input
+          type="search"
+          inputMode="search"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder="Search a username"
+          aria-label="Search a username"
+          value={who}
+          onChange={(e) => setWho(e.target.value)}
+        />
+      </div>
+      <p className="owner-muted owner-count" aria-live="polite">
+        {matching.length === 0
+          ? narrowed
+            ? "Nothing matches."
+            : "Nothing yet."
+          : matching.length > SHOWN
+            ? `The latest ${SHOWN} of ${count(matching.length)}`
+            : `${count(matching.length)} ${matching.length === 1 ? "event" : "events"}`}
+        {narrowed && (
+          <>
+            {" · "}
+            <button
+              className="owner-clear"
+              onClick={() => {
+                setKind("all");
+                setWho("");
+              }}
+            >
+              Show all
+            </button>
+          </>
+        )}
+      </p>
+      {shown.length > 0 && (
+        <ol className="owner-activity">
+          {shown.map((a, i) => (
+            <li key={`${a.at}-${i}`}>
+              <span className="owner-activity-icon" aria-hidden="true">{ICONS[a.kind]}</span>
+              <span className="owner-activity-text">
+                {a.who ? (
+                  <>
+                    {/* A name narrows the feed to that shopper. */}
+                    <button className="owner-who" onClick={() => setWho(a.who ?? "")}>{a.who}</button>
+                    {a.text.slice(a.who.length)}
+                  </>
+                ) : (
+                  a.text
+                )}
+              </span>
+              <time className="owner-activity-time" dateTime={a.at}>{ago(a.at, now)}</time>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 

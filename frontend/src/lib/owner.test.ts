@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { ago, alertLabel, bytes, count, rands } from "./owner";
+import type { OwnerActivity } from "@accucery/types";
+import { ago, alertLabel, bytes, count, filterActivity, rands, type ActivityFilter } from "./owner";
 import { niceMax, shortDay } from "../components/DayColumns";
 
 describe("the Owner's dashboard words and numbers", () => {
@@ -40,5 +41,42 @@ describe("the Owner's dashboard words and numbers", () => {
 
   it("names a day the South African way", () => {
     expect(shortDay("2026-10-16")).toMatch(/^16 Oct/);
+  });
+});
+
+describe("filtering the Latest activity", () => {
+  const at = "2026-10-16T10:00:00Z";
+  const events: OwnerActivity[] = [
+    { at, kind: "account", who: "thandi.m", text: "thandi.m created an account" },
+    { at, kind: "list", who: "thandi.m", text: "thandi.m made a list at Checkers" },
+    { at, kind: "list", text: "A list at Makro, without an account" },
+    { at, kind: "signup", who: "sipho", text: "sipho signed up, waiting to confirm" },
+    { at, kind: "checkout", who: "sipho", text: "sipho opened Premium checkout (monthly)" },
+    { at, kind: "premium", who: "Lerato", text: "Lerato subscribed to Premium (yearly)" },
+    { at, kind: "renewal", who: "thandi.m", text: "thandi.m renewed Premium (monthly)" },
+  ];
+  const texts = (kind: ActivityFilter, who = "") => filterActivity(events, kind, who).map((e) => e.text);
+
+  it("shows everything for All", () => {
+    expect(texts("all")).toHaveLength(events.length);
+  });
+
+  it("narrows to one kind, with Premium gathering checkouts, subscriptions and renewals", () => {
+    expect(texts("list")).toEqual(["thandi.m made a list at Checkers", "A list at Makro, without an account"]);
+    expect(texts("signup")).toEqual(["sipho signed up, waiting to confirm"]);
+    expect(texts("premium")).toEqual([
+      "sipho opened Premium checkout (monthly)",
+      "Lerato subscribed to Premium (yearly)",
+      "thandi.m renewed Premium (monthly)",
+    ]);
+  });
+
+  it("narrows to a username, by any part of it and in any case, alone or with a kind", () => {
+    expect(texts("all", "THANDI")).toEqual(["thandi.m created an account", "thandi.m made a list at Checkers", "thandi.m renewed Premium (monthly)"]);
+    expect(texts("premium", "lera")).toEqual(["Lerato subscribed to Premium (yearly)"]);
+    // A list without an account has no name, so a name never finds it.
+    expect(texts("list", "a")).toEqual(["thandi.m made a list at Checkers"]);
+    expect(texts("all", "nobody")).toEqual([]);
+    expect(texts("all", "   ")).toHaveLength(events.length);
   });
 });

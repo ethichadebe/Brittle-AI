@@ -1,4 +1,4 @@
-import { STORE_CONFIGS } from "@accucery/types";
+import { STORE_CONFIGS, type OwnerActivity, type OwnerActivityKind } from "@accucery/types";
 
 // Words and numbers for the Owner's dashboard (routes/admin.tsx).
 
@@ -44,3 +44,25 @@ export function ago(iso: string, now: number = Date.now()): string {
 
 /** Thousands with a plain space, as the app writes them. */
 export const count = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+/** The Latest activity filter's buttons; Premium gathers its three kinds. */
+export const ACTIVITY_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "account", label: "Accounts" },
+  { key: "signup", label: "Sign-ups" },
+  { key: "list", label: "Lists" },
+  { key: "premium", label: "Premium" },
+] as const;
+export type ActivityFilter = (typeof ACTIVITY_FILTERS)[number]["key"];
+
+const PREMIUM_KINDS: readonly OwnerActivityKind[] = ["checkout", "premium", "renewal"];
+
+/** Events of that kind, by usernames containing `who` (any case); newest first, as given. */
+export function filterActivity(events: OwnerActivity[], kind: ActivityFilter, who: string): OwnerActivity[] {
+  const query = who.trim().toLowerCase();
+  return events.filter(
+    (e) =>
+      (kind === "all" || (kind === "premium" ? PREMIUM_KINDS.includes(e.kind) : e.kind === kind)) &&
+      (!query || (e.who ?? "").toLowerCase().includes(query))
+  );
+}
