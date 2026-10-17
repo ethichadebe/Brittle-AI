@@ -21,5 +21,10 @@
     - no masking;
     - a key pattern that also matches class names;
     - fields read from the first record only.
+- **Second round, same day:** the first live run fetched the page (10 credits) and found one key, but no search host: Klevu's settings weren't written into the page. The probe now also:
+  - **saves the page** on the server and reads it back next time, so only one run pays;
+  - **shows the page's view of Klevu, with long tokens masked:** every mention of Klevu, which field each key sits in, and every script it loads;
+  - **finds the host:** first in the Klevu scripts the page loads (free), and as a last resort by trying Klevu's numbered EU hosts with the key, stopping at the first that answers (free).
+  - Its test grew to 93 checks. One break went unnoticed at first, switching off masking, because the test page never showed a long token next to a Klevu mention. Now it does, and the break fails.
 - **Laptop needed:** no.
 - **Friction:** Dis-Chem is still unreachable from a cloud session, so its page is only ever seen through the VPS.

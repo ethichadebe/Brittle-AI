@@ -12,6 +12,8 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 
 const PROBE = path.join(path.dirname(fileURLToPath(import.meta.url)), "probe-dischem-klevu.mjs");
 const KEY = "test-scraperapi-key-7c1d";
@@ -36,6 +38,14 @@ const page = (keys) => `<html><head><title>Search results for: 'toothpaste' | Di
 <!-- old: ${keys[0]} -->
 <script type="text/x-magento-init">{"*":{"Klevu_Search/js/klevu":{"url":{"protocol":"https:","search":"https:\\/\\/${HOST}\\/cs\\/v2\\/search"},"search":{"apiKey":"${keys[1] ?? keys[0]}"}}}}</script>
 <span>R39.99</span></body></html>`;
+
+// Dis-Chem's real page, as of the second run: a key, but the search host
+// only in the Klevu script it loads (or nowhere at all).
+const pageWithoutHost = (scriptSrc) => `<html><head><title>Dis-Chem</title>
+${scriptSrc ? `<script type="text/javascript" src="${scriptSrc}?v=3"></script>` : ""}
+<script src="/static/frontend/app.js"></script></head><body>
+<div class="klevu-search-results"></div>
+<script>window.klevu_settings = {"apiKey":"${KLEVU_KEY}","language":"en"};</script></body></html>`;
 
 function scraperApi({ used = 10, limit = 1000, html = page([OTHER_KEY, KLEVU_KEY]) } = {}, seen) {
   return http.createServer((req, res) => {
@@ -82,6 +92,14 @@ function klevu({ v2 = true, v1 = true, img }, seen) {
   });
 }
 
+// Klevu's script CDN: its settings name the search host.
+function klevuScripts() {
+  return http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/javascript" });
+    res.end(`klevu.setSetting("url.search","https:\\/\\/${HOST}\\/cs\\/v2\\/search");`);
+  });
+}
+
 function pictures({ blocked = false } = {}) {
   return http.createServer((req, res) => {
     if (blocked) { res.writeHead(403, { "content-type": "text/html" }); return res.end("<title>Just a moment...</title>"); }
@@ -100,9 +118,17 @@ function run(env) {
   });
 }
 
-async function scenario(name, { api = {}, kl = {}, pic = {}, env = {} }, checks) {
+const TMP = mkdtempSync(path.join(os.tmpdir(), "probe-klevu-"));
+let n = 0;
+
+async function scenario(name, { api = {}, kl = {}, pic = {}, env = {}, saved = null, withScripts = null }, checks) {
   console.log(`\n${name}`);
   const seenApi = [], seenKlevu = [];
+  const pageFile = path.join(TMP, `page-${++n}.html`);
+  if (saved) writeFileSync(pageFile, saved);
+  const js = klevuScripts();
+  const jsUrl = await listen(js);
+  if (withScripts) api = { ...api, html: withScripts(`${jsUrl}/klevu-js-v1/klevu-core.js`) };
   const img = pictures(pic);
   const imgUrl = await listen(img);
   const a = scraperApi(api, seenApi);
@@ -116,20 +142,22 @@ async function scenario(name, { api = {}, kl = {}, pic = {}, env = {} }, checks)
     KLEVU_URL: klevuUrl,
     DISCHEM_ORIGIN: "https://www.dischem.co.za",
     QUERIES: "toothpaste,milk",
+    PAGE_FILE: pageFile,
     ...env,
   });
-  await Promise.all([close(a), close(k), close(img)]);
+  await Promise.all([close(a), close(k), close(img), close(js)]);
   if (code === 0) ok("exits cleanly");
   else bad("exits cleanly", `exit ${code}\n${out}`);
   // Neither key may reach the public issue, whatever else happens.
   hasnt(out, KEY, "never prints the ScraperAPI key");
   hasnt(out, KLEVU_KEY, "never prints the Klevu key");
   hasnt(out, OTHER_KEY, "never prints the older Klevu key");
-  checks(out, { seenApi, seenKlevu });
+  checks(out, { seenApi, seenKlevu, pageFile });
   if (process.env.SHOW) console.log(out);
 }
 
-await scenario("Klevu answers on v2, pictures are open", {}, (out, { seenApi, seenKlevu }) => {
+await scenario("Klevu answers on v2, pictures are open", {}, (out, { seenApi, seenKlevu, pageFile }) => {
+  (existsSync(pageFile) ? ok : (x) => bad(x, pageFile))("the saved page is on disk");
   has(out, `search hosts: ${HOST}`, "reads the search host from the escaped JSON");
   has(out, "search keys:  2 (not printed)", "finds both keys, and no class names");
   has(out, "Colgate Toothpaste 100ml", "shows products");
@@ -141,6 +169,7 @@ await scenario("Klevu answers on v2, pictures are open", {}, (out, { seenApi, se
   has(out, "key:      #2 of 2 works", "says which key worked");
   has(out, "a picture", "pictures load directly");
   has(out, "ScraperAPI credits spent by this run: 10 (cap 10)", "spends exactly one premium request");
+  has(out, "saved to ", "saves the page");
   (seenApi.join() === "premium" ? ok : (n) => bad(n, seenApi.join()))("asks ScraperAPI once, through premium");
   (seenKlevu.filter((s) => s.endsWith("live")).length === 2 ? ok : (n) => bad(n, seenKlevu.join()))("uses the live key for both queries");
 });
@@ -172,13 +201,42 @@ await scenario("a cap below 10", { env: { MAX_CREDITS: "3" } }, (out, { seenApi 
 
 await scenario("a page without Klevu", { api: { html: "<html><title>Dis-Chem</title><div class='klevu-x'></div></html>" } }, (out) => {
   has(out, "search hosts: none", "finds no host");
-  has(out, "no Klevu host in the page", "verdict says why");
+  has(out, "no Klevu key in the page", "verdict says why");
+});
+
+await scenario("the host is only in Klevu's script", { withScripts: (src) => pageWithoutHost(src) }, (out, { seenApi }) => {
+  has(out, "search hosts: none", "the page itself names no host");
+  has(out, "key #1: klevu-style, after:", "says what the key sits next to");
+  has(out, "klevu-core.js: HTTP 200", "reads Klevu's script");
+  has(out, `names ${HOST}`, "finds the host in it");
+  has(out, `Klevu answers direct from here, 0 credits a search (${HOST})`, "verdict: free");
+  hasnt(out, "Guessing", "doesn't guess when the script names it");
+  (seenApi.join() === "premium" ? ok : (x) => bad(x, seenApi.join()))("one premium request");
+});
+
+await scenario("the host is nowhere: guessed", { api: { html: pageWithoutHost(null) } }, (out) => {
+  has(out, "the page loads no Klevu script by name", "no Klevu script");
+  has(out, "eucs1v2.ksearchnet.com answers", "the first host that answers wins");
+  has(out, "Klevu answers direct from here, 0 credits a search (eucs1v2.ksearchnet.com)", "verdict: free");
+});
+
+await scenario("nothing answers the guesses", { api: { html: pageWithoutHost(null) }, kl: { v2: false, v1: false } }, (out) => {
+  has(out, "none answered", "says no host answered");
+  has(out, "no Klevu host found in the page, its scripts, or by guessing", "verdict says so");
+});
+
+await scenario("the page was saved by an earlier run", { saved: page([OTHER_KEY, KLEVU_KEY]) }, (out, { seenApi }) => {
+  has(out, "saved by an earlier run: 0 credits", "reads the saved page");
+  has(out, "ScraperAPI credits spent by this run: 0", "spends nothing");
+  (seenApi.length === 0 ? ok : (x) => bad(x, seenApi.join()))("never asks ScraperAPI for the page");
+  has(out, "Klevu answers direct from here", "still finds Klevu");
 });
 
 await scenario("a key in an unexpected shape stays out of the snippet", {
-  api: { html: `<script>{"url":{"search":"https:\\/\\/${HOST}\\/cs"},"token":"zzTOKENzz0123456789abcdefXYZ"}</script>` },
+  api: { html: `<script>{"url":{"search":"https:\\/\\/${HOST}\\/cs"},"klevu_token":"zzTOKENzz0123456789abcdefXYZ"}</script>` },
 }, (out) => {
-  hasnt(out, "zzTOKENzz0123456789abcdefXYZ", "masks long tokens near the host");
+  has(out, "Klevu mentions: 1", "shows the mention");
+  hasnt(out, "zzTOKENzz0123456789abcdefXYZ", "masks long tokens in what it shows of the page");
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

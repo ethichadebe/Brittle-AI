@@ -16,6 +16,15 @@
 //   3. fetches one product image directly, to see whether pictures are
 //      behind Cloudflare too (they'd need the image proxy to get past it)
 //
+// The second run (2026-10-17) found a key in the page but no search host:
+// Klevu's settings come from its own scripts instead. So when the page names
+// no host, this also reads the Klevu scripts the page loads (free), and as a
+// last resort tries Klevu's numbered EU hosts (eucs1v2 ... eucs45v2) with the
+// key, stopping at the first that answers. Each of those is free.
+//
+// The page is saved to PAGE_FILE (default /tmp/dischem-search.html, inside the
+// container) and read from there next time, so only the first run pays.
+//
 // At most MAX_CREDITS (default 10) ScraperAPI credits; the account count is
 // read first, which costs nothing.
 //
@@ -31,6 +40,8 @@
 // but has no business in an issue. Every line goes through redact().
 // Offline test: node scripts/probe-dischem-klevu.test.mjs
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
 const DISCHEM = process.env.DISCHEM_ORIGIN || "https://www.dischem.co.za";
 const SCRAPERAPI_URL = process.env.SCRAPERAPI_URL || "http://api.scraperapi.com/";
 const SCRAPERAPI_ACCOUNT = process.env.SCRAPERAPI_ACCOUNT_URL || "https://api.scraperapi.com/account";
@@ -39,6 +50,9 @@ const KLEVU = (host) => process.env.KLEVU_URL || `https://${host}`;
 const KEY = process.env.SCRAPERAPI_KEY || "";
 const QUERIES = (process.env.QUERIES || "toothpaste,milk").split(",").map((q) => q.trim()).filter(Boolean);
 const MAX_CREDITS = Number(process.env.MAX_CREDITS ?? 10);
+const PAGE_FILE = process.env.PAGE_FILE || "/tmp/dischem-search.html";
+// Klevu's EU search hosts are numbered; the guess stops at the first that answers.
+const GUESS_HOSTS = Array.from({ length: 45 }, (_, i) => `eucs${i + 1}v2.ksearchnet.com`);
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
 
@@ -97,22 +111,42 @@ async function account() {
 
 // ------------------------------------------------------------- Klevu config
 
+// Any long token is masked in what's shown of the page, in case a key comes
+// in a shape the patterns below don't recognise.
+const mask = (s) => String(s).replace(/[A-Za-z0-9_-]{16,}/g, "…");
+const KLEVU_HOST = /([a-z0-9-]+\.(?:ksearchnet\.com|klevu\.com))/gi;
+
+/** Klevu search hosts in some text: ksearchnet.com, or klevu.com but not its script CDN. */
+function searchHosts(text) {
+  return [...new Set([...text.replace(/\\\//g, "/").matchAll(KLEVU_HOST)].map((m) => m[1].toLowerCase()))]
+    .filter((h) => h.endsWith("ksearchnet.com") || /cs\d*v\d/.test(h));
+}
+
 /**
- * The Klevu search hosts and public search keys written into the page. The
+ * What the page says about Klevu: search hosts, public search keys (and what
+ * each sits next to), every mention of Klevu, and the scripts it loads. The
  * page's JSON escapes slashes (\/), and class names like "klevu-search" also
- * start with "klevu-", so a key is "klevu-" and digits only.
+ * start with "klevu-", so a Klevu key is "klevu-" and digits only.
  */
 function klevuConfig(html) {
   const text = html.replace(/\\\//g, "/");
-  const hosts = [...new Set([...text.matchAll(/([a-z0-9-]+\.ksearchnet\.com)/gi)].map((m) => m[1].toLowerCase()))];
-  const keys = [...new Set([
-    ...[...text.matchAll(/\bklevu-\d{8,}\b/g)].map((m) => m[0]),
-    ...[...text.matchAll(/apiKey["']?\s*[:=]\s*["']([^"'\s]{6,})["']/gi)].map((m) => m[1]),
-  ])];
-  const at = text.search(/ksearchnet\.com/i);
-  // Any long token is masked too, in case a key comes in a shape not matched above.
-  const around = at < 0 ? "" : text.slice(Math.max(0, at - 160), at + 160).replace(/[A-Za-z0-9_-]{16,}/g, "…");
-  return { hosts, keys, around };
+  const found = [
+    ...[...text.matchAll(/\bklevu-\d{8,}\b/g)].map((m) => ({ key: m[0], at: m.index, kind: "klevu-style" })),
+    ...[...text.matchAll(/apiKey["']?\s*[:=]\s*["']([^"'\s]{6,})["']/gi)].map((m) => ({ key: m[1], at: m.index, kind: "an apiKey field" })),
+  ];
+  const keys = [...new Set(found.map((f) => f.key))];
+  const keyNotes = keys.map((k) => {
+    const f = found.find((x) => x.key === k);
+    return `${f.kind}, after: ${flat(mask(text.slice(Math.max(0, f.at - 70), f.at)), 70)}`;
+  });
+  const mentions = [];
+  for (const m of text.matchAll(/klevu/gi)) {
+    if (mentions.length >= 15) break;
+    const snippet = flat(mask(text.slice(Math.max(0, m.index - 90), m.index + 110)), 200);
+    if (!mentions.some((x) => x.includes(snippet.slice(60, 140)))) mentions.push(snippet);
+  }
+  const scripts = [...new Set([...text.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]))];
+  return { hosts: searchHosts(text), keys, keyNotes, mentions, scripts };
 }
 
 // --------------------------------------------------------------------- Klevu
@@ -166,10 +200,53 @@ function show(q, how, { r, total, records }) {
   return records;
 }
 
+/** Klevu's search host from the Klevu scripts the page loads, which are free to fetch. */
+async function hostsFromScripts(scripts) {
+  const klevuScripts = scripts.filter((src) => /klevu|ksearchnet/i.test(src)).slice(0, 8);
+  say("== Klevu's scripts, direct (free) ==");
+  if (!klevuScripts.length) {
+    say("the page loads no Klevu script by name\n");
+    return [];
+  }
+  const hosts = new Set();
+  for (const src of klevuScripts) {
+    const url = src.startsWith("//") ? `https:${src}` : src.startsWith("/") ? `${DISCHEM}${src}` : src;
+    const r = await get(url);
+    const found = r.status === 200 ? searchHosts(r.text) : [];
+    found.forEach((h) => hosts.add(h));
+    say(`${flat(url.replace(/[?#].*/, ""), 90)}: HTTP ${r.status} ${r.text.length}B${challenged(r) ? " BLOCKED by Cloudflare" : ""}${found.length ? `, names ${found.join(" ")}` : ""}`);
+  }
+  say("");
+  return [...hosts];
+}
+
+/** Last resort: Klevu's numbered EU hosts, first that answers a search with the key. */
+async function guessHost(keys) {
+  say(`== Guessing Klevu's host: ${GUESS_HOSTS[0]} ... ${GUESS_HOSTS.at(-1)} (free) ==`);
+  for (const host of GUESS_HOSTS) {
+    for (const key of keys) {
+      const { records } = await searchV2(host, key, QUERIES[0]);
+      if (records?.length) {
+        say(`${host} answers\n`);
+        return [host];
+      }
+    }
+  }
+  say("none answered\n");
+  return [];
+}
+
 async function klevu(config) {
+  if (!config.keys.length) {
+    say("== Klevu, asked directly (free) ==");
+    say("verdict:  no Klevu key in the page; Klevu may be loaded another way\n");
+    return { works: false };
+  }
+  if (!config.hosts.length) config.hosts = await hostsFromScripts(config.scripts);
+  if (!config.hosts.length) config.hosts = await guessHost(config.keys);
   say("== Klevu, asked directly (free) ==");
-  if (!config.hosts.length || !config.keys.length) {
-    say(`verdict:  no Klevu ${config.hosts.length ? "key" : "host"} in the page; Klevu may be loaded another way\n`);
+  if (!config.hosts.length) {
+    say("verdict:  no Klevu host found in the page, its scripts, or by guessing\n");
     return { works: false };
   }
   let image = null;
@@ -213,10 +290,14 @@ async function picture(url) {
 
 say(`Dis-Chem Klevu probe, queries: ${QUERIES.join(", ")}\n`);
 const left = await account();
-let config = { hosts: [], keys: [], around: "" };
+let config = { hosts: [], keys: [], keyNotes: [], mentions: [], scripts: [] };
+let html = null;
 
-say("== Dis-Chem search page, through ScraperAPI premium ==");
-if (left !== null && left < 10) {
+say("== Dis-Chem search page ==");
+if (existsSync(PAGE_FILE)) {
+  html = readFileSync(PAGE_FILE, "utf8");
+  say(`read from ${PAGE_FILE}, saved by an earlier run: 0 credits`);
+} else if (left !== null && left < 10) {
   say(`skipped: ${left} credits left, and premium costs 10\n`);
 } else if (credits + 10 > MAX_CREDITS) {
   say(`skipped: would pass the ${MAX_CREDITS}-credit cap\n`);
@@ -225,16 +306,31 @@ if (left !== null && left < 10) {
   const target = `${DISCHEM}/catalogsearch/result/?q=${encodeURIComponent(QUERIES[0])}`;
   const r = await get(`${SCRAPERAPI_URL}?api_key=${encodeURIComponent(KEY)}&url=${encodeURIComponent(target)}&premium=true`);
   if (r.status !== 200 || challenged(r)) {
-    say(`HTTP ${r.status}  ${r.text.length}B  ${challenged(r) ? "BLOCKED by Cloudflare" : flat(r.text, 70)}\n`);
+    say(`through ScraperAPI premium: HTTP ${r.status}  ${r.text.length}B  ${challenged(r) ? "BLOCKED by Cloudflare" : flat(r.text, 70)}\n`);
   } else {
-    config = klevuConfig(r.text);
-    for (const k of config.keys) secrets.add(k);
-    say(`HTTP 200  ${r.text.length}B`);
-    say(`search hosts: ${config.hosts.join(" ") || "none"}`);
-    say(`search keys:  ${config.keys.length} (not printed)`);
-    if (config.around) say(`around it:    ${flat(config.around, 320)}`);
-    say("");
+    html = r.text;
+    say(`through ScraperAPI premium: HTTP 200, 10 credits`);
+    try {
+      writeFileSync(PAGE_FILE, html);
+      say(`saved to ${PAGE_FILE}: the next run reads it for free`);
+    } catch (e) {
+      say(`couldn't save it (${flat(e?.message, 60)}): the next run pays again`);
+    }
   }
+}
+
+if (html) {
+  config = klevuConfig(html);
+  for (const k of config.keys) secrets.add(k);
+  say(`${html.length}B`);
+  say(`search hosts: ${config.hosts.join(" ") || "none"}`);
+  say(`search keys:  ${config.keys.length} (not printed)`);
+  config.keyNotes.forEach((n, i) => say(`  key #${i + 1}: ${n}`));
+  say(`Klevu mentions: ${config.mentions.length}`);
+  for (const m of config.mentions) say(`  … ${m}`);
+  say(`scripts loaded: ${config.scripts.length}`);
+  for (const src of config.scripts) say(`  ${flat(mask(src.replace(/[?#].*/, "")), 110)}`);
+  say("");
 }
 
 const { image } = await klevu(config);
