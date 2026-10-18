@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
-import type { ListItem, StoreSlug } from "@accucery/types";
+import { cardPrice, type ListItem, type StoreSlug } from "@accucery/types";
 import { basketPrices } from "../services/basketPrices.js";
 import { branchOf } from "../scraper/branch.js";
 import type { Branch } from "../scraper/types.js";
@@ -86,7 +86,9 @@ export async function listItemsRoutes(app: FastifyInstance) {
     const list = await findOwnedList(req.params.id, ownerKey(req));
     if (!list) return reply.status(404).send({ error: "List not found" } as never);
 
-    const { productId, productName, imageUrl, regularPrice, loyaltyPrice, quantity } = req.body;
+    const { productId, productName, imageUrl, regularPrice, quantity } = req.body;
+    // What the search showed, but never a card price of R0 or above the regular one.
+    const loyaltyPrice = cardPrice(regularPrice, req.body.loyaltyPrice);
     const addedQuantity = quantity ?? 1;
 
     // The same product added twice is the same item, not two rows — see #83.

@@ -86,6 +86,17 @@ describe("POST /lists/:id/items", () => {
     expect(body.id).toBeDefined();
   });
 
+  // A client can only pass on what a search showed, but never a R0 card
+  // price: that pulled list totals down (2026-10-18).
+  it("saves a R0 card price as no card price", async () => {
+    const list = await createList();
+    const res = await inject({ method: "POST", url: `/lists/${list.id}/items`, payload: { ...stubItem, loyaltyPrice: 0 } });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().loyaltyPrice).toBeNull();
+    const row = await testPrisma.listItem.findFirstOrThrow({ where: { listId: list.id } });
+    expect(row.loyaltyPrice).toBeNull();
+  });
+
   // C: 404 if list doesn't exist
   it("returns 404 when list does not exist", async () => {
     const res = await inject({

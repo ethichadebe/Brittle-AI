@@ -244,7 +244,10 @@ _Avoid_: store (that is the retailer), location (that is the shopper's)
   copy, and Checkers/Shoprite read `bonusBuy`. Resolved: **Loyalty Price**
   means card-gated only. Woolworths' `"Now R<x>"` is card-gated (WRewards), so
   that scraper is correct. Checkers/Shoprite's `bonusBuy` has still not been
-  established either way.
+  established either way. What is known (2026-10-18): its `discountValue` is
+  0 on deals with no fixed price, which showed shoppers "R0.00 card price".
+  A **Loyalty Price** is now only kept when it is above 0 and below the
+  regular price (`cardPrice()` in packages/types), for every store.
 - **Woolworths expresses promotions two ways, and only one carries a
   card-gating flag.** Simple price cuts arrive as `"Now R<x> Save R<y>"` in the
   `promo` copy array; conditional multi-buys arrive as structured

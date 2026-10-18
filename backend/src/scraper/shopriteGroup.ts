@@ -1,4 +1,4 @@
-import type { Product } from "@accucery/types";
+import { cardPrice, type Product } from "@accucery/types";
 import type { Branch, Place, Scraper } from "./types.js";
 import { opaqueZone } from "./zone.js";
 import { remember, type Remembered, type RememberedStore } from "./remember.js";
@@ -111,8 +111,10 @@ export function normalise(raw: any): UnzonedProduct[] {
       const name = String(item.name ?? "");
       const imageUrl = String(item.imageProductCardURL ?? item.imageURL ?? "");
       const regularPrice = Number(item.price ?? 0);
+      // A deal's discountValue is 0 when it has no fixed price ("3 for 2",
+      // "any 2 for R30"): that is no card price, not a free product.
       const loyaltyPrice =
-        item.bonusBuy?.discountValue != null ? Number(item.bonusBuy.discountValue) : null;
+        item.bonusBuy?.discountValue != null ? cardPrice(regularPrice, Number(item.bonusBuy.discountValue)) : null;
 
       if (!productId || !name) return null;
       return { productId, name, imageUrl, regularPrice, loyaltyPrice };
