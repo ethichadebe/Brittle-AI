@@ -5,7 +5,7 @@ import { track } from "../lib/analytics";
 import { formatRand } from "../lib/format";
 import { CameraIcon, CheckIcon, CloseIcon, PlusIcon } from "./icons";
 import { CameraScan } from "./CameraScan";
-import { photoCanvas } from "../lib/photo";
+import { PHOTO_SEARCH_ON, photoCanvas } from "../lib/photo";
 import { closeTextReader, findBarcode, readSearches, textReaderLoaded } from "../lib/photoReader";
 
 // Long enough to swallow a burst of keystrokes, short enough not to feel laggy.
@@ -255,18 +255,22 @@ export function AddItems({ listId, storeSlug, storeName, useLoyalty, items, onSa
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="add-camera" aria-label="Search with the camera" disabled={reading !== null} onClick={openCamera}>
-          <CameraIcon />
-        </button>
-        {/* No capture attribute: that opens the phone's camera app, and
-            Android may close this page while it's open (CameraScan.tsx). */}
-        <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => void readPhoto(e)} />
+        {PHOTO_SEARCH_ON && (
+          <>
+            <button className="add-camera" aria-label="Search with the camera" disabled={reading !== null} onClick={openCamera}>
+              <CameraIcon />
+            </button>
+            {/* No capture attribute: that opens the phone's camera app, and
+                Android may close this page while it's open (CameraScan.tsx). */}
+            <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => void readPhoto(e)} />
+          </>
+        )}
         <button className="add-done" onClick={() => onDone(added.size)}>Done</button>
       </header>
 
       {error && <p className="add-error" role="alert">{error}</p>}
 
-      {scanning && (
+      {PHOTO_SEARCH_ON && scanning && (
         <CameraScan onName={scannedName} onSearches={scannedSearches} onChoosePhoto={choosePhoto} onClose={() => setScanning(false)} />
       )}
 
