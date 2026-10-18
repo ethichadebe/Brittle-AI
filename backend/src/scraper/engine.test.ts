@@ -197,6 +197,19 @@ describe("createSearchEngine", () => {
     expect(fake.calls).toBe(3);
   });
 
+  // Whatever a store sends, a shopper never sees a R0 card price, or one
+  // above the regular price (2026-10-18).
+  it("keeps only real card prices, from every store", async () => {
+    const product = (productId: string, loyaltyPrice: number | null): Product => ({ ...milk, productId, loyaltyPrice });
+    const scraper: Scraper = {
+      currentZone: () => "none",
+      search: async () => [product("zero", 0), product("above", 31.5), product("same", 29.99), product("none", null), product("real", 26.99)],
+    };
+    const engine = createSearchEngine({ woolworths: scraper }, () => {});
+    const prices = Object.fromEntries((await engine.searchProducts("woolworths", "milk")).map((p) => [p.productId, p.loyaltyPrice]));
+    expect(prices).toEqual({ zero: null, above: null, same: null, none: null, real: 26.99 });
+  });
+
   it("returns an empty array for a store with no registered scraper", async () => {
     const engine = createSearchEngine({});
     expect(await engine.searchProducts("checkers", "milk")).toEqual([]);

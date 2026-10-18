@@ -113,6 +113,18 @@ describe("normalise", () => {
     expect(normalise({ products: [noBonus] })[0].loyaltyPrice).toBeNull();
   });
 
+  // On a deal with no fixed price ("3 for 2") discountValue is 0: the app
+  // showed "R0.00 card price" for those (2026-10-18).
+  it("treats a deal worth R0, or one above the regular price, as no card price", () => {
+    const deal = (discountValue: unknown) => normalise({ products: [{ ...rawProduct, bonusBuy: { discountValue } }] })[0].loyaltyPrice;
+    expect(deal(0)).toBeNull();
+    expect(deal("0.00")).toBeNull();
+    expect(deal(32.99)).toBeNull();
+    expect(deal(45)).toBeNull();
+    expect(deal("not a number")).toBeNull();
+    expect(deal(28.99)).toBe(28.99);
+  });
+
   it("drops products with no id or no name rather than inventing one", () => {
     const products = [rawProduct, { ...rawProduct, id: null }, { ...rawProduct, name: "" }];
     expect(normalise({ products })).toHaveLength(1);

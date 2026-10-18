@@ -1,6 +1,17 @@
 export type { StoreConfig } from "./stores.js";
 export { STORE_CONFIGS } from "./stores.js";
 
+/**
+ * A card (loyalty) price only counts when it's a real price below the
+ * regular one; anything else is no card price (2026-10-18). Checkers and
+ * Shoprite read theirs from a deal field that is 0 on deals without a fixed
+ * price, which showed shoppers "R0.00 card price" and pulled list totals down.
+ */
+export function cardPrice(regularPrice: number, loyaltyPrice: number | null | undefined): number | null {
+  if (loyaltyPrice == null || !Number.isFinite(loyaltyPrice)) return null;
+  return loyaltyPrice > 0 && loyaltyPrice < regularPrice ? loyaltyPrice : null;
+}
+
 // Store
 
 export type StoreSlug =

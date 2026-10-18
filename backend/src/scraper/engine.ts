@@ -1,4 +1,4 @@
-import type { Product, StoreSlug } from "@accucery/types";
+import { cardPrice, type Product, type StoreSlug } from "@accucery/types";
 import type { Branch, Place, Scraper } from "./types.js";
 import { CheckersScraper, ShopriteScraper } from "./shopriteGroup.js";
 import { PnpScraper } from "./pnp.js";
@@ -9,6 +9,12 @@ import { playwrightScraper } from "./playwright.js";
 import { NO_ZONE } from "./zone.js";
 
 export type ScraperRegistry = Partial<Record<StoreSlug, Scraper>>;
+
+// Every store's results pass through here, so no scraper can show a shopper
+// a R0.00 card price, or one above the regular price (2026-10-18).
+function withRealCardPrices(products: Product[]): Product[] {
+  return products.map((p) => ({ ...p, loyaltyPrice: cardPrice(p.regularPrice, p.loyaltyPrice) }));
+}
 
 /** Told how each store search went: with the error when it failed (#155). */
 export type SearchObserver = (store: StoreSlug, error?: unknown) => void;
@@ -46,7 +52,7 @@ export function createSearchEngine(registry: ScraperRegistry, observe: SearchObs
       try {
         const products = await scraper.search(query, branch);
         observe(store);
-        return products;
+        return withRealCardPrices(products);
       } catch (err) {
         observe(store, err);
         // Through ScraperAPI, the browser fallback loads the whole site: dozens
@@ -57,7 +63,7 @@ export function createSearchEngine(registry: ScraperRegistry, observe: SearchObs
           return [];
         }
         console.error(`[scraper:${store}] primary failed, trying Playwright fallback:`, err);
-        return playwrightScraper.search(store, query);
+        return withRealCardPrices(await playwrightScraper.search(store, query));
       }
     });
   }

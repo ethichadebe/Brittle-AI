@@ -1,0 +1,26 @@
+# 2026-10-18 — No more R0.00 card prices
+
+- **Asked for:** the owner's screenshot of a Checkers search for "Beans". Some products showed "R 0.00 · card price" while others showed their price. "What's causing this?"
+- **Cause:**
+  - Checkers and Shoprite's card price is read from the product's deal, `bonusBuy.discountValue`.
+  - On deals without a fixed price ("3 for 2", "any 2 for R30") that value is 0.
+  - With card prices on, the app showed the 0 as the price.
+  - It was also saved to the price cache and to list items, so list totals and comparisons counted those products at R0.
+- **What changed:**
+  - **The rule:** `cardPrice()` in `packages/types` keeps a card price only when it is above 0 and below the regular price.
+  - **Where it applies:**
+    - the Checkers/Shoprite scraper;
+    - the search engine, for every store and the browser fallback, so no store can show a R0 card price again;
+    - adding an item to a list.
+  - **A one-off migration** clears the card prices already saved that break the rule, in `price_cache` and `list_items`. It changes data only, and runs on the next deploy like every migration.
+  - `CONTEXT.md` records what is now known about `bonusBuy`.
+- **Worked first time:** yes. Tests cover:
+  - the scraper (0, "0.00", equal to, above the regular price, not a number, and a real one);
+  - the engine for any store;
+  - the add-item route;
+  - the migration's SQL, run over bad rows in a real Postgres.
+  - Each part, broken on purpose, failed its test.
+- **Laptop needed:** no.
+- **Friction:**
+  - What `discountValue` holds on other deal types is still not seen directly. It might sometimes be an amount off rather than a price.
+  - Products on those deals now show their regular price, which is never too low. Showing the deal itself would need a look at the raw deal data from the server.
