@@ -3,6 +3,10 @@
 // product's name (only the number goes to our server); otherwise the phone
 // reads the printed words, and each line becomes something to search for.
 
+// Paused by the owner (2026-10-18): the camera button is hidden from the
+// search screen. Everything behind it stays, so true brings it back.
+export const PHOTO_SEARCH_ON = false;
+
 // Big enough for small print and a barcode's bars, small enough to read fast.
 export const MAX_SIDE = 2000;
 
