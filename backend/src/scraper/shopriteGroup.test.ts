@@ -3,10 +3,13 @@ import {
   CheckersScraper,
   ShopriteScraper,
   BRANCH_TTL_MS,
+  CHECKERS_SITE,
   DEFAULT_PLACE,
   NEAREST_TRIES,
   SHOPRITE_SITE,
+  defaultBranchKey,
   forgetBranches,
+  keepDefaultBranchesIn,
   normalise,
   type StoreContext,
 } from "./shopriteGroup.js";
@@ -59,7 +62,7 @@ function standIn({ own = JHB, nearby = [], at = {}, products = [rawProduct], loo
     if (target.pathname === "/api/store/fetch-store-contexts") {
       if (lookupFails) return { ok: false, status: 502, statusText: "Bad Gateway" } as Response;
       const { latitude } = body.address.coordinates;
-      // Each site's own default place: Sandton, or Sophiatown for Shoprite (#157).
+      // Each site's own default place: Sandton, or Braamfontein for Shoprite (#196).
       const home = latitude === DEFAULT_PLACE.latitude || latitude === SHOPRITE_SITE.defaultPlace!.latitude;
       return jsonResponse({ storeContexts: home ? own : (at[String(latitude)] ?? DIGITAL) });
     }
@@ -204,6 +207,41 @@ describe("where Shoprite doesn't deliver", () => {
     expect(JSON.parse(searchCall()[1].body).storeContexts).toEqual([]);
     expect(searchCall()[1].headers.Cookie).toBeUndefined();
     expect(product.zone).toBe("unconfigured");
+  });
+});
+
+// #196: Shoprite's default, from Sophiatown, was a store with a premium
+// range: "yum yum" found nothing there.
+describe("Shoprite's default branch", () => {
+  it("is looked up from Braamfontein", async () => {
+    await new ShopriteScraper().search("milk");
+    const asked = JSON.parse(String(calls("/api/store/fetch-store-contexts")[0][1].body)).address;
+    expect(asked.city).toBe("Braamfontein");
+    expect(asked.coordinates).toEqual({ latitude: -26.1929, longitude: 28.0353 });
+  });
+
+  it("is kept under a key naming its place, so moving the place takes effect at once", async () => {
+    expect(defaultBranchKey(SHOPRITE_SITE)).toBe("default-branch:Shoprite:Braamfontein");
+    expect(defaultBranchKey(CHECKERS_SITE)).toBe("default-branch:Checkers:Sandton");
+    // A branch kept for the old place, under the old key, is never read back.
+    const keys: string[] = [];
+    keepDefaultBranchesIn(<T,>(key: string) => {
+      keys.push(key);
+      return {
+        load: async () => (key === "default-branch:Shoprite" ? { value: [{ storeId: "old-premium" }] as T, savedAt: new Date() } : null),
+        save: async () => {},
+      };
+    });
+    try {
+      forgetBranches();
+      await new ShopriteScraper().search("milk");
+      expect(keys).toEqual(["default-branch:Shoprite:Braamfontein"]);
+      expect(searchCall()[1].headers.Cookie).not.toContain("old-premium");
+    } finally {
+      // Other tests keep nothing between runs: a store that never has anything.
+      keepDefaultBranchesIn(() => ({ load: async () => null, save: async () => {} }));
+      forgetBranches();
+    }
   });
 });
 

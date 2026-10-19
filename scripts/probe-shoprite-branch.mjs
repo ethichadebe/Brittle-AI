@@ -37,7 +37,8 @@ const describe = (contexts) =>
 
 say(`Shoprite branch probe, queries: ${QUERIES.join(", ")}\n`);
 
-const kept = await prisma.rememberedValue.findUnique({ where: { key: "default-branch:Shoprite" } });
+// Kept as "default-branch:Shoprite:<place>" since #196; the newest is in use.
+const kept = await prisma.rememberedValue.findFirst({ where: { key: { startsWith: "default-branch:Shoprite" } }, orderBy: { savedAt: "desc" } });
 const defaults = Array.isArray(kept?.value) ? kept.value : [];
 say("== Default branch (no location) ==");
 say(defaults.length ? `zone ${contextsZone(defaults)}: ${describe(defaults)}` : "none remembered");
