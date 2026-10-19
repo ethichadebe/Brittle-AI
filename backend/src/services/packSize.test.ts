@@ -50,6 +50,26 @@ describe("parsePackSize", () => {
     expect(parsePackSize("")).toBeNull();
   });
 
+  // 2026-10-19: Woolworths' "Eggs 18 pk" against Pick n Pay's "Eggs 18 Pack"
+  // found nothing to compare, so offered nothing at all.
+  it("reads a count as a size, compared per item", () => {
+    expect(parsePackSize("Free Range Extra Large Chilled Eggs 18 pk")).toEqual({ quantity: 18, unit: "each" });
+    expect(parsePackSize("PnP Live Well Free Range Extra Large Eggs 18 Pack")).toEqual({ quantity: 18, unit: "each" });
+    expect(parsePackSize("Toilet Rolls 9 Packs")).toEqual({ quantity: 9, unit: "each" });
+    expect(parsePackSize("Braai Skewers 6pcs")).toEqual({ quantity: 6, unit: "each" });
+    expect(parsePackSize("Lemons 4 each")).toEqual({ quantity: 4, unit: "each" });
+    expect(parsePackSize("Rusks Pack of 6")).toEqual({ quantity: 6, unit: "each" });
+    expect(parsePackSize("Large Eggs 6's")).toEqual({ quantity: 6, unit: "each" });
+  });
+
+  it("prefers a weight or volume to a count, and never reads a bare number as one", () => {
+    expect(parsePackSize("Yum Yum Smooth Peanut Butter 18 x 15g")).toEqual({ quantity: 270, unit: "g" });
+    expect(parsePackSize("Large Eggs 18")).toBeNull();
+    expect(parsePackSize("Free Range Chicken 4 Drumsticks & 4 Thighs")).toBeNull();
+    expect(parsePackSize("Twin Pack")).toBeNull();
+    expect(parsePackSize("0 Pack")).toBeNull();
+  });
+
   it("takes the rightmost number, since a pack size trails the product name", () => {
     // "18" here is a pack count, not a size — the true size is the trailing 2L.
     expect(parsePackSize("Pack of 18 Coca-Cola Cans 2L")).toEqual({

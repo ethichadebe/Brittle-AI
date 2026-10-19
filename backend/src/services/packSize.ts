@@ -1,9 +1,10 @@
 // Per CONTEXT.md: Pack Size is "how much product one unit contains, as the
-// store names it". Parsed here only from the two dimensions actually seen
-// in this catalogue — mass and volume — normalised to a common base unit
-// per dimension (grams, millilitres) so two products can be compared by
-// Unit Price. A name outside these forms parses to null rather than a
-// guess: #89 requires refusing a match, never inventing a size.
+// store names it". Parsed here from the dimensions actually seen in this
+// catalogue — mass and volume, normalised to a common base unit per
+// dimension (grams, millilitres), and a count ("18 Pack" of eggs, "Pack of
+// 6", "6's"), compared per item — so two products can be compared by Unit
+// Price. A name outside these forms parses to null rather than a guess:
+// #89 requires refusing a match, never inventing a size.
 
 import type { PackUnit } from "@accucery/types";
 export type { PackUnit };
@@ -30,6 +31,11 @@ const MULTIPLIER = new RegExp(`(${NUM})\\s*[x×]\\s*(${NUM})\\s*(${UNIT})\\b`, "
 // "500 g", "2L" — spacing is optional either way.
 const SIMPLE = new RegExp(`(${NUM})\\s*(${UNIT})\\b`, "gi");
 
+// A count, only when there is no mass or volume: "18 Pack", "18 pk", "6pcs",
+// "12 each", "Pack of 6", "6's". A bare number ("Eggs 18", "18s") is not
+// one: nothing says what it counts.
+const COUNT = /(\d+)\s*(?:pk|packs?|pcs?|pieces?|ea|each)\b|\bpack\s+of\s+(\d+)\b|(\d+)\s*'s\b/gi;
+
 function toNumber(raw: string): number {
   return Number(raw.replace(",", "."));
 }
@@ -53,6 +59,12 @@ export function parsePackSize(name: string): PackSize | null {
 
   const simple = lastMatch(SIMPLE, name);
   if (simple) return toBase(toNumber(simple[1]), simple[2]);
+
+  const count = lastMatch(COUNT, name);
+  if (count) {
+    const n = Number(count[1] ?? count[2] ?? count[3]);
+    if (n > 0) return { quantity: n, unit: "each" };
+  }
 
   return null;
 }

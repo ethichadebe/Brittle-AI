@@ -139,17 +139,21 @@ export interface ListItemsResponse {
 
 // Comparison (see ADR 0002, ADR 0004, and #89/#90)
 
-// A Pack Size's common base unit — grams for mass, millilitres for volume.
-// Mass and volume are never comparable to each other; see packSize.ts.
-export type PackUnit = "g" | "ml";
+// A Pack Size's common base unit — grams for mass, millilitres for volume,
+// and "each" for a count ("18 Pack" of eggs, 2026-10-19). No two are
+// comparable to each other; see packSize.ts.
+export type PackUnit = "g" | "ml" | "each";
 
 export interface ComparisonMatch {
   productId: string;
   name: string;
   // Per unit of Pack Size, so two products can be judged against each
   // other regardless of what one pack costs — see ADR 0002.
+  // "pack" (2026-10-19): a size couldn't be read on one side, so this is one
+  // pack's price, compared pack for pack. Only ever a suggestion the shopper
+  // picks, or a pick they made, and shown as "Size not shown".
   unitPrice: number;
-  unit: PackUnit;
+  unit: PackUnit | "pack";
   // The store's own product photo, so a shopper can see a stand-in next to
   // what it replaces rather than judging by name alone.
   imageUrl: string;

@@ -121,6 +121,13 @@ export interface ShopperDecisions {
   popular?: { productId: string; name: string };
 }
 
+// A size couldn't be read on one side, so this is compared pack for pack:
+// one pack's price, unit "pack" (2026-10-19, ADR 0002 as amended). Only ever
+// offered as a suggestion, or applied as a shopper's own earlier pick.
+function perPack(product: { productId: string; name: string; regularPrice: number; imageUrl: string }): MatchedProduct {
+  return { productId: product.productId, name: product.name, unitPrice: product.regularPrice, unit: "pack", imageUrl: product.imageUrl };
+}
+
 function priced(product: Product, size: { quantity: number; unit: MatchedProduct["unit"] }): MatchedProduct {
   return {
     productId: product.productId,
@@ -144,6 +151,8 @@ export async function matchItem(
   decisions: ShopperDecisions = {}
 ): Promise<MatchResult> {
   const originalSize = parsePackSize(item.productName);
+  // The list item itself, pack for pack, for when sizes can't be compared.
+  const originalPerPack = perPack({ ...item, name: item.productName });
   const original: MatchedProduct | undefined = originalSize
     ? {
         productId: item.productId,
@@ -166,69 +175,96 @@ export async function matchItem(
   if (decisions.popular && !removedIds.has(decisions.popular.productId)) {
     remembered.push({ pick: decisions.popular, source: "popular" });
   }
-  if (originalSize && original) {
-    for (const { pick, source } of remembered) {
-      const found = (await search(targetStore, pick.name)).find((p) => p.productId === pick.productId);
-      const foundSize = found && parsePackSize(found.name);
-      if (found && foundSize && foundSize.unit === originalSize.unit) {
-        return { matched: true, source, substitute: { original, substitute: priced(found, foundSize) } };
-      }
+  // The shopper's own pick where sizes can't be compared (2026-10-19): kept
+  // applied, pack for pack, unless ordinary matching finds a confident,
+  // comparable Substitute. A Popular Substitute never is: it's someone
+  // else's choice.
+  let packPick: Product | undefined;
+  for (const { pick, source } of remembered) {
+    if (!originalSize && source !== "shopper") continue;
+    const found = (await search(targetStore, pick.name)).find((p) => p.productId === pick.productId);
+    if (!found) continue;
+    const foundSize = parsePackSize(found.name);
+    if (original && originalSize && foundSize && foundSize.unit === originalSize.unit) {
+      return { matched: true, source, substitute: { original, substitute: priced(found, foundSize) } };
     }
+    if (source === "shopper") packPick ??= found;
   }
 
-  const results = await search(targetStore, item.productName);
-  const removed = results
-    .filter((p) => removedIds.has(p.productId))
-    .map((p) => ({ productId: p.productId, name: p.name, imageUrl: p.imageUrl }));
-  const candidates = results.filter((p) => !removedIds.has(p.productId));
-
-  if (candidates.length === 0) {
-    const reason =
-      removed.length > 0
-        ? `everything ${targetStore} has matching "${item.productName}" was removed by the shopper`
-        : `${targetStore} has no products matching "${item.productName}"`;
-    return { matched: false, reason, suggestions: [], removed };
+  const result = await ordinaryMatch();
+  if (!result.matched && packPick) {
+    return { matched: true, source: "shopper", substitute: { original: originalPerPack, substitute: perPack(packPick) } };
   }
+  return result;
 
-  if (!originalSize || !original) {
+  async function ordinaryMatch(): Promise<MatchResult> {
+    const results = await search(targetStore, item.productName);
+    const removed = results
+      .filter((p) => removedIds.has(p.productId))
+      .map((p) => ({ productId: p.productId, name: p.name, imageUrl: p.imageUrl }));
+    const candidates = results.filter((p) => !removedIds.has(p.productId));
+
+    if (candidates.length === 0) {
+      const reason =
+        removed.length > 0
+          ? `everything ${targetStore} has matching "${item.productName}" was removed by the shopper`
+          : `${targetStore} has no products matching "${item.productName}"`;
+      return { matched: false, reason, suggestions: [], removed };
+    }
+
+    // The closest names, compared pack for pack, for when sizes can't be: a
+    // suggestion the shopper can check and pick, never applied for them
+    // (2026-10-19). A candidate sharing no word with the item isn't one.
+    const packSuggestions = () =>
+      rankCandidates(item.productName, candidates)
+        .filter((c) => c.score > 0)
+        .slice(0, MAX_SUGGESTIONS)
+        .map((c) => perPack(c.product));
+
+    if (!originalSize || !original) {
+      const suggestions = packSuggestions();
+      return {
+        matched: false,
+        reason: `pack size could not be read from "${item.productName}"`,
+        ...(suggestions.length > 0 && { original: originalPerPack }),
+        suggestions,
+        removed,
+      };
+    }
+
+    // Mass and volume are not the same dimension, and a candidate with no
+    // readable Pack Size at all can't be priced by Unit Price either — both
+    // are dropped from consideration entirely, never offered even as a
+    // suggestion: #89 refuses a nonsensical "price per gram vs price per
+    // millilitre" comparison rather than showing one.
+    const viable: { candidate: MatchedProduct; score: number }[] = [];
+    for (const { product, score } of rankCandidates(item.productName, candidates)) {
+      const candidateSize = parsePackSize(product.name);
+      if (!candidateSize || candidateSize.unit !== originalSize.unit) continue;
+      viable.push({ candidate: priced(product, candidateSize), score });
+    }
+
+    if (viable.length === 0) {
+      const suggestions = packSuggestions();
+      return {
+        matched: false,
+        reason: `${targetStore} has no candidate for "${item.productName}" with a comparable, readable pack size`,
+        ...(suggestions.length > 0 && { original: originalPerPack }),
+        suggestions,
+        removed,
+      };
+    }
+
+    if (viable[0].score >= MIN_MATCH_SCORE) {
+      return { matched: true, source: "accucery", substitute: { original, substitute: viable[0].candidate } };
+    }
+
     return {
       matched: false,
-      reason: `pack size could not be read from "${item.productName}"`,
-      suggestions: [],
+      reason: `${targetStore}'s closest candidate for "${item.productName}" was "${viable[0].candidate.name}", too dissimilar to trust as a Substitute`,
+      original,
+      suggestions: viable.slice(0, MAX_SUGGESTIONS).map((v) => v.candidate),
       removed,
     };
   }
-
-  // Mass and volume are not the same dimension, and a candidate with no
-  // readable Pack Size at all can't be priced by Unit Price either — both
-  // are dropped from consideration entirely, never offered even as a
-  // suggestion: #89 refuses a nonsensical "price per gram vs price per
-  // millilitre" comparison rather than showing one.
-  const viable: { candidate: MatchedProduct; score: number }[] = [];
-  for (const { product, score } of rankCandidates(item.productName, candidates)) {
-    const candidateSize = parsePackSize(product.name);
-    if (!candidateSize || candidateSize.unit !== originalSize.unit) continue;
-    viable.push({ candidate: priced(product, candidateSize), score });
-  }
-
-  if (viable.length === 0) {
-    return {
-      matched: false,
-      reason: `${targetStore} has no candidate for "${item.productName}" with a comparable, readable pack size`,
-      suggestions: [],
-      removed,
-    };
-  }
-
-  if (viable[0].score >= MIN_MATCH_SCORE) {
-    return { matched: true, source: "accucery", substitute: { original, substitute: viable[0].candidate } };
-  }
-
-  return {
-    matched: false,
-    reason: `${targetStore}'s closest candidate for "${item.productName}" was "${viable[0].candidate.name}", too dissimilar to trust as a Substitute`,
-    original,
-    suggestions: viable.slice(0, MAX_SUGGESTIONS).map((v) => v.candidate),
-    removed,
-  };
 }
