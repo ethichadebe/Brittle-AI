@@ -10,6 +10,10 @@
 //      delivery type and how many lists use it (free: the database)
 //   2. the same searches at the default and at the most used other branch
 //      (one ScraperAPI credit each: 4 with the default two queries)
+//   3. candidate default places from Braamfontein to Sandton (the owner's
+//      choice): the branch the app's own finder picks at each, and the first
+//      query searched there. Usually 3 credits a place; more where the
+//      address has no delivering store and nearby stores are asked in turn.
 //
 // Run inside the backend container and post the output to #196:
 //
@@ -23,7 +27,7 @@
 // and ids, never a list, an account or a location.
 
 import { PrismaClient } from "@prisma/client";
-import { ShopriteScraper, contextsZone } from "./dist/scraper/shopriteGroup.js";
+import { SHOPRITE_SITE, ShopriteScraper, contextsZone, locateBranch } from "./dist/scraper/shopriteGroup.js";
 
 const QUERIES = (process.env.QUERIES || "yum yum,peanut butter").split(",").map((q) => q.trim()).filter(Boolean);
 const prisma = new PrismaClient();
@@ -71,6 +75,27 @@ for (const q of QUERIES) {
     } catch (e) {
       say(`"${q}" at ${label}: failed, ${String(e?.message ?? e).slice(0, 100)}`);
     }
+  }
+}
+// Braamfontein to Sandton, south to north.
+const PLACES = [
+  { city: "Braamfontein", latitude: -26.1929, longitude: 28.0353 },
+  { city: "Parktown", latitude: -26.1785, longitude: 28.0428 },
+  { city: "Rosebank", latitude: -26.1459, longitude: 28.0436 },
+  { city: "Sandton", latitude: -26.1076, longitude: 28.0567 },
+];
+say(`\n== Candidate default places, "${QUERIES[0]}" at each ==`);
+for (const place of PLACES) {
+  try {
+    const found = await locateBranch(SHOPRITE_SITE, place);
+    if (!found) {
+      say(`${place.city}: no delivering branch found`);
+      continue;
+    }
+    const products = await scraper.search(QUERIES[0], { name: place.city, contexts: found.contexts });
+    say(`${place.city}: zone ${contextsZone(found.contexts)}${found.storeName ? `, ${found.storeName}` : ""}: ${describe(found.contexts)} -> ${products.length} products`);
+  } catch (e) {
+    say(`${place.city}: failed, ${String(e?.message ?? e).slice(0, 100)}`);
   }
 }
 await prisma.$disconnect();
