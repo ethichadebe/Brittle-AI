@@ -10,7 +10,10 @@
 #     own), with how many products it holds and when it was searched
 #   - what the Checkers and Shoprite ones hold, in the store's order
 #   - the default branches Checkers and Shoprite use without a location
-#   - the matching searches in the last four days of the backend's log
+#   - how many searches (of any words) each Checkers and Shoprite price zone
+#     has kept, so a zone that never answers stands out
+#   - the matching searches, and the store search failures, in the last four
+#     days of the backend's log
 set -uo pipefail
 TERM_="${1:-}"
 # Letters, digits and spaces only: it goes into SQL and grep.
@@ -37,9 +40,15 @@ SELECT s."storeSlug" AS store, left(s.zone, 12) AS zone, s.query, n AS "#", left
 SELECT key, "savedAt" AS found, jsonb_array_length(value) AS stores,
        (SELECT string_agg((e->>'storeId') || ' ' || coalesce(e->>'serviceOptionIds', ''), '; ') FROM jsonb_array_elements(value) e) AS "store ids"
   FROM remembered_values WHERE key LIKE 'default-branch:%';
+\echo == Searches kept per Checkers and Shoprite zone, any words ==
+SELECT "storeSlug" AS store, left(zone, 12) AS zone, count(*) AS searches, max("scrapedAt") AS latest
+  FROM search_cache WHERE "storeSlug" IN ('checkers', 'shoprite')
+  GROUP BY 1, 2 ORDER BY 1, 3 DESC LIMIT 20;
 SQL
 
 echo "== Matching searches in the backend's log, last 4 days =="
 GREP="q=$(echo "$TERM_" | sed 's/  */%20/g')"
 $COMPOSE logs --since 96h backend 2>/dev/null | grep -i "$GREP" | grep -o '"url":"/search[^"]*"' | sort | uniq -c | tail -20
+echo "== Store search failures in the backend's log, last 4 days =="
+$COMPOSE logs --since 96h --no-log-prefix backend 2>/dev/null | grep -F "[scraper:" | cut -c1-160 | sort | uniq -c | sort -rn | head -15
 echo "(done)"
