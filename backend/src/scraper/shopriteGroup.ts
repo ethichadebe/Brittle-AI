@@ -44,9 +44,13 @@ export const SHOPRITE_SITE: ShopriteGroupSite = {
   origin: "https://www.shoprite.co.za",
   cookieEnv: "SHOPRITE_COOKIES",
   verifyBranch: true,
-  // Shoprite doesn't deliver in Sandton; Sophiatown, 10.8 km away, prices
-  // Joburg (#134). Asked from Sandton it took a dozen requests to reach.
-  defaultPlace: { city: "Sophiatown", latitude: -26.1755, longitude: 27.9819 },
+  // Shoprite doesn't deliver in Sandton (#134). Sophiatown was used next,
+  // but its delivering store carries a premium range, not Shoprite's own:
+  // "yum yum" found nothing there and 9 products at Shoprite Zola (#196).
+  // Of Braamfontein, Parktown, Rosebank and Sandton (the owner's choice: the
+  // nearest point between Braamfontein and Sandton), only Braamfontein has
+  // a delivering store, Shoprite Mayfair, and it finds all 9.
+  defaultPlace: { city: "Braamfontein", latitude: -26.1929, longitude: 28.0353 },
 };
 
 function baseHeaders(site: ShopriteGroupSite): Record<string, string> {
@@ -309,6 +313,15 @@ export function keepDefaultBranchesIn(store: <T>(key: string) => RememberedStore
   branchStore = store;
 }
 
+/**
+ * Where a site's default branch is kept. It names the place it was found
+ * for, so moving a site's default place takes effect on the next deploy
+ * rather than when the old branch's week runs out (#196).
+ */
+export function defaultBranchKey(site: ShopriteGroupSite): string {
+  return `default-branch:${site.label}:${(site.defaultPlace ?? DEFAULT_PLACE).city}`;
+}
+
 /** The default branch for a site, looked up at most once a week. */
 export function defaultBranch(site: ShopriteGroupSite): Promise<StoreContext[]> {
   let remembered = defaults.get(site.label);
@@ -316,7 +329,7 @@ export function defaultBranch(site: ShopriteGroupSite): Promise<StoreContext[]> 
     remembered = remember(site.label, () => findBranch(site, site.defaultPlace ?? DEFAULT_PLACE), [], {
       ttlMs: BRANCH_TTL_MS,
       failedTtlMs: FAILED_TTL_MS,
-      store: branchStore?.<StoreContext[]>(`default-branch:${site.label}`),
+      store: branchStore?.<StoreContext[]>(defaultBranchKey(site)),
     });
     defaults.set(site.label, remembered);
   }

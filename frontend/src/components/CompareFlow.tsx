@@ -16,6 +16,10 @@ import { track } from "../lib/analytics";
 import { CheckIcon, CloseIcon } from "./icons";
 import { AdSlot } from "./AdSlot";
 
+// A Substitute or suggestion compared pack for pack, because a size couldn't
+// be read or the two are measured differently (ADR 0002, 2026-10-19).
+const SIZE_NOTE = "Can't compare sizes · check before you swap";
+
 // Who put a Substitute in a comparison total, as the shopper reads it.
 const SOURCE_BADGE: Record<SubstituteSource, string> = {
   accucery: "Substitute",
@@ -263,6 +267,7 @@ export function CompareFlow({ listId, storeSlug, items, signedIn, onSignIn, onCl
                     <img className="compare-thumb compare-thumb--small" src={imgSrc(ownImage(item.listItemId))} alt="" />
                     instead of {item.productName}
                   </span>
+                  {item.substitute.unit === "pack" && <span className="compare-size-note">{SIZE_NOTE}</span>}
                 </div>
                 <span className="compare-cost">{formatRand(item.cost)}</span>
               </li>
@@ -299,7 +304,10 @@ export function CompareFlow({ listId, storeSlug, items, signedIn, onSignIn, onCl
                                 onClick={() => selectSuggestion(item, index)}
                               >
                                 <img className="compare-thumb" src={imgSrc(suggestion.substitute.imageUrl)} alt="" />
-                                <span className="compare-candidate-name">{suggestion.substitute.name}</span>
+                                <span className="compare-candidate-name">
+                                  {suggestion.substitute.name}
+                                  {suggestion.substitute.unit === "pack" && <span className="compare-size-note">{SIZE_NOTE}</span>}
+                                </span>
                                 <span className="compare-cost">{formatRand(suggestion.cost)}</span>
                                 <span className={`compare-radio${chosen ? " compare-radio--on" : ""}`} aria-hidden="true">
                                   {chosen && <CheckIcon size={13} />}

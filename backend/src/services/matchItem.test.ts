@@ -55,7 +55,10 @@ describe("matchItem", () => {
     expect(result.suggestions).toEqual([]);
   });
 
-  it("is unmatched when the list item's own name has no readable pack size", async () => {
+  // 2026-10-19 (ADR 0002 as amended, decided with the owner): where sizes
+  // can't be compared, the closest names are still offered, pack for pack,
+  // for the shopper to check and pick. Never applied for them.
+  it("suggests, pack for pack, when the list item's own name has no readable pack size", async () => {
     const noSizeItem = { productId: "orig-2", productName: "Fresh Chicken Breast Fillets", regularPrice: 89.99, imageUrl: "" };
     const search = catalogue([product({ productId: "c1", name: "Chicken Breast Fillets 1kg", regularPrice: 79.99 })]);
 
@@ -63,26 +66,41 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("pack size");
-    expect(result.suggestions).toEqual([]);
+    expect(result.suggestions).toEqual([expect.objectContaining({ productId: "c1", unit: "pack", unitPrice: 79.99 })]);
+    expect(result.original).toEqual(expect.objectContaining({ unit: "pack", unitPrice: 89.99 }));
   });
 
-  it("is unmatched when the best candidate's own name has no readable pack size", async () => {
+  it("suggests, pack for pack, when the best candidate's own name has no readable pack size", async () => {
     const search = catalogue([product({ productId: "c1", name: "Full Cream Milk", regularPrice: 27.99 })]);
 
     const result = await matchItem(original, "checkers", search);
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason).toContain("pack size");
-    expect(result.suggestions).toEqual([]);
+    expect(result.suggestions).toEqual([expect.objectContaining({ productId: "c1", unit: "pack", unitPrice: 27.99 })]);
+  });
+
+  // The owner's report: Woolworths' whole chicken "Avg 1.3 kg" at Pick n Pay,
+  // whose whole chicken is sold by weight with no size in its name.
+  it("offers a product sold by weight, but not one that shares no word with the item", async () => {
+    const chicken = { productId: "w-chicken", productName: "Free Range Whole Chicken Avg 1.3 kg", regularPrice: 92.39, imageUrl: "" };
+    const search = catalogue([
+      product({ productId: "pnp-chicken", name: "PnP Whole Chicken", regularPrice: 127.69 }),
+      product({ productId: "bread", name: "White Bread", regularPrice: 17.99 }),
+    ]);
+
+    const result = await matchItem(chicken, "pick-n-pay", search);
+    if (result.matched) throw new Error("expected no match");
+    expect(result.suggestions.map((s) => s.productId)).toEqual(["pnp-chicken"]);
   });
 
   // #89's own mutation check: a candidate whose pack size is a different
-  // dimension entirely (mass vs volume) must be refused, and refused by
-  // name — "pack size" must appear in the reason, not just "no match".
-  // Removing the unit-compatibility check would instead let this through
-  // as a wrong Substitute, computing a nonsensical "price per gram vs price
-  // per millilitre" comparison rather than refusing it.
-  it("refuses a candidate whose pack size is a different dimension, naming pack size as why", async () => {
+  // dimension entirely (mass vs volume) must never be applied as a
+  // Substitute, and the reason must name pack size. Removing the
+  // unit-compatibility check would instead apply it, with a nonsensical
+  // "price per gram vs price per millilitre" comparison. Since 2026-10-19 it
+  // is offered pack for pack, for the shopper to judge.
+  it("never applies a candidate whose pack size is a different dimension, naming pack size as why", async () => {
     const search = catalogue([
       // The only candidate is milk POWDER, sold by mass, not the liquid
       // milk by volume the shopper actually has on their list.
@@ -94,9 +112,22 @@ describe("matchItem", () => {
     expect(result.matched).toBe(false);
     if (result.matched) throw new Error("expected no match");
     expect(result.reason.toLowerCase()).toContain("pack size");
-    // No suggestions either — a candidate this dimensionally incomparable
-    // can't be priced, so it isn't offered as one, unlike a merely weak match.
-    expect(result.suggestions).toEqual([]);
+    expect(result.suggestions).toEqual([expect.objectContaining({ productId: "powder-1", unit: "pack" })]);
+  });
+
+  it("matches eggs by count, per egg", async () => {
+    const eggs = { productId: "w-eggs", productName: "Free Range Extra Large Chilled Eggs 18 pk", regularPrice: 109.99, imageUrl: "" };
+    const search = catalogue([
+      product({ productId: "large", name: "PnP Live Well Free Range Large Eggs 18 Pack", regularPrice: 69.99 }),
+      product({ productId: "xl", name: "PnP Live Well Free Range Extra Large Eggs 18 Pack", regularPrice: 79.99 }),
+      product({ productId: "six", name: "PnP Live Well Extra Large Free Range Eggs 6 Pack", regularPrice: 27.99 }),
+    ]);
+
+    const result = await matchItem(eggs, "pick-n-pay", search);
+    if (!result.matched) throw new Error(`expected a match: ${result.reason}`);
+    expect(result.substitute.substitute).toEqual(expect.objectContaining({ productId: "xl", unit: "each" }));
+    expect(result.substitute.substitute.unitPrice).toBeCloseTo(79.99 / 18);
+    expect(result.substitute.original.unitPrice).toBeCloseTo(109.99 / 18);
   });
 
   // A real report: a snack matched to a condiment purely because both names
@@ -323,6 +354,31 @@ describe("matchItem with a Shopper's decisions", () => {
 
 // #103: a Popular Substitute is what enough other Shoppers chose. It
 // outranks Accucery's own guess, but never the Shopper's own decision.
+describe("matchItem where sizes can't be compared, with decisions", () => {
+  const chicken = { productId: "w-chicken", productName: "Free Range Whole Chicken Avg 1.3 kg", regularPrice: 92.39, imageUrl: "" };
+  const search = catalogue([product({ productId: "pnp-chicken", name: "PnP Whole Chicken", regularPrice: 127.69 })]);
+
+  it("keeps the shopper's own pick applied, pack for pack", async () => {
+    const result = await matchItem(chicken, "pick-n-pay", search, { chosen: { productId: "pnp-chicken", name: "PnP Whole Chicken" } });
+    if (!result.matched) throw new Error(`expected a match: ${result.reason}`);
+    expect(result.source).toBe("shopper");
+    expect(result.substitute.substitute).toEqual(expect.objectContaining({ productId: "pnp-chicken", unit: "pack", unitPrice: 127.69 }));
+    expect(result.substitute.original).toEqual(expect.objectContaining({ unit: "pack", unitPrice: 92.39 }));
+  });
+
+  it("keeps it applied when the list item's own size can't be read either", async () => {
+    const noSize = { productId: "w-fillets", productName: "Fresh Chicken Breast Fillets", regularPrice: 89.99, imageUrl: "" };
+    const result = await matchItem(noSize, "pick-n-pay", search, { chosen: { productId: "pnp-chicken", name: "PnP Whole Chicken" } });
+    if (!result.matched) throw new Error(`expected a match: ${result.reason}`);
+    expect(result.substitute.substitute.productId).toBe("pnp-chicken");
+  });
+
+  it("never applies someone else's choice pack for pack: a Popular Substitute stays a suggestion", async () => {
+    const result = await matchItem(chicken, "pick-n-pay", search, { popular: { productId: "pnp-chicken", name: "PnP Whole Chicken" } });
+    expect(result.matched).toBe(false);
+  });
+});
+
 describe("matchItem with a Popular Substitute", () => {
   const soap = product({ productId: "popular", name: "Dishwashing Liquid 750 ml", regularPrice: 19.99 });
   const liquidMilk = product({ productId: "match-1", name: "Full Cream Milk 2 L", regularPrice: 27.99 });

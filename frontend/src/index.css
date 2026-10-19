@@ -2531,3 +2531,6 @@ html.on-landing #root { max-width: none; }
 .scan-note { margin: 0 0 14px; text-align: center; font-size: 0.95rem; line-height: 1.4; }
 .scan-actions { display: flex; gap: 10px; }
 .scan-actions .btn { flex: 1; }
+
+/* Compared pack for pack (ADR 0002, 2026-10-19): the shopper checks the size. */
+.compare-size-note { display: block; margin-top: 2px; color: var(--warn); font-size: 0.8rem; font-weight: 600; }

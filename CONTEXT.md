@@ -82,7 +82,7 @@ _Avoid_: official substitute, community substitute, crowd pick
 
 **Pack Size**:
 How much product one unit contains, as the store names it — 500 g, 2 L,
-6 x 1 L.
+6 x 1 L, or a count: 18 Pack, Pack of 6.
 _Avoid_: size, weight, volume, quantity
 
 **Unit Price**:
@@ -170,9 +170,11 @@ _Avoid_: store (that is the retailer), location (that is the shopper's)
 - A **Substitute** is judged against what it replaces by **Unit Price**, not by
   what one pack costs, because a smaller **Pack Size** is cheaper per pack and
   need not be cheaper per litre
-- Where a product's **Pack Size** cannot be read, there is no **Substitute** —
-  Accucery says it could not match the item rather than offering one it cannot
-  compare
+- Where a product's **Pack Size** cannot be read, or the two are measured
+  differently, Accucery never applies a **Substitute** itself. It offers the
+  closest names as **Suggestions**, compared pack for pack and marked so the
+  **Shopper** checks the size; one the **Shopper** picks counts pack for pack
+  (ADR 0002, amended 2026-10-19)
 - A **Shelf Price** is quoted for one **Price Zone**; a price Accucery has
   observed is a fact about a product **and** the zone it was observed in, and
   the same product in another zone is a different price

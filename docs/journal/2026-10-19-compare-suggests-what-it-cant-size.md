@@ -1,0 +1,21 @@
+# 2026-10-19 — Compare reads counts, and suggests what it can't size
+
+- **Asked for:** the owner compared a Woolworths list at Pick n Pay and got "2 of 2 items not found", with nothing suggested. They expected suggestions for what they'd searched.
+- **Cause:** found by running the two items through the real matcher against live Pick n Pay. Its search found good candidates; the matcher threw them all away over pack sizes.
+  - **Eggs:** "Free Range Extra Large Chilled Eggs 18 pk" against "PnP Live Well Free Range Extra Large Eggs 18 Pack". Only mass and volume were read as a size, so counts were unreadable on both sides.
+  - **Chicken:** "Free Range Whole Chicken Avg 1.3 kg" against "PnP Whole Chicken", which is sold by weight with no size in its name.
+- **Decided with the owner:** where sizes can't be compared, suggest the closest names, marked, and never apply them for the shopper. This amends ADR 0002, which refused any suggestion without a readable size.
+- **What changed:**
+  - **Counts are a Pack Size:** "18 pk", "18 Pack", "Pack of 6", "6pcs", "6's". They're compared per item, and only used when the name has no weight or volume. A bare "Eggs 18" is still not a size.
+  - **Pack-for-pack suggestions:** when a size can't be read on either side, or mass meets volume, the closest names come back as suggestions with unit "pack". Words shared with the item are weighted by rarity as before, and a candidate sharing none isn't offered.
+    - The compare screen marks them "Can't compare sizes · check before you swap".
+    - Nothing counts until the shopper picks one.
+  - **A shopper's own pick** of one of these stays applied on later comparisons, pack for pack, unless a confident comparable Substitute turns up. A Popular Substitute is never applied pack for pack.
+  - ADR 0002 has an amendment, and `CONTEXT.md`'s Pack Size and Substitute lines are updated.
+  - `scripts/diag-search.sh`, built for the other bug (#196), comes in this pull request too. It's read-only and costs no credits.
+- **Worked first time:** mostly.
+  - **Live check:** against Pick n Pay, the eggs now match per egg (R4.44 against R6.11 at Woolworths). The chicken offers "PnP Whole Chicken" first, then drumsticks and wings.
+  - **Tests:** the old tests that said "no size, no suggestion" now say the new rule.
+  - **Broken on purpose:** six breaks; five failed tests at once. The sixth, a shopper's pick when the item's own size can't be read, needed its own test, now added.
+- **Laptop needed:** no.
+- **Friction:** Shoprite's default branch (#196) needs the server's view, so that fix follows separately.
