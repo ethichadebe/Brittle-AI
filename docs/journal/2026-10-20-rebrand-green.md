@@ -1,0 +1,23 @@
+# 2026-10-20 — Rebrand: teal to green, black logo
+
+- **Asked for:**
+  - The owner sent their logo, black and green, and asked for the app's teal to become its green.
+  - The Accucery logo should become a black A with a green tick.
+- **Decided with the owner:**
+  - **Buttons:** the green with black text. White on this green is 2.7:1, too faint to read; black is 7.8:1.
+  - **Icon and opening screen:** white, with a black A and a green tick, like the logo they sent.
+- **What changed:**
+  - **Green #44B340**, read from the owner's image, fills buttons, ticks, toggles and the end of the landing page, all with black text.
+  - **Green text and outlines** use a deeper ink, #2B7A28 (5:1). The brand green is too faint as text on white. Dark mode uses the brand green throughout, since it reads well on dark.
+  - **Logo:** the "Accucery" title is black (white in dark mode) with the green tick.
+  - **App icon, opening screen and browser bar** are white. The icons were re-rendered.
+  - **"From Ethic Hadebe" mark** on the opening screen: black and green. Its light grey was only there to show on teal.
+  - **Emails:** a black header, a green button with black text, deeper-green links.
+  - **Link preview image:** black with a green glow, a white A with the green tick, and the green tag. Re-rendered.
+  - **Store colours are unchanged:** Checkers' dot is Checkers' own teal.
+- **Worked first time:** yes.
+  - Home, list, compare, the store picker and the opening screen were checked in a browser, in light and dark, along with the landing page and an email.
+  - Lint, typechecks, frontend and backend tests, builds and gitleaks pass.
+- **Laptop needed:** no.
+- **Friction:**
+  - An installed app may keep its old teal icon until the phone refreshes it. Removing it and adding it again to the home screen forces it.
