@@ -7,7 +7,7 @@ const dir = new URL("../frontend/public", import.meta.url).pathname;
 const svg = readFileSync(`${dir}/icon.svg`, "utf8");
 const inner = svg.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/<rect[^>]*\/>/, "");
 // Maskable: Android may crop to a circle 80% wide, so the mark shrinks into it.
-const maskable = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#0d7a70"/><g transform="translate(256 256) scale(0.74) translate(-256 -256)">${inner}</g></svg>`;
+const maskable = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#ffffff"/><g transform="translate(256 256) scale(0.74) translate(-256 -256)">${inner}</g></svg>`;
 // PLAYWRIGHT_CHROMIUM picks a browser other than the bundled one, if needed.
 const b = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {});
 const page = await b.newPage();

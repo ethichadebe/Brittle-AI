@@ -27,9 +27,9 @@
     <meta name="twitter:title" content="Accucery: the shopping list that knows the prices" />
     <meta name="twitter:description" content="Live prices from Checkers, Pick n Pay, Shoprite, Woolworths, Makro and Clicks. Know your total before the till." />
     <meta name="twitter:image" content="__SITE_ORIGIN__/og-image.jpg" />
-    <!-- Installable app (#118): the browser bar and status bar in teal. -->
+    <!-- Installable app (#118): the browser bar and status bar in white, like the icon. -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0d7a70" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -49,8 +49,8 @@
         z-index: 1000;
         display: grid;
         place-items: center;
-        background: #0d7a70;
-        color: #fff;
+        background: #ffffff;
+        color: #000000;
       }
       #splash[hidden] { display: none; }
       #splash > * { grid-area: 1 / 1; }
@@ -82,9 +82,9 @@
         gap: 6px;
         opacity: 0;
         font: 500 13px/1.2 "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        color: rgba(255, 255, 255, 0.72);
+        color: #6b7280;
       }
-      #splash .splash-maker-brand { display: flex; align-items: center; gap: 8px; color: #fff; font-size: 17px; font-weight: 700; letter-spacing: 0.01em; }
+      #splash .splash-maker-brand { display: flex; align-items: center; gap: 8px; color: #000000; font-size: 17px; font-weight: 700; letter-spacing: 0.01em; }
       #splash .splash-maker-brand svg { height: 24px; width: auto; }
 
       /* The logo standing in for the "A" of Accucery; the home screen's title
@@ -96,17 +96,17 @@
     <div id="splash" aria-hidden="true" hidden>
       <div class="splash-word"><svg class="wordmark-a" viewBox="124 86 264 340">
           <path class="wordmark-a-stroke" d="M150 400L256 112l106 288" stroke="currentColor" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <path class="wordmark-tick" d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="wordmark-tick" d="M196 300l38 36 86-86" stroke="#44b340" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg><span class="splash-rest">ccu<span class="splash-swap"><span class="splash-from">rac</span><span class="splash-to">cer</span></span>y</span></div>
       <svg class="splash-mark" viewBox="124 86 264 340">
           <path class="splash-a wordmark-a-stroke" d="M150 400L256 112l106 288" stroke="currentColor" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <path class="splash-tick wordmark-tick" d="M196 300l38 36 86-86" stroke="#7fe3d6" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="splash-tick wordmark-tick" d="M196 300l38 36 86-86" stroke="#44b340" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       <div class="splash-maker">
         <span>from</span>
         <span class="splash-maker-brand"><svg viewBox="24 16 166 168" aria-hidden="true">
-            <path d="M24 16h166v44H124v25H87V60H24zM62 115h25v23H62zM124 115h28v23h-28z" fill="#cbcccb"/>
-            <path d="M24 78h38v60h25V85h37v53h28V78h38v106H24z" fill="#2f9504"/>
+            <path d="M24 16h166v44H124v25H87V60H24zM62 115h25v23H62zM124 115h28v23h-28z" fill="#000000"/>
+            <path d="M24 78h38v60h25V85h37v53h28V78h38v106H24z" fill="#44b340"/>
           </svg>Ethic Hadebe</span>
       </div>
     </div>
@@ -174,7 +174,7 @@
           };
 
           // 4. The wordmark glides up to become the home screen's title, as
-          //    the teal falls away. Off the home screen, it just fades.
+          //    the white falls away. Off the home screen, it just fades.
           var fly = function () {
             if (finished) return;
             title = document.querySelector(".home-wordmark");
@@ -186,15 +186,15 @@
               var tick = title.querySelector(".wordmark-tick");
               title.style.visibility = "hidden";
               run(word, [
-                { transform: "none", color: "#fff" },
+                { transform: "none", color: "#000000" },
                 { transform: "translate(" + (t.left - w.left) + "px," + (t.top - w.top) + "px) scale(" + scale + ")", color: getComputedStyle(title).color },
               ], timing(0, 560, ease));
-              run(letter.querySelector(".wordmark-tick"), [{ stroke: "#7fe3d6" }, { stroke: getComputedStyle(tick).stroke }], timing(0, 560, ease));
+              run(letter.querySelector(".wordmark-tick"), [{ stroke: "#44b340" }, { stroke: getComputedStyle(tick).stroke }], timing(0, 560, ease));
             } else {
               run(word, [{ opacity: 1 }, { opacity: 0 }], timing(0, 300));
             }
             run(maker, [{ opacity: 1 }, { opacity: 0 }], timing(0, 300));
-            var fade = splash.animate([{ backgroundColor: "rgba(13,122,112,1)" }, { backgroundColor: "rgba(13,122,112,0)" }], timing(0, 560, ease));
+            var fade = splash.animate([{ backgroundColor: "rgba(255,255,255,1)" }, { backgroundColor: "rgba(255,255,255,0)" }], timing(0, 560, ease));
             animations.push(fade);
             fade.onfinish = finish;
           };

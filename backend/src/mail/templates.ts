@@ -6,7 +6,11 @@ import { appUrl, REPLY_TO } from "./mailer.js";
 // purpose: that's what mail apps render reliably. Nothing in here takes text
 // a shopper typed, so nothing they type can end up as markup.
 
-const BRAND = "#0d7a70";
+// Brand green (2026-10-20). A button carries black text on it; a link is
+// the deeper ink, since the brand green is too faint as text on white.
+const BRAND = "#44b340";
+const ON_BRAND = "#000000";
+const LINK = "#2b7a28";
 const INK = "#14161a";
 const MUTED = "#6b7280";
 const PAGE = "#f6f7f9";
@@ -50,12 +54,12 @@ function render(to: string, c: Content): Mail {
   const p = (s: string) => `<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:${INK};">${escape(s)}</p>`;
   const button = c.button
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;"><tr><td style="border-radius:10px;background:${BRAND};">
-<a href="${escape(c.button.href)}" style="display:inline-block;padding:14px 26px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">${escape(c.button.label)}</a>
+<a href="${escape(c.button.href)}" style="display:inline-block;padding:14px 26px;font-size:16px;font-weight:700;color:${ON_BRAND};text-decoration:none;border-radius:10px;">${escape(c.button.label)}</a>
 </td></tr></table>`
     : "";
   const note = c.note ? `<p style="margin:0 0 14px;font-size:13px;line-height:1.5;color:${MUTED};">${escape(c.note)}</p>` : "";
   const extra = c.extra
-    ? `<p style="margin:0;font-size:14px;line-height:1.5;color:${MUTED};">${escape(c.extra.lead)} <a href="${escape(c.extra.href)}" style="color:${BRAND};font-weight:600;">${escape(c.extra.label)}</a></p>`
+    ? `<p style="margin:0;font-size:14px;line-height:1.5;color:${MUTED};">${escape(c.extra.lead)} <a href="${escape(c.extra.href)}" style="color:${LINK};font-weight:600;">${escape(c.extra.label)}</a></p>`
     : "";
 
   const html = `<!doctype html>
@@ -71,7 +75,7 @@ function render(to: string, c: Content): Mail {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAGE};">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td style="background:${BRAND};padding:18px 24px;">
+<tr><td style="background:#000000;padding:18px 24px;">
 <img src="${escape(base)}/icon-192.png" width="36" height="36" alt="" style="vertical-align:middle;border-radius:8px;border:0;">
 <span style="vertical-align:middle;margin-left:10px;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">Accucery</span>
 </td></tr>

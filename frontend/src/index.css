@@ -8,7 +8,7 @@
 @keyframes scaleOut      { from { opacity: 1; transform: scale(1) translateY(0) }      to { opacity: 0; transform: scale(0.96) translateY(6px) } }
 
 /* ── Design tokens (#110) ──
-   Teal on neutral surfaces, in light and dark. Dark follows the phone unless
+   Green on neutral surfaces, in light and dark. Dark follows the phone unless
    the Appearance setting overrides it via data-theme on <html>; the dark
    values are repeated because a media query and an attribute selector can't
    share one block. */
@@ -26,12 +26,16 @@
   --line-soft: #f0f1f3;
   --line-strong: #d1d5db;
   --track: #e5e7eb;
-  --primary: #0d7a70;
-  --on-primary: #ffffff;
-  --primary-soft: #dcf3f0;
-  /* The Owner's dashboard bars: a teal step checked against this surface. */
-  --chart: #00897b;
-  --logo-tick: #22a896;
+  /* Brand green (2026-10-20): fills carry black text, 7.8:1. As text on a
+     light surface it reads too faintly (2.5:1), so text and outlines use the
+     deeper ink, 5:1. */
+  --primary: #44b340;
+  --on-primary: #000000;
+  --primary-ink: #2b7a28;
+  --primary-soft: #e3f4e2;
+  /* The Owner's dashboard bars: a green step checked against this surface. */
+  --chart: #3d9e39;
+  --logo-tick: #44b340;
   --danger: #dc2626;
   --on-danger: #ffffff;
   --danger-soft: #fdecec;
@@ -64,11 +68,12 @@
     --line-soft: #24272c;
     --line-strong: #3a3e45;
     --track: #33363c;
-    --primary: #3ccfbc;
-    --on-primary: #06231f;
-    --primary-soft: #173431;
-    --chart: #17a491;
-    --logo-tick: #7fe3d6;
+    --primary: #44b340;
+    --on-primary: #000000;
+    --primary-ink: #44b340;
+    --primary-soft: #1a2e1a;
+    --chart: #44b340;
+    --logo-tick: #44b340;
     --danger: #f87171;
     --on-danger: #1f0606;
     --danger-soft: #3a1d1d;
@@ -99,11 +104,12 @@
   --line-soft: #24272c;
   --line-strong: #3a3e45;
   --track: #33363c;
-  --primary: #3ccfbc;
-  --on-primary: #06231f;
-  --primary-soft: #173431;
-  --chart: #17a491;
-  --logo-tick: #7fe3d6;
+  --primary: #44b340;
+  --on-primary: #000000;
+  --primary-ink: #44b340;
+  --primary-soft: #1a2e1a;
+  --chart: #44b340;
+  --logo-tick: #44b340;
   --danger: #f87171;
   --on-danger: #1f0606;
   --danger-soft: #3a1d1d;
@@ -151,7 +157,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   line-height: 1;
   letter-spacing: -0.02em;
   white-space: nowrap;
-  color: var(--primary);
+  color: var(--text);
 }
 
 .home-wordmark .wordmark-tick { stroke: var(--logo-tick); }
@@ -162,7 +168,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-radius: 50%;
   border: none;
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--primary-ink);
   font-size: 0.9rem;
   font-weight: 700;
   display: grid;
@@ -233,7 +239,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .list-card--dragging { transition: none; }
 
-.list-card:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.list-card:focus-visible { outline: 2px solid var(--primary-ink); outline-offset: -2px; }
 
 .list-card-head {
   display: flex;
@@ -491,7 +497,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   outline: none;
 }
 
-.new-list-name:focus { border-color: var(--primary); }
+.new-list-name:focus { border-color: var(--primary-ink); }
 
 /* Scrolls sideways; the negative margin lets chips run to the screen edge. */
 .name-chips {
@@ -519,7 +525,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .name-chip--on {
-  border-color: var(--primary);
+  border-color: var(--primary-ink);
   background: var(--primary-soft);
   color: var(--text);
 }
@@ -543,7 +549,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 
-.store-tile--on { border-color: var(--primary); background: var(--primary-soft); }
+.store-tile--on { border-color: var(--primary-ink); background: var(--primary-soft); }
 
 .store-tile-swatch {
   width: 14px;
@@ -563,7 +569,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 
-.store-tile-check { color: var(--primary); flex-shrink: 0; }
+.store-tile-check { color: var(--primary-ink); flex-shrink: 0; }
 
 /* Pinned to the bottom, so Create stays in thumb's reach and above the
    keyboard (the viewport resizes for it, see index.html). */
@@ -772,7 +778,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .item-sub { font-size: 0.8rem; color: var(--muted); }
-.item-card { color: var(--primary); font-weight: 600; }
+.item-card { color: var(--primary-ink); font-weight: 600; }
 
 .item-line-total {
   font-size: 0.95rem;
@@ -854,7 +860,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 2px solid var(--primary);
   border-radius: 99px;
   background: none;
-  color: var(--primary);
+  color: var(--primary-ink);
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
@@ -931,7 +937,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   outline: none;
 }
 
-.add-search:focus { border-color: var(--primary); }
+.add-search:focus { border-color: var(--primary-ink); }
 
 .add-done {
   flex-shrink: 0;
@@ -984,7 +990,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .add-flash {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-ink);
   animation: fadeIn 0.15s ease-out both;
 }
 
@@ -996,7 +1002,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 2px solid var(--primary);
   border-radius: 50%;
   background: none;
-  color: var(--primary);
+  color: var(--primary-ink);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -1036,7 +1042,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   height: 64px;
   border-radius: 50%;
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--primary-ink);
   display: grid;
   place-items: center;
   font-size: 1.4rem;
@@ -1050,7 +1056,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .privacy-body { padding: 0 1rem; max-width: 40rem; margin: 0 auto; color: var(--text-2); font-size: 0.92rem; line-height: 1.55; }
 .privacy-body h3 { margin: 1.4rem 0 0.4rem; font-size: 1rem; font-weight: 700; color: var(--text); }
 .privacy-body ul { padding-left: 1.1rem; display: grid; gap: 0.45rem; }
-.privacy-body a { color: var(--primary); }
+.privacy-body a { color: var(--primary-ink); }
 .privacy-body ul + p { margin-top: 0.6rem; }
 .privacy-updated { color: var(--faint); font-size: 0.78rem; }
 
@@ -1099,7 +1105,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .auth-switch {
   border: none;
   background: none;
-  color: var(--primary);
+  color: var(--primary-ink);
   font-weight: 700;
   cursor: pointer;
   padding: 0.25rem;
@@ -1118,12 +1124,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   outline: none;
 }
 
-.auth-input:focus { border-color: var(--primary); }
+.auth-input:focus { border-color: var(--primary-ink); }
 .auth-hint { color: var(--muted); font-size: 0.8rem; margin-top: -0.4rem; }
 .auth-privacy { color: var(--muted); font-size: 0.8rem; text-align: center; }
-.auth-privacy a { color: var(--primary); }
+.auth-privacy a { color: var(--primary-ink); }
 .auth-error { margin: 0; }
-.auth-notice { color: var(--primary); font-size: 0.85rem; font-weight: 600; margin: 0; }
+.auth-notice { color: var(--primary-ink); font-size: 0.85rem; font-weight: 600; margin: 0; }
 a.auth-switch { text-decoration: none; }
 .auth-button-link { display: block; text-align: center; text-decoration: none; box-sizing: border-box; }
 
@@ -1142,7 +1148,7 @@ a.auth-switch { text-decoration: none; }
   padding: 1rem 1rem 0 1.25rem;
 }
 
-.intro-brand { font-size: 1.1rem; font-weight: 800; color: var(--primary); letter-spacing: -0.01em; }
+.intro-brand { font-size: 1.1rem; font-weight: 800; color: var(--primary-ink); letter-spacing: -0.01em; }
 
 .intro-skip {
   padding: 0.5rem 0.75rem;
@@ -1253,7 +1259,7 @@ a.auth-switch { text-decoration: none; }
   border: none;
   border-radius: 99px;
   background: var(--on-primary);
-  color: var(--primary);
+  color: var(--primary-ink);
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
@@ -1288,7 +1294,7 @@ a.auth-switch { text-decoration: none; }
 
 .item-sheet-prices dt { font-size: 0.75rem; color: var(--muted); }
 .item-sheet-prices dd { font-size: 1.05rem; font-weight: 700; }
-.item-sheet-card { color: var(--primary); }
+.item-sheet-card { color: var(--primary-ink); }
 .item-sheet-struck { color: var(--faint); text-decoration: line-through; }
 
 .item-sheet-qty,
@@ -1417,7 +1423,7 @@ a.auth-switch { text-decoration: none; }
   background: var(--surface);
   color: var(--text);
 }
-.modal-input:focus { border-color: var(--primary); }
+.modal-input:focus { border-color: var(--primary-ink); }
 
 .modal-actions {
   display: flex;
@@ -1662,7 +1668,7 @@ a.auth-switch { text-decoration: none; }
   font-size: 1.9rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--primary);
+  color: var(--primary-ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1759,7 +1765,7 @@ a.auth-switch { text-decoration: none; }
   padding: 0;
   border: none;
   background: none;
-  color: var(--primary);
+  color: var(--primary-ink);
   font-weight: 700;
   font-size: inherit;
   cursor: pointer;
@@ -1780,7 +1786,7 @@ a.auth-switch { text-decoration: none; }
   vertical-align: 0.1em;
 }
 
-.substitute-badge--shopper { background: var(--primary-soft); color: var(--primary); }
+.substitute-badge--shopper { background: var(--primary-soft); color: var(--primary-ink); }
 .substitute-badge--popular { background: var(--popular-bg); color: var(--popular); }
 
 .compare-candidate-list {
@@ -1813,7 +1819,7 @@ a.auth-switch { text-decoration: none; }
   line-height: 1.3;
 }
 
-.compare-candidate--chosen { border-color: var(--primary); background: var(--primary-soft); }
+.compare-candidate--chosen { border-color: var(--primary-ink); background: var(--primary-soft); }
 
 .compare-radio {
   width: 1.25rem;
@@ -1850,7 +1856,7 @@ a.auth-switch { text-decoration: none; }
   border-radius: 12px;
   background: var(--surface);
 }
-.location-icon { color: var(--primary); display: flex; }
+.location-icon { color: var(--primary-ink); display: flex; }
 .location-icon svg { width: 20px; height: 20px; }
 .location-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
 .location-title { font-weight: 700; font-size: 0.95rem; }
@@ -1875,7 +1881,7 @@ a.auth-switch { text-decoration: none; }
   background: none;
   border: 0;
   padding: 0;
-  color: var(--primary);
+  color: var(--primary-ink);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -1949,7 +1955,7 @@ a.auth-switch { text-decoration: none; }
 .premium-card p { margin: 0 0 1rem; line-height: 1.5; }
 .premium-perks { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; }
 .premium-perks li { display: flex; gap: 0.75rem; align-items: flex-start; }
-.premium-perks li svg { flex: none; width: 20px; height: 20px; color: var(--primary); margin-top: 2px; }
+.premium-perks li svg { flex: none; width: 20px; height: 20px; color: var(--primary-ink); margin-top: 2px; }
 .premium-perks li > span { display: flex; flex-direction: column; gap: 2px; }
 .premium-perks li > span > span { color: var(--muted); font-size: 0.9rem; }
 .premium-plans { margin-bottom: 1rem; }
@@ -1957,7 +1963,7 @@ a.auth-switch { text-decoration: none; }
 .premium-saving {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-ink);
   background: color-mix(in srgb, var(--primary) 12%, transparent);
   border-radius: 99px;
   padding: 0.2rem 0.6rem;
@@ -1969,7 +1975,7 @@ a.auth-switch { text-decoration: none; }
 .premium-note, .premium-error { margin: 0.875rem 1.25rem; }
 .settings-row--link { text-decoration: none; color: inherit; }
 .profile-legal a + a { margin-left: 1rem; }
-.premium-fine a { color: var(--primary); }
+.premium-fine a { color: var(--primary-ink); }
 
 /* ── Landing page (2026-10-14) ──
    A newcomer's first view in a browser, and /welcome. Unlike the app it uses
@@ -2022,7 +2028,7 @@ html.on-landing #root { max-width: none; }
   display: inline-block;
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-ink);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 99px;
@@ -2080,7 +2086,7 @@ html.on-landing #root { max-width: none; }
 .landing-phone-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .landing-phone-price { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; white-space: nowrap; }
 .landing-phone-price s { font-weight: 500; font-size: 0.72rem; color: var(--muted); }
-.landing-phone-price b { color: var(--primary); }
+.landing-phone-price b { color: var(--primary-ink); }
 .landing-phone-total {
   display: flex;
   justify-content: space-between;
@@ -2108,7 +2114,7 @@ html.on-landing #root { max-width: none; }
   box-shadow: 0 14px 30px -12px var(--shadow);
 }
 .landing-phone-badge > span { display: flex; flex-direction: column; line-height: 1.2; }
-.landing-phone-badge small { color: var(--primary); font-weight: 700; font-size: 0.75rem; }
+.landing-phone-badge small { color: var(--primary-ink); font-weight: 700; font-size: 0.75rem; }
 @media (max-width: 380px) { .landing-phone-badge { left: -0.5rem; } }
 .landing-hero-inner > .landing-phone { margin-bottom: 1.6rem; }
 
@@ -2151,7 +2157,7 @@ html.on-landing #root { max-width: none; }
   height: 46px;
   border-radius: 14px;
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--primary-ink);
 }
 .landing-feature h3 { margin-top: 1rem; font-size: 1.08rem; }
 .landing-feature p { margin-top: 0.35rem; color: var(--text-2); line-height: 1.5; }
@@ -2167,7 +2173,7 @@ html.on-landing #root { max-width: none; }
 }
 .landing-points { list-style: none; display: flex; flex-direction: column; gap: 1.1rem; margin-top: 1.5rem; }
 .landing-points li { display: flex; gap: 0.8rem; align-items: flex-start; }
-.landing-points li > svg { flex: none; color: var(--primary); margin-top: 2px; }
+.landing-points li > svg { flex: none; color: var(--primary-ink); margin-top: 2px; }
 .landing-points li > span { display: flex; flex-direction: column; gap: 0.2rem; }
 .landing-points li > span > span { color: var(--text-2); line-height: 1.5; }
 
@@ -2202,10 +2208,10 @@ html.on-landing #root { max-width: none; }
   font-weight: 700;
 }
 .landing-faq summary::-webkit-details-marker { display: none; }
-.landing-faq summary::after { content: "+"; font-size: 1.4rem; font-weight: 400; line-height: 1; color: var(--primary); }
+.landing-faq summary::after { content: "+"; font-size: 1.4rem; font-weight: 400; line-height: 1; color: var(--primary-ink); }
 .landing-faq details[open] summary::after { content: "–"; }
 .landing-faq details p { padding: 0 1.15rem 1.1rem; color: var(--text-2); line-height: 1.55; }
-.landing-faq a { color: var(--primary); }
+.landing-faq a { color: var(--primary-ink); }
 
 .landing-final { background: var(--primary); color: var(--on-primary); text-align: center; padding: 3.5rem 0; }
 .landing-final h2 { font-size: clamp(1.7rem, 5vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em; }
@@ -2225,7 +2231,7 @@ html.on-landing #root { max-width: none; }
   font-weight: 600;
   text-decoration: none;
 }
-.landing-footer-link:hover { color: var(--primary); }
+.landing-footer-link:hover { color: var(--primary-ink); }
 .landing-footer-note { margin-top: 0.75rem; color: var(--muted); font-size: 0.8rem; line-height: 1.5; max-width: 48rem; }
 
 @media (prefers-reduced-motion: reduce) { .landing { animation: none; } }
@@ -2267,7 +2273,7 @@ html.on-landing #root { max-width: none; }
     text-decoration: none;
   }
   .app-bar-link:hover { background: var(--surface-2); }
-  .app-bar-link--on { color: var(--primary); }
+  .app-bar-link--on { color: var(--primary-ink); }
   .app-bar-new {
     display: inline-flex;
     align-items: center;
@@ -2404,7 +2410,7 @@ html.on-landing #root { max-width: none; }
 .owner-section { padding: 8px 16px 16px; }
 .owner-section .settings-section-title { padding-left: 0; }
 .owner-ok { display: flex; gap: 8px; align-items: center; color: var(--text-2); background: var(--surface); border-radius: 12px; padding: 12px 14px; margin: 0; }
-.owner-ok span { color: var(--primary); font-weight: 700; }
+.owner-ok span { color: var(--primary-ink); font-weight: 700; }
 .owner-alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .owner-alert { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; color: var(--text); }
 .owner-alert--warning { background: var(--warn-bg); border: 1px solid var(--warn-line); }
@@ -2432,7 +2438,7 @@ html.on-landing #root { max-width: none; }
 .owner-chart-days { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 4px; }
 .owner-chart-guide-label { color: var(--muted); }
 .owner-chart-table { margin-top: 8px; font-size: 14px; color: var(--text-2); }
-.owner-chart-table summary { cursor: pointer; color: var(--primary); }
+.owner-chart-table summary { cursor: pointer; color: var(--primary-ink); }
 .owner-chart-table table, .owner-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .owner-chart-table td, .owner-chart-table th { padding: 4px 0; text-align: left; border-bottom: 1px solid var(--line-soft); }
 .owner-table-wrap { background: var(--surface); border-radius: 12px; padding: 4px 14px; overflow-x: auto; }
@@ -2460,10 +2466,10 @@ html.on-landing #root { max-width: none; }
   font: inherit;
   font-size: 16px; /* 16px or more, so phones don't zoom in on it */
 }
-.owner-search input:focus { outline: none; border-color: var(--primary); }
+.owner-search input:focus { outline: none; border-color: var(--primary-ink); }
 .owner-count { margin: 8px 0; font-size: 13px; }
-.owner-clear { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
-.owner-who { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.owner-clear { background: none; border: 0; padding: 0; color: var(--primary-ink); font: inherit; font-weight: 600; cursor: pointer; }
+.owner-who { background: none; border: 0; padding: 0; color: var(--primary-ink); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
 
 /* Photo search (2026-10-16): the camera beside the search box, and what the
    photo read as. */
