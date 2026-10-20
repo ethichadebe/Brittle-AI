@@ -94,6 +94,24 @@ describe("matchItem", () => {
     expect(result.suggestions.map((s) => s.productId)).toEqual(["pnp-chicken"]);
   });
 
+  // 2026-10-20: comparing a Woolworths whole chicken at Checkers offered
+  // mixed portions, because Checkers' whole chicken is named "Per KG" and so
+  // had no size. Priced per kilogram, it is the match.
+  it("matches a whole chicken sold per kilogram, costed by weight", async () => {
+    const chicken = { productId: "w-chicken", productName: "Free Range Whole Chicken Avg 1.3 kg", regularPrice: 92.39, imageUrl: "" };
+    const search = catalogue([
+      product({ productId: "portions", name: "Farmer's Choice Frozen Chicken Mixed Portions With Brine Based Mixture 5kg", regularPrice: 245 }),
+      product({ productId: "goldi", name: "Goldi Chicken Frozen Chicken Mixed Portions 2kg", regularPrice: 109.99 }),
+      product({ productId: "whole", name: "Simple Truth Free-Range Fresh Whole Chicken Per KG", regularPrice: 64.99 }),
+    ]);
+
+    const result = await matchItem(chicken, "checkers", search);
+    if (!result.matched) throw new Error(`expected a match: ${result.reason}`);
+    expect(result.substitute.substitute.productId).toBe("whole");
+    expect(result.substitute.substitute.unit).toBe("g");
+    expect(result.substitute.substitute.unitPrice * 1300).toBeCloseTo(84.49, 2);
+  });
+
   // #89's own mutation check: a candidate whose pack size is a different
   // dimension entirely (mass vs volume) must never be applied as a
   // Substitute, and the reason must name pack size. Removing the

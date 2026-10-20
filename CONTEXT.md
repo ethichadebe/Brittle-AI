@@ -82,7 +82,8 @@ _Avoid_: official substitute, community substitute, crowd pick
 
 **Pack Size**:
 How much product one unit contains, as the store names it — 500 g, 2 L,
-6 x 1 L, or a count: 18 Pack, Pack of 6.
+6 x 1 L, or a count: 18 Pack, Pack of 6. Something sold by weight and named
+"Per KG" has a **Pack Size** of 1 kg, since that is what its price buys.
 _Avoid_: size, weight, volume, quantity
 
 **Unit Price**:
