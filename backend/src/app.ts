@@ -14,6 +14,7 @@ import { premiumRoutes } from "./routes/premium.js";
 import { crawlerRoutes } from "./routes/crawlers.js";
 import { ownerRoutes } from "./routes/owner.js";
 import { barcodeRoutes } from "./routes/barcode.js";
+import { handoffRoutes } from "./routes/handoff.js";
 import type { HealthResponse } from "@accucery/types";
 import { responded } from "./alerts/serverErrors.js";
 import { redactingStream } from "./logRedact.js";
@@ -66,6 +67,7 @@ export async function buildApp(
   await app.register(crawlerRoutes);
   await app.register(ownerRoutes);
   await app.register(barcodeRoutes);
+  await app.register(handoffRoutes);
 
   return app;
 }

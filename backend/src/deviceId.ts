@@ -48,7 +48,12 @@ export async function registerDeviceId(app: FastifyInstance): Promise<void> {
 // A new anonymous identity for this browser, with nothing behind it. Also
 // used once an Account is deleted (#151), so the device starts afresh.
 export function issueDeviceId(req: FastifyRequest, reply: FastifyReply): void {
-  const deviceId = randomUUID();
+  useDeviceId(req, reply, randomUUID());
+}
+
+// Makes `deviceId` this browser's identity from now on. Also used when an
+// identity is handed over from the app's old address (handoff.ts, #200).
+export function useDeviceId(req: FastifyRequest, reply: FastifyReply, deviceId: string): void {
   req.deviceId = deviceId;
   reply.setCookie(DEVICE_ID_COOKIE, deviceId, {
     httpOnly: true,

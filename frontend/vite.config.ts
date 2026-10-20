@@ -21,8 +21,8 @@ function buildId(): Plugin {
       this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build: BUILD_ID }) });
       const sw = readFileSync(new URL("./sw.js", import.meta.url), "utf8").replace("__BUILD_ID__", BUILD_ID);
       this.emitFile({ type: "asset", fileName: "sw.js", source: sw });
-      // Google reads ads.txt from the main domain (ethichadebe.me); this copy
-      // on the app's own address is for checking it's right.
+      // Google reads ads.txt from the root of the site's own domain. Since
+      // #200 that's the app's address, accucery.com, so this is the copy read.
       if (ADS_ON) this.emitFile({ type: "asset", fileName: "ads.txt", source: adsTxt(ADSENSE_CLIENT) });
     },
   };
