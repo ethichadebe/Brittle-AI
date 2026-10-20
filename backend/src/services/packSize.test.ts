@@ -62,6 +62,15 @@ describe("parsePackSize", () => {
     expect(parsePackSize("Large Eggs 6's")).toEqual({ quantity: 6, unit: "each" });
   });
 
+  // 2026-10-20: Checkers names what it sells by weight "Per KG", priced per kilogram.
+  it("reads a price per kilogram as a 1 kg size", () => {
+    expect(parsePackSize("Simple Truth Free-Range Fresh Whole Chicken Per KG")).toEqual({ quantity: 1000, unit: "g" });
+    expect(parsePackSize("Beef Mince per kg")).toEqual({ quantity: 1000, unit: "g" });
+    expect(parsePackSize("Bananas /kg")).toEqual({ quantity: 1000, unit: "g" });
+    expect(parsePackSize("Lamb Chops Avg 1.2kg Per Kilogram")).toEqual({ quantity: 1000, unit: "g" });
+    expect(parsePackSize("Kgotla Spice Supper 500g")).toEqual({ quantity: 500, unit: "g" });
+  });
+
   it("prefers a weight or volume to a count, and never reads a bare number as one", () => {
     expect(parsePackSize("Yum Yum Smooth Peanut Butter 18 x 15g")).toEqual({ quantity: 270, unit: "g" });
     expect(parsePackSize("Large Eggs 18")).toBeNull();

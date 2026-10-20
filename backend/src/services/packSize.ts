@@ -36,6 +36,11 @@ const SIMPLE = new RegExp(`(${NUM})\\s*(${UNIT})\\b`, "gi");
 // one: nothing says what it counts.
 const COUNT = /(\d+)\s*(?:pk|packs?|pcs?|pieces?|ea|each)\b|\bpack\s+of\s+(\d+)\b|(\d+)\s*'s\b/gi;
 
+// Sold by weight: "Whole Chicken Per KG", "Beef Mince per kg", "Bananas /kg".
+// The price is for one kilogram, so that is the size (2026-10-20: Checkers'
+// whole chicken, named this way, was dropped from a compare for having none).
+const PER_KG = /\bper\s*(?:kg|kilo(?:gram)?)\b|\/\s*kg\b/i;
+
 function toNumber(raw: string): number {
   return Number(raw.replace(",", "."));
 }
@@ -50,6 +55,9 @@ function lastMatch(pattern: RegExp, name: string): RegExpExecArray | null {
 }
 
 export function parsePackSize(name: string): PackSize | null {
+  // First: a shelf weight like "Avg 1.3kg" next to it is not what the price buys.
+  if (PER_KG.test(name)) return { quantity: 1000, unit: "g" };
+
   const multiplier = lastMatch(MULTIPLIER, name);
   if (multiplier) {
     const count = toNumber(multiplier[1]);
