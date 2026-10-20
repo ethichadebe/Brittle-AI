@@ -46,7 +46,7 @@ say() { printf '%s\n' "$*"; }
   say ""
   say "== nginx sites that serve this app"
   found=0
-  match="accucery|ethichadebe"
+  match="accucery"
   [ -n "$port" ] && match="$match|127\.0\.0\.1:${port##*:}([^0-9]|\$)"
   for dir in $NGINX_DIRS; do
     [ -d "$dir" ] || continue
