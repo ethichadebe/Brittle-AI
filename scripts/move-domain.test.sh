@@ -104,6 +104,8 @@ check "and retires its service worker" "$(has "$site" "rewrite ^ /api/handoff/sw
 check "while its API keeps answering" "$(has "$site" "location /api/ {")"
 check "the old address keeps its certificate" "$(has "$site" "ssl_certificate $BOX/le/live/$OLD/fullchain.pem;")"
 check "plain http goes to https for all three" "$(has "$site" "server_name accucery.com www.accucery.com $OLD;")"
+check "straight to the new address, not via the old one's https" "$(has "$site" "# Plain http, for all three names: straight on to https://accucery.com.")"
+check "with one forward for all three" "$([ "$(grep -c 'return 301 https://accucery.com$request_uri;' <<<"$site")" = 2 ] && echo 1 || echo 0)"
 check "FRONTEND_URL is the new address" "$(grep -qx 'FRONTEND_URL=https://accucery.com' "$BOX/app/.env" && echo 1 || echo 0)"
 check "the rest of .env is untouched" "$(grep -qx 'BACKEND_IMAGE=ghcr.io/x@sha256:abc' "$BOX/app/.env" && grep -qx 'POSTGRES_PASSWORD=secret-value' "$BOX/app/.env" && echo 1 || echo 0)"
 check "the backend is recreated with the new address" "$(has "$(calls)" "up -d --no-deps --force-recreate backend (FRONTEND_URL=FRONTEND_URL=https://accucery.com)")"

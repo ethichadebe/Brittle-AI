@@ -12,3 +12,14 @@
 - **Worked first time:** yes. The test fails if the forward goes back to 302.
 - **Laptop needed:** no.
 - **Friction:** the session's container lost Postgres again. Restarting it was enough.
+
+## Later the same day: Change of address
+
+- **Search Console:**
+  - The owner verified accucery.com, and its sitemap was read (4 pages).
+  - They added the old sub-domain alone as a Domain property, `accucery.ethichadebe.me`. That kept their personal site, ethichadebe.me, out of it.
+- **Change of address failed** "301-redirect from homepage", though https://accucery.ethichadebe.me/ answered 301 to accucery.com.
+  - **The cause:** plain http on the old address forwarded first to its own https (`https://$host`), and only that went on to accucery.com. Google checks the first hop.
+  - **Fixed on the server** with a one-line edit to the nginx site, backed up first and checked by `nginx -t`. All three names now go from http straight to `https://accucery.com`.
+  - **Shoppers' lists still carry over.** The old address sent HSTS for a year, so returning browsers go to its https by themselves and never use this forward.
+- **`scripts/move-domain.sh`** now writes the same thing, and its test checks for it.

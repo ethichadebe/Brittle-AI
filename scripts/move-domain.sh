@@ -131,8 +131,10 @@ write_site() { # $1: "serve" keeps the old address serving the app; "handover" f
       printf '    location / {\n        rewrite ^ /api/handoff/send break;\n        proxy_pass         http://%s;\n%s\n        proxy_set_header   X-Handoff-To      $request_uri;\n    }\n' "$UPSTREAM" "$proxy_headers"
       printf '}\n\n'
     fi
-    printf '# Plain http, for all three names: on to https.\n'
-    printf 'server {\n    listen 80;\n    listen [::]:80;\n    server_name %s www.%s %s;\n    return 301 https://$host$request_uri;\n}\n' "$NEW" "$NEW" "$OLD"
+    # Straight to the new address, never via the old one's https: Search
+    # Console's "Change of address" checks the old home page's first hop.
+    printf '# Plain http, for all three names: straight on to https://%s.\n' "$NEW"
+    printf 'server {\n    listen 80;\n    listen [::]:80;\n    server_name %s www.%s %s;\n    return 301 https://%s$request_uri;\n}\n' "$NEW" "$NEW" "$OLD" "$NEW"
   } > "$SITE"
 }
 
