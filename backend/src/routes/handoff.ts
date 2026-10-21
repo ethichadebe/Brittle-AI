@@ -36,7 +36,10 @@ export async function handoffRoutes(app: FastifyInstance) {
     const to = safePath(req.headers["x-handoff-to"]);
     const own = req.cookies[DEVICE_ID_COOKIE];
     const code = isValidDeviceId(own) ? createHandoff(own) : null;
-    if (!code) return reply.redirect(base + to, 302);
+    // Nothing to carry, as for a search engine's crawler: "moved for good"
+    // (301), so search results swap the old address for the new one. A
+    // handover stays 302: its code is single-use, never one to remember.
+    if (!code) return reply.redirect(base + to, 301);
     return reply.redirect(`${base}/api/handoff/receive?code=${encodeURIComponent(code)}&to=${encodeURIComponent(to)}`, 302);
   });
 

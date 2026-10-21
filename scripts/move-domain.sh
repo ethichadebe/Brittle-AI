@@ -143,6 +143,9 @@ apply_site() { # $1: serve | handover
     restore; exit 1
   fi
   nginx -s reload || { restore; exit 1; }
+  # A reload is signalled, not waited for: give the new workers a moment
+  # before anything is checked against them.
+  sleep 2
 }
 
 apply_site serve

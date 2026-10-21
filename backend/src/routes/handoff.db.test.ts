@@ -113,9 +113,11 @@ describe("moving to the new address", () => {
     expect(deviceCookie(received)).toBeUndefined();
   });
 
-  it("sends a browser with no identity straight on", async () => {
+  // Google's crawler carries no cookie. A permanent move is what makes it
+  // replace the old address with the new one in search results.
+  it("sends a browser with no identity straight on, as a permanent move", async () => {
     const res = await app.inject({ method: "GET", url: "/handoff/send", headers: { host: OLD_HOST, "x-handoff-to": "/welcome" } });
-    expect(res.statusCode).toBe(302);
+    expect(res.statusCode).toBe(301);
     expect(res.headers.location).toBe(NEW + "/welcome");
   });
 
