@@ -9,6 +9,11 @@ import { checkForUpdate, fetchServedBuild } from "./lib/appUpdate";
 import { startAnalytics, trackPage } from "./lib/analytics";
 import { startAdsUnlessPremium } from "./lib/ads";
 import { api } from "./lib/api";
+import { captureInstallPrompt } from "./lib/install";
+
+// The browser offers to install the app early, often before React is up:
+// kept for the landing page's Install app button (lib/install.ts).
+captureInstallPrompt(window);
 
 // Before the first render, so a chosen Appearance never flashes the phone's.
 applyAppearance(document.documentElement, readAppearance(() => window.localStorage));

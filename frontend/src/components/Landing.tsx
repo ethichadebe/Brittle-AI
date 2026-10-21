@@ -5,6 +5,7 @@ import { Wordmark } from "./Wordmark";
 import { StoreLogo } from "./StoreBrand";
 import { CompareArt, TotalArt, TrolleyArt } from "./Intro";
 import { DISCLAIMER } from "./Disclaimer";
+import { InstallApp } from "./InstallApp";
 import { formatRand } from "../lib/format";
 
 interface LandingProps {
@@ -43,7 +44,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
   { q: "Which stores does it cover?", a: `${STORES_IN_WORDS}, with more on the way.` },
   {
     q: "Do I need an account?",
-    a: "No. You can start a list straight away. Make an account when you want your lists on more than one device.",
+    a: "Not to start: make a list straight away. Comparing your list with another store needs a free account, which also keeps your lists on all your devices.",
   },
   {
     q: "Where do the prices come from?",
@@ -51,7 +52,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
   },
   {
     q: "Is there an app to download?",
-    a: "No download needed. Accucery runs in your browser, and you can add it to your home screen: on Android, open the browser menu and tap Install app; on iPhone, tap Share, then Add to Home Screen.",
+    a: "No app store needed. Accucery runs in your browser, and Install app at the top of this page adds it to your home screen like any other app.",
   },
   {
     q: "What do you do with my information?",
@@ -120,7 +121,8 @@ export function Landing({ onStart, onSignIn, onOpenApp }: LandingProps) {
                 <button className="btn btn-primary btn-pill landing-cta-main" onClick={onStart}>
                   Start my list
                 </button>
-                <p className="landing-cta-note">No download. No sign-up needed.</p>
+                <InstallApp />
+                <p className="landing-cta-note">Free. No sign-up to start.</p>
               </div>
               <p className="landing-sign-in">
                 Already have an account?{" "}

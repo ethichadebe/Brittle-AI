@@ -1,0 +1,23 @@
+# 2026-10-21 — An Install app button, and the FAQ says comparing needs an account
+
+- **Asked for:**
+  - The landing page FAQ said no account was needed. Comparing does need one, so fix that.
+  - Is there a way to offer a download button, for people who don't know a browser can install a site? The owner chose the landing page only.
+- **What changed:**
+  - **The FAQ:**
+    - "Do I need an account?" now says not to start, but comparing needs a free account.
+    - "Is there an app to download?" points to the new button.
+    - The note under the main button reads "Free. No sign-up to start."
+  - **An "Install app" button** beside "Start my list" (`components/InstallApp.tsx`, `lib/install.ts`). What it does depends on the browser:
+    - **Android Chrome, Edge and Samsung Internet:** the browser offers its own install dialog early (`beforeinstallprompt`). main.tsx keeps that offer before React starts, and one tap on the button shows it.
+    - **iPhone and iPad Safari:** Apple gives websites no install prompt. The button opens three short steps: Share, Add to Home Screen, Add.
+    - **Instagram's, Facebook's and TikTok's own browsers**, where an ad opens: these can't install anything on either phone. The button says to open the page in the phone's browser first. This matters because Instagram is where the ads run.
+    - **Already installed, or a browser with no way to install** (desktop Safari, or Chrome before it offers): no button.
+- **Worked first time:** yes.
+  - Tests cover each browser's case, and that the browser's offer is kept and shown once.
+  - The landing page was checked in a real browser posing as Android Chrome, iPhone Safari and Instagram on iPhone:
+    - Android showed the native prompt and the button went away once accepted.
+    - iPhone and Instagram showed their steps.
+    - Desktop showed no button before an offer.
+- **Laptop needed:** no.
+- **Friction:** none.
