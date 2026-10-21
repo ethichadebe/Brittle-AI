@@ -16,6 +16,15 @@ describe("the share card", () => {
     }
   });
 
+  // 2026-10-21: what a search result shows under the name, at first.
+  it("has a search description naming every store, short enough to show whole", () => {
+    const description = html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? "";
+    for (const store of ["Checkers", "Pick n Pay", "Shoprite", "Woolworths", "Makro", "Clicks"]) {
+      expect(description, store).toContain(store);
+    }
+    expect(description.length).toBeLessThanOrEqual(160);
+  });
+
   it("asks X for the large picture card", () => {
     expect(meta("name", "twitter:card")).toBe("summary_large_image");
     expect(meta("name", "twitter:image")).toBe(meta("property", "og:image"));

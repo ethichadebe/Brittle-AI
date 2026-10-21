@@ -8,7 +8,11 @@ import { appUrl } from "../mail/mailer.js";
 
 // The pages worth finding in a search. Everything else is someone's own
 // lists and account, or a step in a flow.
-export const PUBLIC_PAGES = ["/", "/welcome", "/privacy", "/terms"];
+export const PUBLIC_PAGES = ["/", "/privacy", "/terms"];
+
+// Open to search engines but left out of the sitemap: each is the same page
+// as another, and says so (nginx.conf sends a canonical Link header).
+export const SAME_AS: Record<string, string> = { "/welcome": "/" };
 
 // Never worth indexing: per-person pages, and steps reached only from a link.
 const PRIVATE = [

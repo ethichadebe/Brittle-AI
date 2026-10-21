@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { SAME_AS } from "./routes/crawlers.js";
 
 // #153. nginx drops the server's add_header lines from any location that has
 // one of its own, so a header set only at the server level silently vanishes
@@ -76,5 +77,23 @@ describe("the page's share card", () => {
     // Every other page is index.html too, through this location.
     expect(locations(conf).find((l) => l.head === "/")?.body).toContain("try_files $uri $uri/ /index.html;");
     expect(readFileSync(join(REPO, "frontend", "index.html"), "utf8")).toContain("__SITE_ORIGIN__/og-image.jpg");
+  });
+});
+
+// 2026-10-21: a page that is the same as another (crawlers.ts, SAME_AS) says
+// so to search engines with a canonical Link header, sent where index.html is.
+describe("a page the same as another", () => {
+  it("names the one to list, for exactly those pages", () => {
+    const map = conf.match(/map \$request_uri \$canonical_link \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    for (const [page, target] of Object.entries(SAME_AS)) {
+      const rule = map.split("\n").find((l) => l.includes(page));
+      expect(rule, page).toContain(`"<https://$host${target}>; rel=\\"canonical\\""`);
+    }
+    expect(map).toMatch(/default\s+"";/);
+  });
+
+  it("sends it as index.html is served", () => {
+    const page = locations(conf).find((l) => l.head === "= /index.html");
+    expect(page?.body).toContain("add_header Link $canonical_link;");
   });
 });
