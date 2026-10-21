@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import Fastify from "fastify";
-import { crawlerRoutes, LINK_PREVIEW_BOTS, PUBLIC_PAGES, robotsTxt, sitemapXml } from "./crawlers.js";
+import { crawlerRoutes, LINK_PREVIEW_BOTS, PUBLIC_PAGES, SAME_AS, robotsTxt, sitemapXml } from "./crawlers.js";
 
 const REPO = join(import.meta.dirname, "..", "..", "..");
 const ORIGIN = "https://app.example.com";
@@ -25,13 +25,26 @@ describe("robots.txt and the sitemap", () => {
     process.env.FRONTEND_URL = before;
   });
 
-  it("decide about every page: either in the sitemap, or kept out of search", () => {
+  it("decide about every page: in the sitemap, the same as one that is, or kept out of search", () => {
     const blocked = disallowed(robotsTxt(ORIGIN));
     expect(pages.length).toBeGreaterThan(10);
     for (const page of pages) {
       const listed = PUBLIC_PAGES.includes(page);
+      const same = page in SAME_AS;
       const kept = blocked.some((b) => page.startsWith(b));
-      expect(listed !== kept, `${page}: add it to PUBLIC_PAGES or to the Disallow list in crawlers.ts`).toBe(true);
+      expect([listed, same, kept].filter(Boolean), `${page}: add it to PUBLIC_PAGES, SAME_AS or the Disallow list in crawlers.ts`).toHaveLength(1);
+    }
+  });
+
+  // 2026-10-21: /welcome is the landing page a first visit to / shows. It
+  // stays open to search engines, so they can read that it's the same page,
+  // but only / is offered to them.
+  it("offer one address per page: a page the same as another stays out of the sitemap", () => {
+    const xml = sitemapXml(ORIGIN);
+    for (const [page, target] of Object.entries(SAME_AS)) {
+      expect(xml).not.toContain(`<loc>${ORIGIN}${page}</loc>`);
+      expect(PUBLIC_PAGES).toContain(target);
+      expect(disallowed(robotsTxt(ORIGIN)).some((b) => page.startsWith(b)), page).toBe(false);
     }
   });
 
@@ -60,7 +73,6 @@ describe("robots.txt and the sitemap", () => {
     expect(robotsTxt(ORIGIN)).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
     const xml = sitemapXml(ORIGIN);
     expect(xml).toContain(`<loc>${ORIGIN}/</loc>`);
-    expect(xml).toContain(`<loc>${ORIGIN}/welcome</loc>`);
     expect(xml).not.toContain("/lists");
   });
 
