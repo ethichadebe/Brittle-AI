@@ -18,6 +18,7 @@ This repository ships through Mobile Delivery: someone describes a change from t
   - secrets — `gitleaks dir . --config .gitleaks.toml --redact --verbose`. CI runs this on every pull request and fails on a finding. If you do not have gitleaks installed, CI will catch it; it reports only the rule, file and line, so reproduce locally to see what tripped.
 - **Add a change note** to `docs/journal/` in the same pull request: a dated file saying what changed, whether it worked first time, whether a laptop was needed, and anything that got in the way. See `docs/journal/README.md`.
 - Keep the pull request description short and plain: what changed, and why.
+- **Test on beta first.** Every pull request deploys to the password-protected test site, https://beta.accucery.com (`docs/beta.md`), once the `BETA_DEPLOY` repository variable is `on`. The owner tests every change there before merging, so a pull request's "How to test" says what to try on beta.accucery.com, not on the live site.
 
 **Never:**
 

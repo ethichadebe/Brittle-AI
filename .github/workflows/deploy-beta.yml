@@ -1,0 +1,38 @@
+# The test site, beta.accucery.com (password-protected): every pull request is
+# deployed there first, so a change can be tried on a phone before it is
+# merged and goes live. The same shared deploy as Deploy (deploy.yml), to the
+# server's `accucery-beta` copy: its own folder, network and database, so a
+# pull request's migrations run there first and the live data is never
+# touched. See docs/beta.md.
+#
+# Off until the server is set up (scripts/setup-beta.sh): it runs only once
+# the repository variable BETA_DEPLOY is `on` (Settings > Secrets and
+# variables > Actions > Variables). Until then the job is skipped, not failed.
+
+name: Deploy to beta
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch: {}
+
+# One deploy to the one test site at a time; a newer push waits its turn
+# rather than cutting the previous one off halfway.
+concurrency:
+  group: deploy-beta
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # A fork's pull request gets no secrets, and must never reach the server.
+    if: vars.BETA_DEPLOY == 'on' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    uses: ethichadebe/workflows/.github/workflows/compose-deploy.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      app: accucery-beta
+      backend-dockerfile: backend/Dockerfile
+      frontend-dockerfile: frontend/Dockerfile
+    secrets: inherit
