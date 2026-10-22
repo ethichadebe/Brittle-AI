@@ -116,6 +116,8 @@ site=$(cat "$BOX/nginx/avail/accucery-beta")
 check "the site asks for the password" "$(has "$site" "auth_basic_user_file $BOX/htpasswd;")"
 check "and tells search engines to keep out" "$(has "$site" 'add_header X-Robots-Tag "noindex, nofollow" always;')"
 check "and serves the test site's own port" "$(has "$site" "proxy_pass         http://127.0.0.1:8085;")"
+check "but lets Chrome see what it needs to offer Install app" "$(has "$site" 'location ~ ^/(manifest\.webmanifest|sw\.js|icon\.svg|icon-[a-z0-9-]+\.png|apple-touch-icon\.png)$ {')"
+check "with the password off for those files only" "$([ "$(grep -c 'auth_basic off;' <<<"$site")" = 1 ] && echo 1 || echo 0)"
 check "is switched on in nginx" "$([ -L "$BOX/nginx/enabled/accucery-beta" ] && echo 1 || echo 0)"
 check "starts the stack in the beta folder only" "$(has "$(cat "$BOX/log/calls")" "--project-directory $BOX/beta up -d (cwd=$BOX/beta)")"
 check "checks it asks for the password" "$(has "$out" "asks for the password")"
