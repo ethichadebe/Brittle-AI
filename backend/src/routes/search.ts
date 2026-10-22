@@ -4,6 +4,7 @@ import { search } from "../services/search.js";
 import { findOwnedList, ownerKey } from "../listOwnership.js";
 import { branchOf } from "../scraper/branch.js";
 import { LIMITS, limiter, takeForIp, tooMany } from "../rateLimit.js";
+import { recordSearch } from "../services/collect.js";
 
 export async function searchRoutes(app: FastifyInstance) {
   // listId (#131): search as that list's branch, when it's the caller's own
@@ -24,9 +25,11 @@ export async function searchRoutes(app: FastifyInstance) {
     if (wait) {
       const cached = await search(store as StoreSlug, q.trim(), branch, { cacheOnly: true });
       if (cached === null) return tooMany(reply, wait, "searches");
+      await recordSearch({ storeSlug: store, query: q, resultCount: cached.length, limited: true });
       return reply.send({ products: cached });
     }
     const products = await search(store as StoreSlug, q.trim(), branch);
+    await recordSearch({ storeSlug: store, query: q, resultCount: products.length });
     return reply.send({ products });
   });
 }

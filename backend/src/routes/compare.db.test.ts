@@ -131,6 +131,11 @@ describe("POST /lists/:id/compare", () => {
     expect(body.items[0].matched).toBe(true);
     expect(body.items[0].substitute.productId).toBe("sr-milk");
     expect(body.total).toBeCloseTo(27);
+
+    // Kept for later (services/collect.ts), with nothing to say whose it was.
+    const [kept] = await testPrisma.compareLog.findMany();
+    expect(kept).toMatchObject({ fromStore: "checkers", toStore: "shoprite", itemCount: 1, matchedCount: 1 });
+    expect(kept.toTotal.toNumber()).toBeCloseTo(27);
   });
 
   it("keeps an unmatched item visible and marks the comparison incomplete rather than dropping it", async () => {

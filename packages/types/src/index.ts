@@ -360,3 +360,8 @@ export interface BarcodeLookupResponse {
   /** What to search for, or null when Open Food Facts doesn't know the barcode. */
   name: string | null;
 }
+
+// The shopper's "Keep my shopping history" switch (2026-10-22).
+export interface HistorySetting {
+  on: boolean;
+}
