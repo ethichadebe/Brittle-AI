@@ -46,6 +46,13 @@ describe("security headers", () => {
     expect(policy).toContain("microphone=()");
   });
 
+  // The shopping history records the phone's model (services/collect.ts),
+  // which Chrome sends only once a page has asked for it.
+  it("ask Chrome for the phone's model and platform", () => {
+    expect(snippet).toMatch(/add_header Accept-CH "[^"]*Sec-CH-UA-Model[^"]*" always;/);
+    expect(snippet).toMatch(/add_header Accept-CH "[^"]*Sec-CH-UA-Platform[^"]*" always;/);
+  });
+
   it("reach the image the frontend image is built from", () => {
     const dockerfile = readFileSync(join(REPO, "frontend", "Dockerfile"), "utf8");
     expect(dockerfile).toContain("COPY nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf");

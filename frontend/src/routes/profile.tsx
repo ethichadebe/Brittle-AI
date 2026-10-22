@@ -40,6 +40,17 @@ function ProfilePage() {
     if (account) api.owner.check().then(() => setOwnerId(account.id)).catch(() => {});
   }, [account]);
   const owner = Boolean(account && ownerId === account.id);
+  // Kept for the device, or the Account once signed in: asked again when
+  // that changes. Null until the server has answered.
+  const [historyOn, setHistoryOn] = useState<boolean | null>(null);
+  const [confirmHistoryOff, setConfirmHistoryOff] = useState(false);
+  useEffect(() => {
+    api.history.get().then((h) => setHistoryOn(h.on)).catch(() => setHistoryOn(null));
+  }, [account]);
+  const saveHistory = (on: boolean) => {
+    setConfirmHistoryOff(false);
+    api.history.set(on).then((h) => setHistoryOn(h.on)).catch(() => {});
+  };
   const { isEnabled, toggle } = useLoyaltySettings();
   const { appearance, setAppearance } = useAppearance();
   const [signingOut, setSigningOut] = useState(false);
@@ -156,6 +167,44 @@ function ProfilePage() {
         ))}
       </div>
 
+      {historyOn !== null && (
+        <div className="settings-section">
+          <h3 className="settings-section-title">Your data</h3>
+          <div className="settings-row">
+            <div className="settings-row-info">
+              <span className="settings-row-label">Keep my shopping history</span>
+              <span className="settings-row-sub">What you add and tick off, and when. Turning it off deletes it.</span>
+            </div>
+            <button
+              role="switch"
+              aria-checked={historyOn}
+              aria-label="Keep my shopping history"
+              className={`toggle${historyOn ? " toggle--on" : ""}`}
+              onClick={() => (historyOn ? setConfirmHistoryOff(true) : saveHistory(true))}
+            />
+          </div>
+        </div>
+      )}
+
+      {confirmHistoryOff && (
+        <div className="modal-backdrop" onClick={() => setConfirmHistoryOff(false)}>
+          <div className="modal" role="dialog" aria-label="Turn off shopping history" onClick={(e) => e.stopPropagation()}>
+            <h3>Turn off shopping history?</h3>
+            <p className="modal-body">
+              Your shopping history is deleted straight away, and nothing new is kept. Your lists stay as they are.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setConfirmHistoryOff(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-danger" onClick={() => saveHistory(false)}>
+                Turn off and delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="settings-section">
         <h3 className="settings-section-title">Appearance</h3>
         <div className="settings-row">
@@ -191,7 +240,7 @@ function ProfilePage() {
           <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={deleteAccount}>
             <h3>Delete your account?</h3>
             <p className="modal-body">
-              Your account, all your lists and your saved substitutes are deleted straight away. This can't be undone.
+              Your account, all your lists, your saved substitutes and your shopping history are deleted straight away. This can't be undone.
             </p>
             <input
               className="modal-input"

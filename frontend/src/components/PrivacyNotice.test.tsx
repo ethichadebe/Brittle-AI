@@ -38,8 +38,8 @@ describe("the privacy notice and ads", () => {
   });
 
   it("dates the change", () => {
-    expect(text(false)).toContain("Last updated 16 October 2026");
-    expect(text(true)).toContain("Last updated 16 October 2026");
+    expect(text(false)).toContain("Last updated 22 October 2026");
+    expect(text(true)).toContain("Last updated 22 October 2026");
   });
 
   it("still says Google Analytics isn't used for advertising, which stays true", () => {

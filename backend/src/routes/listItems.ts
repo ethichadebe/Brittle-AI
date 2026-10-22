@@ -5,6 +5,7 @@ import { cardPrice, type ListItem, type StoreSlug } from "@accucery/types";
 import { basketPrices } from "../services/basketPrices.js";
 import { branchOf } from "../scraper/branch.js";
 import type { Branch } from "../scraper/types.js";
+import { recordShopping } from "../services/collect.js";
 
 type ListItemRow = Parameters<typeof toListItem>[0];
 
@@ -126,6 +127,15 @@ export async function listItemsRoutes(app: FastifyInstance) {
     // it here as "just now" would let a day-old price skip the refresh a
     // list total depends on, and would let any client set the shared price
     // every other shopper sees.
+    await recordShopping(req, ownerKey(req), "added", {
+      listId: list.id,
+      storeSlug: list.storeSlug,
+      productId,
+      productName,
+      regularPrice,
+      loyaltyPrice,
+      quantity: addedQuantity,
+    });
     const [item] = await priced(list.storeSlug as StoreSlug, [row], branchOf(list.branch));
     return reply.status(existing ? 200 : 201).send(item);
   });
@@ -151,6 +161,18 @@ export async function listItemsRoutes(app: FastifyInstance) {
         ...(isChecked !== undefined && { isChecked }),
       },
     });
+    // Ticked off now, not already ticked: closest to "bought".
+    if (isChecked === true && !existing.isChecked) {
+      await recordShopping(req, ownerKey(req), "ticked", {
+        listId: list.id,
+        storeSlug: list.storeSlug,
+        productId: row.productId,
+        productName: row.productName,
+        regularPrice: row.regularPrice.toNumber(),
+        loyaltyPrice: row.loyaltyPrice?.toNumber() ?? null,
+        quantity: row.quantity,
+      });
+    }
     const [item] = await priced(list.storeSlug as StoreSlug, [row], branchOf(list.branch));
     return item;
   });

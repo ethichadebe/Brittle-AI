@@ -246,3 +246,99 @@ model CreditSpend {
   @@id([day, purpose])
   @@map("credit_spend")
 }
+
+// ── Data collection ──
+// Kept for later use, decided with the owner: nothing here is read by the app
+// yet. Writing to these tables must never break what the shopper is doing
+// (services/collect.ts swallows and logs every failure).
+
+// Every price seen, one row per product, store, zone and Joburg day — the
+// last price of the day wins. price_cache keeps only the latest price; this
+// keeps them all. Store data only: nothing about any shopper.
+model PriceHistory {
+  storeSlug    String
+  productId    String
+  zone         String
+  day          String
+  productName  String
+  regularPrice Decimal
+  loyaltyPrice Decimal?
+  seenAt       DateTime
+
+  @@id([storeSlug, productId, zone, day])
+  @@index([storeSlug, productId])
+  @@map("price_history")
+}
+
+// Each search a shopper typed, and how many products came back. Not linked to
+// who searched (the privacy notice says so).
+model SearchLog {
+  id          String   @id @default(uuid())
+  at          DateTime @default(now())
+  storeSlug   String
+  query       String
+  resultCount Int
+  // The device was over its search limit, so only an answer already known
+  // could be given.
+  limited     Boolean  @default(false)
+
+  @@index([at])
+  @@map("search_log")
+}
+
+// Each comparison's outcome: what the list cost at its own store and at the
+// other one, and how each item matched. Not linked to who compared.
+model CompareLog {
+  id           String   @id @default(uuid())
+  at           DateTime @default(now())
+  fromStore    String
+  toStore      String
+  itemCount    Int
+  matchedCount Int
+  // The list's own total, and the other store's total for the matched items.
+  fromTotal    Decimal
+  toTotal      Decimal
+  // Matched items only, at their own store, so the two totals compare.
+  fromMatchedTotal Decimal
+  // [{ productId, productName, quantity, price, matched, toProductId?,
+  //    toProductName?, cost?, source?, reason? }]
+  items        Json
+
+  @@index([at])
+  @@map("compare_log")
+}
+
+// A shopper's shopping history: each item added to a list or ticked off.
+// Keyed by whoever owns the list — an Account, or a device without one — and
+// moved to the Account when that device signs in. Deleted when the shopper
+// switches it off (HistoryOptOut) or deletes their Account.
+model ShoppingEvent {
+  id           String   @id @default(uuid())
+  at           DateTime @default(now())
+  ownerId      String
+  // "added" | "ticked"
+  kind         String
+  // Not a relation: the history outlives the list and the item.
+  listId       String
+  storeSlug    String
+  productId    String
+  productName  String
+  regularPrice Decimal
+  loyaltyPrice Decimal?
+  quantity     Int
+  // What the browser says about the device: the phone model where Chrome
+  // shares it (Sec-CH-UA-Model), else just the platform ("iPhone", "Windows").
+  deviceModel  String?
+  platform     String?
+
+  @@index([ownerId, at])
+  @@map("shopping_events")
+}
+
+// An Account or device that switched its shopping history off.
+model HistoryOptOut {
+  ownerId String   @id
+  at      DateTime @default(now())
+
+  @@map("history_opt_outs")
+}

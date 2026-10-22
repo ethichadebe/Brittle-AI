@@ -3,6 +3,7 @@ import { searchProducts } from "../scraper/engine.js";
 import type { Branch } from "../scraper/types.js";
 import type { StoreSlug } from "@accucery/types";
 import { CREDIT_STORES } from "../scraper/credits.js";
+import { recordPrice } from "./collect.js";
 
 export const TTL_MS = 60 * 60 * 1000; // 1 hour
 // #157 (decided with the owner): a list item at a store that costs ScraperAPI
@@ -55,6 +56,8 @@ export async function upsertCache(entry: {
     },
     create: { ...entry, scrapedAt: new Date() },
   });
+  // The cache keeps only the latest price; the history keeps every day's.
+  await recordPrice(entry);
 }
 
 export async function refreshItems(

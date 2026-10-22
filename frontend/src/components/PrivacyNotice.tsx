@@ -13,7 +13,7 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
   return (
     <article className="privacy-body">
-      <p className="privacy-updated">Last updated 16 October 2026</p>
+      <p className="privacy-updated">Last updated 22 October 2026</p>
 
       <h3>Who is responsible</h3>
       <p>
@@ -38,8 +38,19 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
           shoppers may see a substitute suggested as popular: that's a count of picks, with no names.
         </li>
         <li>
-          <strong>What people search for</strong> is kept with the prices found, so the next search is faster. It isn't linked to
-          who searched.
+          <strong>Your shopping history</strong>: each item you add to a list or tick off, with its price, quantity and when, and
+          what your browser says about your device (the phone's model, such as "SM-A546E", where Chrome shares it, or just
+          "iPhone" or "Windows"). It's kept with your account, or against this device's code without one, so we can learn what
+          people buy and build features on it. It stays after you remove the item. Turn it off on your Profile at any time:
+          that deletes it and stops it. It's deleted with your account too.
+        </li>
+        <li>
+          <strong>What people search for</strong>, with how many products were found, and the prices found, kept day by day so
+          we can see how prices change. A search isn't linked to who searched.
+        </li>
+        <li>
+          <strong>Comparison results</strong>: which stores, the totals, and which product stood in for which. Not linked to who
+          compared.
         </li>
         <li>Your settings (appearance, loyalty cards, using your location) stay on your device, not with us.</li>
       </ul>
@@ -128,9 +139,10 @@ export function PrivacyNotice({ adsOn }: { adsOn: boolean }) {
 
       <h3>How long we keep it</h3>
       <p>
-        Until you delete it. Deleting your account cancels any Premium subscription, then removes your account, your lists and
-        your substitute picks straight away. The only thing kept is the fingerprint of a card that had a free trial, with nothing
-        to say whose it was. A list made without an account stays until you delete it.
+        Until you delete it. Deleting your account cancels any Premium subscription, then removes your account, your lists, your
+        shopping history and your substitute picks straight away. The only thing kept is the fingerprint of a card that had a free trial, with nothing
+        to say whose it was. A list made without an account stays until you delete it, and so does
+        its shopping history until you turn it off. Prices, searches and comparison results aren't anyone's, so they're kept.
       </p>
       <p>
         If you sign up but never confirm your email, the sign-up is deleted within a day of its link expiring. Password reset

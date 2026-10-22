@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../password.js";
 import { claimAnonymousLists, type ListCollision } from "../claimAnonymousLists.js";
+import { forgetHistory } from "../services/collect.js";
 import { resolveListCollision, type CollisionResolution } from "../resolveListCollision.js";
 import { LIMITS, limiter, tooMany, takeForIp } from "../rateLimit.js";
 import { issueDeviceId } from "../deviceId.js";
@@ -270,8 +271,10 @@ export async function accountsRoutes(app: FastifyInstance) {
     // hand; their items follow by cascade. Sessions and substitute decisions
     // cascade from the Account itself. Popular Substitutes are counted from
     // those decisions each time (loadPopular), so nothing of this Account
-    // stays in them; cached prices belong to the stores, not to anyone.
+    // stays in them; cached prices belong to the stores, not to anyone. The
+    // shopping history is keyed by id, not a relation, so it goes by hand too.
     await prisma.$transaction([
+      ...forgetHistory(account.id),
       prisma.list.deleteMany({ where: { userId: account.id } }),
       prisma.account.delete({ where: { id: account.id } }),
     ]);

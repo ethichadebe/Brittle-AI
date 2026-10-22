@@ -3,6 +3,7 @@ import type {
   BranchLookup,
   ComparisonResult,
   GroceryList,
+  HistorySetting,
   ListItem,
   PremiumOutcome,
   PremiumPlan,
@@ -158,6 +159,12 @@ export const api = {
     /** Resolves only for the Owner's Account. */
     check: () => request<void>("/owner"),
     dashboard: () => request<OwnerDashboard>("/owner/dashboard"),
+  },
+
+  // The "Keep my shopping history" switch, for this device or Account.
+  history: {
+    get: () => request<HistorySetting>("/history"),
+    set: (on: boolean) => request<HistorySetting>("/history", { method: "PUT", body: JSON.stringify({ on }) }),
   },
 
   // #171: Premium, paid through Paystack.

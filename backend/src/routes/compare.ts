@@ -6,6 +6,7 @@ import { findOwnedList, ownerKey } from "../listOwnership.js";
 import { compareList } from "../services/compare.js";
 import { loadDecisions, loadPopular } from "../services/substituteDecisions.js";
 import { LIMITS, limiter, tooMany } from "../rateLimit.js";
+import { recordComparison } from "../services/collect.js";
 
 export async function compareRoutes(app: FastifyInstance) {
   // POST /lists/:id/compare
@@ -59,18 +60,16 @@ export async function compareRoutes(app: FastifyInstance) {
       decisions.set(productId, { ...decisions.get(productId), popular: pick });
     }
 
-    const comparison = await compareList(
-      items.map((i) => ({
-        id: i.id,
-        productId: i.productId,
-        productName: i.productName,
-        regularPrice: i.regularPrice.toNumber(),
-        quantity: i.quantity,
-        imageUrl: i.imageUrl,
-      })),
-      targetStore,
-      decisions
-    );
+    const listItems = items.map((i) => ({
+      id: i.id,
+      productId: i.productId,
+      productName: i.productName,
+      regularPrice: i.regularPrice.toNumber(),
+      quantity: i.quantity,
+      imageUrl: i.imageUrl,
+    }));
+    const comparison = await compareList(listItems, targetStore, decisions);
+    await recordComparison(fromStore, targetStore, listItems, comparison);
 
     return reply.send({ storeSlug: targetConfig.slug, ...comparison });
   });

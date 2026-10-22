@@ -1,4 +1,5 @@
 import { prisma } from "./db.js";
+import { moveHistory } from "./services/collect.js";
 
 export interface ListCollision {
   anonymousListId: string;
@@ -17,6 +18,8 @@ export interface ListCollision {
 // has no lists of its own, so every anonymous list transfers with no
 // collision possible; that is the same code path, not a special case.
 export async function claimAnonymousLists(deviceId: string, accountId: string): Promise<ListCollision[]> {
+  // The device's shopping history goes with its lists.
+  await moveHistory(deviceId, accountId);
   const anonymousLists = await prisma.list.findMany({
     where: { userId: deviceId },
     select: { id: true, name: true, storeSlug: true },
