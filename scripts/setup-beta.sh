@@ -133,6 +133,14 @@ server {
     auth_basic "Accucery beta";
     auth_basic_user_file $HTPASSWD;
     add_header X-Robots-Tag "noindex, nofollow" always;
+    # What Chrome fetches, without the password, to decide whether to offer
+    # "Install app": public files, the same as on the live site.
+    location ~ ^/(manifest\.webmanifest|sw\.js|icon\.svg|icon-[a-z0-9-]+\.png|apple-touch-icon\.png)\$ {
+        auth_basic off;
+        proxy_pass         http://$PORT;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+    }
     location / {
         proxy_pass         http://$PORT;
         proxy_http_version 1.1;
