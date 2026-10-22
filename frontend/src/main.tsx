@@ -10,6 +10,7 @@ import { startAnalytics, trackPage } from "./lib/analytics";
 import { startAdsUnlessPremium } from "./lib/ads";
 import { api } from "./lib/api";
 import { captureInstallPrompt } from "./lib/install";
+import { siteOf } from "./lib/site";
 
 // The browser offers to install the app early, often before React is up:
 // kept for the landing page's Install app button (lib/install.ts).
@@ -42,15 +43,20 @@ if (import.meta.env.PROD) {
 
 const router = createRouter({ routeTree });
 
-// Google Analytics: production only, and only once a Measurement ID is set
+// The live site, or the test site every pull request lands on first
+// (lib/site.ts). The test site is marked on every screen (index.css).
+const site = siteOf(window.location.hostname);
+document.documentElement.dataset.site = site;
+
+// Google Analytics: the live site only, and only once a Measurement ID is set
 // (src/analyticsConfig.ts). One page view per screen the router settles on.
-if (import.meta.env.PROD && startAnalytics()) {
+if (import.meta.env.PROD && site === "live" && startAnalytics()) {
   router.subscribe("onResolved", ({ toLocation }) => trackPage(toLocation.pathname));
 }
 
-// AdSense: production only, only once its publisher id is set
+// AdSense: the live site only, only once its publisher id is set
 // (src/adsConfig.ts), and never for a Premium account (#172).
-if (import.meta.env.PROD) void startAdsUnlessPremium(async () => (await api.premium.status()).premium);
+if (import.meta.env.PROD && site === "live") void startAdsUnlessPremium(async () => (await api.premium.status()).premium);
 
 declare module "@tanstack/react-router" {
   interface Register {

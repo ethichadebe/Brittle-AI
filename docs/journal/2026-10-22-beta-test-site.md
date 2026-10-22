@@ -1,0 +1,36 @@
+# 2026-10-22 — A test site at beta.accucery.com, deployed from every pull request
+
+- **Asked for:** with the app live, a link to test changes on before they go live, on a subdomain of accucery.com.
+- **Decided with the owner:**
+  - **The address:** beta.accucery.com, password-protected.
+  - **When it deploys:** from every pull request, automatically.
+  - **Searches:** the same ScraperAPI key, so all six stores work.
+- **What changed:**
+  - **`.github/workflows/deploy-beta.yml`:** the shared deploy, to a second app on the server, `accucery-beta`.
+    - It runs on every pull request from this repo, never from a fork, one deploy at a time.
+    - It is off until the repository variable `BETA_DEPLOY` is `on`, so pull requests aren't marked failed before the server is ready.
+  - **ethichadebe/workflows (its own pull request):**
+    - An `accucery-beta` block in the dispatcher: `/opt/accucery-beta`, its own network, candidate ports 13002 and 18083.
+    - Its port test now covers only candidate ports, the ones published on the host. `BACKEND_PORT` is the port inside the app's own container, which two apps built from one image rightly share.
+  - **`scripts/setup-beta.sh`:** the one-time server side.
+    - A checkout in `/opt/accucery-beta`.
+    - A `.env` from the live one, with the test site's own address, port and database password. No Paystack, Telegram alerts or report token.
+    - Its own empty database.
+    - Nginx with HTTPS, a password (user `beta`, stored hashed) and `X-Robots-Tag: noindex`.
+    - A re-run keeps the existing `.env`. A fresh database password would lock the app out of its own database.
+  - **The frontend:**
+    - `lib/site.ts` tells the live site from the test site.
+    - Analytics and ads now run only at accucery.com.
+    - The test site shows a BETA tag on every screen.
+  - **`docs/beta.md`:** the owner's four setup steps.
+- **Worked first time:** mostly.
+  - **The setup script's test** covers each check, the `.env` it writes and what it must never print. Removing the keep-the-`.env` branch fails it.
+  - **The nginx site it writes** passed a real nginx:
+    - It asked for the password and refused a wrong one.
+    - It served the app with the right one.
+    - It sent noindex everywhere, and http forwarded to https.
+  - **That nginx run caught a bug:** the password file was only readable by `www-data`'s group. It now takes the group of whatever user nginx runs as on the box.
+- **Laptop needed:** no. The owner adds one DNS record and runs two commands from Hostinger's web terminal.
+- **Friction:**
+  - The deploy dispatcher lives in ethichadebe/workflows, which never changes other repos. So the beta needed a change there and one here.
+  - The session's attempt to test it end to end stopped at the server, which a cloud session can't reach.
